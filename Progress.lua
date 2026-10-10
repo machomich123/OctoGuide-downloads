@@ -111,11 +111,10 @@ end
 function G.InitProgress()
   if G.progressInitialized then return end
   G.progressInitialized=true
-  -- RegisterEvent itself is the compatibility probe. ClassicAPI documents and
-  -- implements QUEST_TURNED_IN as a server-confirmed event with the questID.
+  -- Registration can succeed even when an older client never emits the event.
+  -- Keep the server-history fallback active alongside the native event.
   local target=G.events or CreateFrame('Frame')
   local ok=pcall(function() target:RegisterEvent('QUEST_TURNED_IN') end)
-  if ok then G.turnInEventAvailable=true;return end
-  G.turnInEventAvailable=false
+  G.turnInEventAvailable=ok
   G.fallbackProgressAvailable=startFallback()
 end

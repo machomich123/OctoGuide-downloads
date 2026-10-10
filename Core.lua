@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.3.5',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.3.6',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -153,9 +153,22 @@ function G.Back()
   G.db.progress[G.Key(G.state.steps[i])]=nil;G.pauseAuto=true;G.db.reviewGuide=G.state.guide.id;G.Current();G.Render()
 end
 function G.QuestIndex(id)
-  if not C_QuestLog or type(C_QuestLog.GetLogIndexForQuestID)~='function' then return nil end
-  local ok,index=pcall(C_QuestLog.GetLogIndexForQuestID,id)
-  if ok and type(index)=='number' and index>0 then return index end
+  if type(id)~='number' or id<=0 then return nil end
+  if C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID)=='function' then
+    local ok,index=pcall(C_QuestLog.GetLogIndexForQuestID,id)
+    if ok and type(index)=='number' and index>0 then return index end
+  end
+  -- Older ClassicAPI versions expose only the index-to-ID direction.
+  -- Never guess by title: separate quests in a chain can share a name.
+  local readID=C_QuestLog and C_QuestLog.GetQuestIDForLogIndex
+  if type(readID)~='function' then readID=GetQuestIDFromLogIndex end
+  if type(readID)~='function' or type(GetNumQuestLogEntries)~='function' then return nil end
+  local ok,count=pcall(GetNumQuestLogEntries)
+  if not ok or type(count)~='number' then return nil end
+  for index=1,count do
+    local valid,questID=pcall(readID,index)
+    if valid and questID==id then return index end
+  end
 end
 function G.Objectives(step)
   local index=step.questID and G.QuestIndex(step.questID);local list={}

@@ -1,3 +1,9 @@
+# 0.3.6
+
+- Support older ClassicAPI quest-log ID lookup.
+- Keep verified quest turn-in fallback active when registered native events are silent.
+- Preserve saved progress and exact quest-ID matching.
+
 # Changelog
 
 ## 0.3.5
