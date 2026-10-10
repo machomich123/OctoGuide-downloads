@@ -5,7 +5,7 @@ Install through OctoLauncher using this Git repository URL:
 https://github.com/machomich123/OctoGuide-downloads
 
 The launcher installs the folder **OctoGuide-downloads** and loads
-**OctoGuide-downloads.toc**. This contains the same OctoGuide 0.3.4 runtime,
+**OctoGuide-downloads.toc**. This contains the same OctoGuide 0.3.5 runtime,
 with asset paths adapted to the launcher's folder name. Updates are detected
 from new commits on main. ZIP release downloads remain available separately.
 

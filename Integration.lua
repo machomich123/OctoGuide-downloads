@@ -20,7 +20,7 @@ function G.Gather(category)
   G.gatherTarget={zone=best.zone,x=best.x/100,y=best.y/100,text=best.name,key=best.key}
   G.Chat('Pointing to '..best.name..' (possible spawn; not guaranteed present). /octoguide route returns to quest navigation.');G.Render();return true
 end
-function G.Slash(msg)
+function G.HandleSlash(msg)
   local cmd=string.lower(msg or '')
   if not G.ready then G.Chat('Wait for character login.');return end
   if cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
@@ -36,6 +36,30 @@ function G.Slash(msg)
   elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
   else G.db.hidden=false;G.frame:Show();G.Render() end
 end
+
+-- Consume only our own slash command, leaving unrelated chat drafts intact.
+function G.Slash(msg)
+  local boxes={}
+  local function add(box) if box and type(box.GetText)=='function' and type(box.SetText)=='function' then table.insert(boxes,box) end end
+  add(this);add(ChatFrameEditBox)
+  if type(ChatEdit_GetActiveWindow)=='function' then add(ChatEdit_GetActiveWindow()) end
+  local owned={}
+  for _,box in ipairs(boxes) do
+    local text=box:GetText()
+    if type(text)=='string' then
+      local _,_,command=string.find(string.lower(text),'^%s*(/[^%s]+)')
+      if command=='/octoguide' or command=='/oguide' then table.insert(owned,box) end
+    end
+  end
+  local ok,why=pcall(G.HandleSlash,msg)
+  for _,box in ipairs(owned) do
+    box:SetText('')
+    if type(box.ClearFocus)=='function' then box:ClearFocus() end
+    if type(box.Hide)=='function' then box:Hide() end
+  end
+  if not ok then error(why) end
+end
+
 SLASH_OCTOGUIDE1='/octoguide';SLASH_OCTOGUIDE2='/oguide';SlashCmdList['OCTOGUIDE']=G.Slash
 local events=CreateFrame('Frame');G.events=events
 for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE'}) do pcall(function() events:RegisterEvent(ev) end) end

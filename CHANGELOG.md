@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5
+- The /octoguide and /oguide commands clear and close their own submitted chat input. Unrelated drafts are left intact and command errors remain visible.
+
+
 ## 0.3.4
 - Removed the unsupported rotateMinimap CVar lookup that caused repeated client errors.
 - Route dots use pfQuest's route texture when pfQuest is present.
