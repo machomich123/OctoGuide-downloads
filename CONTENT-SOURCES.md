@@ -1,0 +1,5 @@
+# Horde route content
+
+The primary authored route is Vanilla Questing by Stian Wickstrøm, distributed under the MIT licence: https://github.com/lexicongaming/vanilla-questing-old . Its complete Horde race starts and shared route are converted in original waypoint order. Identical adjoining transition markers are represented once. Quest IDs come from its explicit Horde quest catalogue, checked against the installed MIT pfQuest snapshot. The level 1-5 introductions are original OctoGuide content derived from pfQuest facts. Licence notices are included.
+
+The source describes balanced questing rather than an independently demonstrated fastest solo speedrun. Estimated source experience is a route-placement hint, not a forced XP gate. Elite and dungeon quests require a suitable group; partial quest waypoints require Done after their local work. Normal mode preserves authored death shortcuts. Hardcore replaces shortcut travel with living travel and excludes the death-dependent Videre/Linken chain. Roads and live travel need field validation on OctoWoW. Unknown IDs are explicit manual steps, never fabricated. Paid RestedXP guide content is not included.

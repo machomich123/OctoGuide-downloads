@@ -1,0 +1,183 @@
+local G=OctoGuide
+-- Background asset set. '' = shipped V1 (GuideFull/GuideMinimal). Set to 'V3'
+-- after GuideFullV3.tga / GuideMinimalV3.tga are added to Assets/.
+local OG_BG='V3'
+local function label(parent,size,width,gold)
+ local t=parent:CreateFontString(nil,'OVERLAY');t:SetFont('Fonts\\FRIZQT__.TTF',size,'');t:SetWidth(width);t:SetJustifyH('LEFT');t:SetTextColor(gold and 1 or .91,gold and .78 or .92,gold and .35 or .94);return t
+end
+local function point(o,p,x,y) o:ClearAllPoints();o:SetPoint('TOPLEFT',p,'TOPLEFT',x,-y) end
+local function height(t,v,w,size)
+ t:SetWidth(w);t:SetText(v);t:SetHeight(600)
+ local lines=0
+ for line in string.gfind(v..'\n','(.-)\n') do lines=lines+math.max(1,math.ceil(string.len(line)/math.max(8,w/(size*.65)))) end
+ local h=math.max(lines*(size+4)+4,t.GetStringHeight and t:GetStringHeight()+4 or 0)
+ h=math.max(size+4,h+4);t:SetHeight(h);return h
+end
+local function card(p)
+ local c=CreateFrame('Frame',nil,p);c:SetBackdrop({bgFile='Interface\\Tooltips\\UI-Tooltip-Background',edgeFile='Interface\\Tooltips\\UI-Tooltip-Border',tile=true,tileSize=16,edgeSize=8,insets={left=4,right=4,top=4,bottom=4}});c:SetBackdropColor(.025,.045,.075,.95);if c.SetBackdropBorderColor then c:SetBackdropBorderColor(.48,.36,.16,.8) end;return c
+end
+local function button(p,v,w,fn)
+ local b=CreateFrame('Button',nil,p);b:SetWidth(w);b:SetHeight(26);b.width=w
+ b:SetBackdrop({bgFile='Interface\\Tooltips\\UI-Tooltip-Background',edgeFile='Interface\\Tooltips\\UI-Tooltip-Border',tile=true,tileSize=16,edgeSize=8,insets={left=3,right=3,top=3,bottom=3}});b:SetBackdropColor(.04,.055,.075,.98)
+ b.surface=b:CreateTexture(nil,'ARTWORK');b.surface:SetAllPoints(b);b.surface:SetTexture('Interface\\Buttons\\UI-Panel-Button-Up');if b.surface.SetTexCoord then b.surface:SetTexCoord(0,.625,0,.6875) end
+ b:SetScript('OnMouseDown',function() this.surface:SetTexture('Interface\\Buttons\\UI-Panel-Button-Down') end)
+ b:SetScript('OnMouseUp',function() this.surface:SetTexture('Interface\\Buttons\\UI-Panel-Button-Up') end)
+ if b.SetBackdropBorderColor then b:SetBackdropBorderColor(.4,.3,.12,.8) end
+ b.label=label(b,11,w-8,true);b.label:SetPoint('CENTER',b,'CENTER',0,0);b.label:SetHeight(18);b.label:SetJustifyH('CENTER');if b.label.SetJustifyV then b.label:SetJustifyV('MIDDLE') end
+ function b:SetText(value) self.value=value;self.label:SetText(value) end
+ b:SetText(v);b:SetScript('OnClick',fn)
+ b:SetScript('OnEnter',function() this:SetBackdropColor(.11,.13,.16,1) end)
+ b:SetScript('OnLeave',function() this:SetBackdropColor(.04,.055,.075,.98) end)
+ return b
+end
+function G.BuildUI()
+ local f=CreateFrame('Frame','OctoGuideFrame',UIParent);G.frame=f;f:SetWidth(460);f:SetHeight(600);f:SetPoint('CENTER',UIParent,'CENTER',0,80);f:SetFrameStrata('MEDIUM');f:EnableMouse(true);f:SetMovable(true);f:RegisterForDrag('LeftButton')
+ f:SetScript('OnDragStart',function() this:StartMoving() end)
+ f:SetScript('OnDragStop',function() this:StopMovingOrSizing();local p,r,rp,x,y=this:GetPoint();G.db.position={p,rp,x,y} end)
+ if G.db.position then local p=G.db.position;f:ClearAllPoints();f:SetPoint(p[1],UIParent,p[2],p[3],p[4]) end
+ G.BuildResizeHandles(f)
+ f.bg=f:CreateTexture(nil,'BACKGROUND');f.bg:SetAllPoints(f);f.bg:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\GuideFullV3');if f.bg.SetTexCoord then f.bg:SetTexCoord(.24,.76,.25,.45) end
+ f.skin=G.CreatePanelSkin(f)
+ f.header={}
+ for i=1,3 do local t=f:CreateTexture(nil,'ARTWORK');t:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\GuideFullV3');f.header[i]=t end
+ f.title=label(f,21,240,true);point(f.title,f,105,16);f.title:SetHeight(25);f.title:SetText('OctoGuide')
+ f.route=label(f,10,400);point(f.route,f,22,54);f.route:SetHeight(18)
+ f.routeMode=button(f,'Hardcore',78,function() G.SetMode(G.Mode()=='hardcore' and 'normal' or 'hardcore') end)
+ f.currentCard=card(f);point(f.currentCard,f,15,78)
+ f.section=label(f.currentCard,11,290,true);point(f.section,f,28,87);f.section:SetHeight(18)
+ f.icon=f.currentCard:CreateTexture(nil,'ARTWORK');f.icon:SetWidth(29);f.icon:SetHeight(29)
+ f.step=label(f.currentCard,17,300,true);f.details=label(f.currentCard,12,300)
+ f.arrow=f.currentCard:CreateTexture(nil,'ARTWORK');f.arrow:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\Arrow');f.arrow:SetWidth(44);f.arrow:SetHeight(44)
+ f.distance=label(f.currentCard,12,88,true);f.distance:SetJustifyH('CENTER');f.distance:SetHeight(20)
+ f.objectives={}
+ for i=1,12 do local row=card(f);row.check=row:CreateTexture(nil,'ARTWORK');row.check:SetWidth(18);row.check:SetHeight(18);point(row.check,row,9,8);row.name=label(row,12,320);row.count=label(row,13,68,true);row.count:SetJustifyH('RIGHT');row.count:SetHeight(20);f.objectives[i]=row end
+ f.note=label(f.currentCard,10,400);f.note:SetHeight(28)
+ f.nextCard=card(f);f.nextTitle=label(f.nextCard,11,300,true);f.nextTitle:SetHeight(18);f.nextTitle:SetText('NEXT STEPS')
+ f.nextRows={};for i=1,3 do local r=card(f);r.number=label(r,15,26,true);r.number:SetHeight(22);point(r.number,r,10,12);r.title=label(r,12,350);point(r.title,r,45,10);f.nextRows[i]=r end
+ f.next=label(f,10,300);f.next:Hide();f.footer=label(f,10,300);f.footer:Hide()
+ f.back=button(f,'Back',49,function() G.Back() end)
+ f.skip=button(f,'Skip',49,function() G.Mark('skipped');G.Sync();G.Render() end)
+ f.done=button(f,'Done',56,function() G.Advance() end)
+ f.menu=button(f,'Guides',60,function() G.ToggleMenu() end)
+ f.mode=button(f,'Expand',66,function() G.db.view=G.db.view=='full' and 'minimal' or 'full';G.Render() end)
+ f.settingsButton=button(f,'Settings',65,function() G.ToggleSettings() end)
+ f.close=button(f,'X',26,function() G.db.hidden=true;G.frame:Hide() end)
+ local menu=card(UIParent);G.menu=menu;menu:SetWidth(460);menu:SetHeight(520);menu:SetPoint('CENTER',UIParent,'CENTER',0,0);menu:SetFrameStrata('DIALOG');if menu.SetFrameLevel and f.GetFrameLevel then menu:SetFrameLevel(f:GetFrameLevel()+30) end;menu:EnableMouse(true)
+ menu.title=label(menu,19,400,true);point(menu.title,menu,20,16);menu.title:SetHeight(26);menu.title:SetText('Horde routes')
+ menu.info=label(menu,11,420);point(menu.info,menu,20,45);menu.info:SetHeight(25)
+ menu.rows={};for i=1,14 do local row=button(menu,'',420,function() if this.guideID then local ok,why=G.Select(this.guideID);if ok then G.frame:Show();G.db.hidden=false;G.menu:Hide() else G.Chat(why) end end end);point(row,menu,20,78+(i-1)*28);menu.rows[i]=row end
+ menu.page=1
+ local x=20
+ for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
+ menu:Hide()
+ local options=card(UIParent);G.options=options;options:SetWidth(350);options:SetHeight(450);options:SetPoint('CENTER',UIParent,'CENTER',0,0);options:SetFrameStrata('DIALOG');if options.SetFrameLevel and f.GetFrameLevel then options:SetFrameLevel(f:GetFrameLevel()+30) end;options:EnableMouse(true)
+ options.title=label(options,18,310,true);point(options.title,options,20,18);options.title:SetHeight(24);options.title:SetText('OctoGuide settings')
+ options.rows={}
+ for i,spec in ipairs({{'targets','Quest targets on maps'},{'routes','Waypoint route lines'},{'checkpoints','Numbered checkpoints'},{'minimap','Minimap guidance'}}) do
+  local b=button(options,spec[2],310,function() local o=G.MapOptions and G.MapOptions() or G.db.mapOptions;if not o then return end;o[this.optionKey]=not o[this.optionKey];G.RenderSettings();if G.UpdateMaps then G.UpdateMaps(true) end end);b.optionKey=spec[1];b.optionLabel=spec[2];point(b,options,20,65+(i-1)*40);options.rows[i]=b
+ end
+ options.info=label(options,11,300);point(options.info,options,23,234);options.info:SetHeight(58);options.info:SetText('Lines connect route checkpoints. Follow the written instructions for roads, obstacles and transport.')
+ G.BuildZoomControls(options,label,point)
+ local smaller=button(options,'Narrower',95,function() G.ResizeWidth(-40) end);point(smaller,options,20,394)
+ local wider=button(options,'Wider',95,function() G.ResizeWidth(40) end);point(wider,options,125,394)
+ local b=button(options,'Close',80,function() options:Hide() end);point(b,options,245,394);options:Hide()
+end
+function G.ResizeWidth(delta)
+ G.db.widths=G.db.widths or {};local view=G.db.view or 'full';G.db.widths[view]=math.max(380,math.min(800,(G.db.widths[view] or G.frame:GetWidth())+delta));G.Render()
+end
+function G.RenderSettings()
+ local o=G.MapOptions and G.MapOptions() or G.db.mapOptions or {}
+ for _,b in ipairs(G.options.rows) do b:SetText((o[b.optionKey]~=false and '[ON] ' or '[OFF] ')..b.optionLabel) end
+end
+function G.ToggleSettings() if G.options:IsShown() then G.options:Hide() else G.RenderSettings();G.options:Show() end end
+function G.RenderMenu()
+ local list={};for _,id in ipairs(G.order) do if G.Playable(G.guides[id]) then table.insert(list,id) end end
+ local pages=math.max(1,math.ceil(table.getn(list)/14));G.menu.page=math.min(G.menu.page,pages)
+ G.menu.info:SetText((G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..' routes | Page '..G.menu.page..' / '..pages)
+ for i,row in ipairs(G.menu.rows) do local id=list[(G.menu.page-1)*14+i];row.guideID=id;if id then row:SetText(G.guides[id].title);row:Show() else row:Hide() end end
+end
+function G.ToggleMenu() if G.menu:IsShown() then G.menu:Hide() else G.RenderMenu();G.menu:Show() end end
+function G.Render(layoutOnly)
+ if not G.frame then return end
+ local f=G.frame;local full=G.db.view=='full';local width=math.max(380,math.min(800,(G.db.widths or {})[G.db.view] or (full and 460 or 490)));f:SetWidth(width)
+ -- Legacy background selection is replaced by independent skins.
+ -- f.bg:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\'..((full and 'GuideFull' or 'GuideMinimal')..OG_BG))
+ G.LayoutHeader(f,width)
+ f.routeMode:SetText(G.Mode()=='hardcore' and 'Hardcore' or 'Normal');point(f.routeMode,f,width-102,24);f.mode:SetText(full and 'Minimal' or 'Expand')
+ local cached=layoutOnly and f.layoutData
+ local s=cached and cached.step or G.Current();local guide=G.state and G.state.guide
+ local title,body,action=G.Present(s)
+ local journey=not layoutOnly and G.Travel and G.Travel.Plan(G.RawNavTarget())
+ if journey then body=journey.hint..(body~='' and ('\n'..body) or '') end
+ local objectives=cached and cached.objectives or (s and G.Objectives(s) or {})
+ if not layoutOnly then f.layoutData={step=s,objectives=objectives} end
+ if s and table.getn(objectives)==0 and s.sourceObjective and (action=='objective' or action=='complete' or action=='use') then body=body..'\n'..s.sourceObjective end
+ if G.gatherTarget then title='GATHER: '..G.gatherTarget.text;body='Possible resource spawn. Use /octoguide route to resume quests.';action='collect' end
+ local index=G.state and (G.state.index or table.getn(G.state.steps)) or 0
+ f.route:SetText((guide and guide.title or 'Horde guide')..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
+ local names={accept='ACCEPT QUEST',turnin='TURN IN QUEST',objective='CURRENT OBJECTIVES',complete='CURRENT OBJECTIVES',travel='TRAVEL',collect='GATHER',death='NORMAL SHORTCUT'}
+ f.section:SetText(names[action] or string.upper(action or 'CURRENT STEP'));if full then f.section:Show() else f.section:Hide() end
+ local cardTop=96;local titleTop=full and 130 or 112;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)
+ f.icon:SetTexture(action=='turnin' and 'Interface\\GossipFrame\\ActiveQuestIcon' or 'Interface\\GossipFrame\\AvailableQuestIcon');point(f.icon,f,27,titleTop)
+ point(f.step,f,65,titleTop);local y=titleTop+height(f.step,title,width-188,17)+8
+ point(f.arrow,f,width-86,titleTop-2);point(f.distance,f,width-109,titleTop+54)
+ if body~='' then point(f.details,f,28,y);y=y+height(f.details,body,width-150,12)+9;f.details:Show() else f.details:SetText('');f.details:Hide() end
+ y=math.max(y,titleTop+80)
+ for i,row in ipairs(f.objectives) do local o=objectives[i]
+  if o then
+   point(row,f,25,y);row:SetWidth(width-50)
+   local name=o.name or o.text or '';local current,required=o.current,o.required
+   if not current then local _,_,a,b=string.find(name,'(%d+)%s*/%s*(%d+)');current=tonumber(a);required=tonumber(b);name=string.gsub(name,'%s*:?%s*%d+%s*/%s*%d+','') end
+   row.count:SetText(required and tostring(current or 0)..' / '..required or (o.done and 'Done' or ''));point(row.count,row,width-130,10)
+   row.check:SetTexture(o.done and 'Interface\\Buttons\\UI-CheckBox-Check' or 'Interface\\Buttons\\UI-CheckBox-Up');point(row.name,row,33,8)
+   row.name:SetTextColor(o.done and .48 or .91,o.done and .78 or .92,o.done and .54 or .94)
+   local h=math.max(34,height(row.name,name,width-174,12)+16);row:SetHeight(h);row:Show();y=y+h+5
+  else row:Hide() end
+ end
+ local note=''
+ if s and s.minlevel and UnitLevel('player')<s.minlevel then note='Requires level '..s.minlevel..'.'
+ elseif s and s.action=='turnin' then note='Advances after the quest reward is confirmed.'
+ elseif s and s.manual and table.getn(objectives)==0 then note='Use Done after completing this local action.' end
+ if note~='' then point(f.note,f,28,y+3);y=y+height(f.note,note,width-56,10)+9;f.note:Show() else f.note:Hide() end
+ f.currentCard:SetWidth(width-30);f.currentCard:SetHeight(y-cardTop+10);y=y+24
+ if full then
+  local top=y;point(f.nextCard,f,15,y);f.nextCard:SetWidth(width-30);point(f.nextTitle,f,28,y+10);f.nextTitle:Show();f.nextCard:Show();y=y+36
+  local upcoming=cached and cached.upcoming or {}
+  if not cached and G.state and G.state.index then for i=G.state.index+1,table.getn(G.state.steps) do local n=G.state.steps[i];if not G.db.progress[G.Key(n)] and not G.Satisfied(n) then table.insert(upcoming,n);if table.getn(upcoming)==3 then break end end end end
+  if f.layoutData then f.layoutData.upcoming=upcoming end
+  for i,row in ipairs(f.nextRows) do local n=upcoming[i];if n then local t,b=G.Present(n);if b~='' then t=t..'\n'..b end;point(row,f,25,y);row:SetWidth(width-50);row.number:SetText(i);local h=math.max(43,height(row.title,t,width-109,12)+18);row:SetHeight(h);row:Show();y=y+h+6 else row:Hide() end end
+  f.nextCard:SetHeight(y-top+8);y=y+20
+ else f.nextCard:Hide();f.nextTitle:Hide();for _,row in ipairs(f.nextRows) do row:Hide() end end
+ local buttons={f.back,f.skip,f.done,f.menu,f.mode,f.settingsButton,f.close}
+ local total=0;for _,b in ipairs(buttons) do total=total+b.width end
+ local x=24;local buttonY=y
+ for _,b in ipairs(buttons) do
+  if x+b.width>width-24 then x=24;buttonY=buttonY+32 end
+  b:SetWidth(b.width);b.label:SetWidth(b.width-4);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);x=x+b.width+6
+ end
+ f.done:SetText(s and 'Done' or 'Next');local contentHeight=buttonY+44;f.contentHeight=contentHeight;local finalHeight=math.max(contentHeight,(G.db.heights or {})[G.db.view] or 0);f:SetHeight(finalHeight)
+ if finalHeight>contentHeight then for _,b in ipairs(buttons) do point(b,f,b.layoutX,b.layoutY+finalHeight-contentHeight) end end
+ G.LayoutPanelSkin(f.skin,width,f:GetHeight());G.ApplyZoom()
+ G.tooltipText=nil
+ if not layoutOnly then G.navigationTarget=G.NavTarget();G.UpdateArrow() end
+ if not layoutOnly and G.UpdateMaps then G.UpdateMaps(true) end
+end
+function G.UpdateArrow(elapsed)
+ local f=G.frame;if not f or not f:IsShown() then return end
+ local s=G.NavTarget();if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
+ local result,why=OctoGuideNavigation.ReadWaypoint(s)
+ if not result then f.arrow:Hide();f.distance:SetText(why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
+ local angle=result.angle
+ if angle and elapsed and f.arrowAngle then local d=math.mod(angle-f.arrowAngle+3*math.pi,2*math.pi)-math.pi;angle=f.arrowAngle+d*(1-math.exp(-18*math.min(elapsed,.1))) end
+ f.arrowAngle=angle
+ local rotated=false
+ if angle and f.arrow.SetRotation then f.arrow:SetRotation(-angle);rotated=true
+ elseif angle and f.arrow.SetTexCoord then
+  local c,sn=math.cos(angle),math.sin(angle)
+  local function uv(x,y) return .5+c*x+sn*y,.5-sn*x+c*y end
+  local a,b=uv(-.5,-.5);local c1,d=uv(-.5,.5);local e,h=uv(.5,-.5);local j,k=uv(.5,.5);f.arrow:SetTexCoord(a,b,c1,d,e,h,j,k);rotated=true
+ end
+ if rotated then f.arrow:Show() else f.arrow:Hide() end
+ f.distance:SetText(math.floor(result.yards+.5)..' yd')
+end
+
