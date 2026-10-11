@@ -30,7 +30,7 @@ function G.HandleSlash(msg)
     local lookup=(C_QuestLog and (type(C_QuestLog.GetLogIndexForQuestID)=='function' or type(C_QuestLog.GetQuestIDForLogIndex)=='function')) or type(GetQuestIDFromLogIndex)=='function'
     local history=(C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted)=='function') or (type(QueryQuestsCompleted)=='function' and type(GetQuestsCompleted)=='function')
     local navigation=type(UnitPosition)=='function' and type(GetPlayerFacing)=='function' and C_Map and type(C_Map.GetWorldPosFromMapPos)=='function'
-    G.Chat('Version '..G.version..'. Quest lookup: '..(lookup and 'ready' or 'missing')..'. Completion history: '..(history and 'ready' or 'missing')..'. Position: '..(navigation and 'ready' or 'missing')..'. '..(G.hasFamilyRoutes and 'Family routes loaded.' or 'Family routes not installed.'))
+    G.Chat('Version '..G.version..'. Quest lookup: '..(lookup and 'ready' or 'missing')..'. Completion history: '..(history and 'ready' or 'missing')..'. Position: '..(navigation and 'ready' or 'missing')..'. '..(G.hasFamilyRoutes and 'RestedXP routes loaded.' or 'RestedXP routes not installed.'))
   elseif string.find(cmd,'^level %d+$') then local _,_,n=string.find(cmd,'^level (%d+)$');G.menu.level=tonumber(n);G.menu.page=1;G.RenderMenu();G.menu:Show()
   elseif cmd=='full' or cmd=='minimal' then G.db.view=cmd;G.Render()
   elseif cmd=='guides' then G.ToggleMenu()

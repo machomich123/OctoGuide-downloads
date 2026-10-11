@@ -121,7 +121,8 @@ function G.Render(layoutOnly)
  if s and table.getn(objectives)==0 and s.sourceObjective and (action=='objective' or action=='complete' or action=='use') then body=body..'\n'..s.sourceObjective end
  if G.gatherTarget then title='GATHER: '..G.gatherTarget.text;body='Possible resource spawn. Use /octoguide route to resume quests.';action='collect' end
  local index=G.state and (G.state.index or table.getn(G.state.steps)) or 0
- f.route:SetText(G.RouteLabel(guide)..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
+ local source=G.hasFamilyRoutes and (G.RouteSource()=='rxp' and 'RestedXP' or 'RestedXP installed; baseline') or 'Baseline'
+ f.route:SetText(source..' | '..G.RouteLabel(guide)..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
  local names={accept='ACCEPT QUEST',turnin='TURN IN QUEST',objective='CURRENT OBJECTIVES',complete='CURRENT OBJECTIVES',travel='TRAVEL',collect='GATHER',death='NORMAL SHORTCUT'}
  f.section:SetText(names[action] or string.upper(action or 'CURRENT STEP'));if full then f.section:Show() else f.section:Hide() end
  local cardTop=96;local titleTop=full and 130 or 112;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)

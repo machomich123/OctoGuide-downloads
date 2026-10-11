@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.4.5',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.4.6',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -283,6 +283,7 @@ function G.Init()
   G.player={class=class or cname,race=race or rname,faction=UnitFactionGroup('player')}
   OctoGuideDB=OctoGuideDB or {};G.db=OctoGuideDB;G.db.progress=G.db.progress or {};G.db.completedQuests=G.db.completedQuests or {};G.db.view=G.db.view or 'minimal'
   G.BindCharacter()
+  if G.preferRXPInstall and not G.db.rxpInstallerSelected then G.db.routeSource='rxp';G.db.rxpInstallerSelected=true end
   -- Older common-step keys remain unchanged. Mode-only keys are never migrated:
   -- a skip made before modes existed must not silently complete an alternative.
   if G.db.mode~='normal' and G.db.mode~='hardcore' then G.db.mode='hardcore' end

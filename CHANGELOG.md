@@ -1,3 +1,7 @@
+## 0.4.6
+
+- Show RestedXP route installation and selected source in the guide header.
+
 ## 0.4.5
 
 - Validate saved window anchors before SetPoint, recover malformed positions automatically, and handle four/five-value GetPoint results. Drag and resize share the same validated saving. Startup is ready only after UI construction; partial frames cannot crash arrow updates.
