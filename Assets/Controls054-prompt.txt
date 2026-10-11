@@ -1,0 +1,1 @@
+Imagegen production sprite sheet: eight isolated framed midnight-navy and antique-gold icons, normal and hover. Close X, down chevron, up chevron, circular slider grip. True transparent background. Original retained. Each cell cropped to alpha bounds and uniformly reduced into 128x128 RGBA TGA; no nonuniform stretch.

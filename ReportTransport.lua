@@ -67,5 +67,5 @@ local build=G.BuildUI
 function G.BuildUI()
  build();local poll=CreateFrame('Frame',nil,UIParent);local elapsed=0
  poll:SetScript('OnUpdate',function() elapsed=elapsed+(arg1 or .01);if elapsed>=.5 then elapsed=0;G.PollReport() end end);G.reportPollFrame=poll
- if G.options.reportHint then G.options.reportHint:SetText(G.ReportBridgeReady() and 'Online reports ready. Captures visible OctoGuide UI only.' or 'Local reports ready. ClassicAPI update enables online reports and images.') end
+ if G.options.reportHint then G.options.reportHint:Hide() end
 end

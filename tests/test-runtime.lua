@@ -5,7 +5,7 @@ local frames={}
 local methods={}
 function methods:SetScript(key,fn) self.scripts[key]=fn end
 function methods:RegisterEvent(ev) self.events[ev]=true end
-function methods:CreateTexture() local t=setmetatable({scripts={},events={}}, {__index=methods});return t end
+function methods:CreateTexture() local t=setmetatable({parent=self,scripts={},events={}}, {__index=methods});return t end
 function methods:CreateFontString() return self:CreateTexture() end
 function methods:SetText(v) self.value=v end
 function methods:SetTexture(v) self.texture=v end

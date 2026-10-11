@@ -12,7 +12,7 @@ local function sliderStyle(slider,width)
  slider:SetBackdrop(nil)
  local track=slider:CreateTexture(nil,'BACKGROUND');track:SetTexture('Interface\\Buttons\\WHITE8X8');track:SetWidth(width);track:SetHeight(4);track:SetPoint('CENTER',slider,'CENTER',0,0)
  if track.SetVertexColor then track:SetVertexColor(.28,.32,.38,1) end
- if slider.GetThumbTexture then local thumb=slider:GetThumbTexture();if thumb then thumb:SetWidth(20);thumb:SetHeight(20);thumb:SetTexture(art..'Arrow') end end
+ if slider.GetThumbTexture then local thumb=slider:GetThumbTexture();if thumb then thumb:SetWidth(24);thumb:SetHeight(24);thumb:SetTexture(art..'Control054Grip') end end
 end
 function G.BuildMenus()
  local p=G.menu;skin(p)
@@ -26,6 +26,7 @@ function G.ApplyOpacity()
  local function texture(t) if t and t.SetAlpha then t:SetAlpha(alpha) end end
  if G.frame then
   texture(G.frame.bg)
+  for _,t in ipairs({G.frame.secondaryArrow,G.frame.secondaryText,G.frame.targetEvidence}) do if t.SetAlpha then t:SetAlpha(1) end end
   for _,t in ipairs(G.frame.skin or {}) do texture(t) end
   for _,t in ipairs(G.frame.header or {}) do texture(t) end
   for _,c in ipairs({G.frame.currentCard,G.frame.nextCard}) do c:SetBackdropColor(.025,.045,.075,.95*alpha) end
@@ -62,11 +63,11 @@ function G.UpgradeSettings()
  p.bugButton=G.MakeButton(p,'Report bug',150,function() G.ShowReport() end);point(p.bugButton,p,25,565)
  p.bugButton.icon=p.bugButton:CreateTexture(nil,'OVERLAY');p.bugButton.icon:SetTexture(art..'BugIcon');p.bugButton.icon:SetWidth(18);p.bugButton.icon:SetHeight(18);p.bugButton.icon:Hide();point(p.bugButton.icon,p.bugButton,8,4)
  p.bugButton.label:SetWidth(142);p.bugButton.label:ClearAllPoints();p.bugButton.label:SetPoint('CENTER',p.bugButton,'CENTER',0,0)
- p.reportHint=heading(p,'Diagnostics saved locally; online upload unavailable.',25,602,265);p.reportHint:SetHeight(30)
+ p.reportHint=heading(p,'Diagnostics saved locally; online upload unavailable.',25,602,265);p.reportHint:SetHeight(30);p.reportHint:Hide()
  local f=G.frame
- f.secondaryArrow=f:CreateTexture(nil,'ARTWORK');f.secondaryArrow:SetTexture(art..'Arrow');f.secondaryArrow:SetWidth(20);f.secondaryArrow:SetHeight(20);f.secondaryArrow:Hide()
- f.secondaryText=G.MakeLabel(f,9,90);f.secondaryText:SetHeight(24);f.secondaryText:Hide()
- f.targetEvidence=G.MakeLabel(f,9,95);f.targetEvidence:SetHeight(25)
+ f.secondaryArrow=f.currentCard:CreateTexture(nil,'OVERLAY');f.secondaryArrow:SetTexture(art..'Arrow');f.secondaryArrow:SetWidth(20);f.secondaryArrow:SetHeight(20);f.secondaryArrow:Hide()
+ f.secondaryText=G.MakeLabel(f.currentCard,10,95);f.secondaryText:SetHeight(24);f.secondaryText:Hide()
+ f.targetEvidence=G.MakeLabel(f.currentCard,9,95);f.targetEvidence:SetHeight(25)
  G.UpdateAppearanceSettings();G.ApplyOpacity()
 end
 function G.UpdateAppearanceSettings()
@@ -82,7 +83,7 @@ function G.UpdateSecondaryArrow(elapsed)
  if r and r.angle and f.secondaryArrow.SetRotation then
   local angle=r.angle
   if elapsed and f.secondaryAngle then local delta=math.mod(angle-f.secondaryAngle+3*math.pi,2*math.pi)-math.pi;angle=f.secondaryAngle+delta*(1-math.exp(-18*math.min(elapsed,.1))) end
-  f.secondaryAngle=angle;f.secondaryArrow:SetRotation(-angle);point(f.secondaryArrow,f,f:GetWidth()-80,(G.db.view=='full' and 130 or 42)+108);point(f.secondaryText,f,f:GetWidth()-113,(G.db.view=='full' and 130 or 42)+135)
+  f.secondaryAngle=angle;f.secondaryArrow:SetRotation(-angle);point(f.secondaryArrow,f,f:GetWidth()-80,(G.db.view=='full' and 130 or 66)+108);point(f.secondaryText,f,f:GetWidth()-113,(G.db.view=='full' and 130 or 66)+135)
   local title=G.Present(target);f.secondaryText:SetText('Also: '..title..'\n'..math.floor(r.yards+.5)..' yd | '..(r.label or 'Quest area'));f.secondaryText:SetHeight(55);f.secondaryText:Show();f.secondaryArrow:Show()
  else f.secondaryAngle=nil;f.secondaryArrow:Hide();f.secondaryText:Hide() end
 end

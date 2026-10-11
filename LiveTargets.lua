@@ -24,7 +24,7 @@ function G.ReadObservedTarget(step)
  local ok,pw,pn,pz,map=pcall(UnitPosition,'player');if not ok or not pw or not pn then return nil end
  local entries=G.TargetEntries(step);local best;local previous;local prior=G.livePoll and G.livePoll.key==G.Key(step) and G.livePoll.result
  for _,entry in ipairs(entries) do
-  if entry.kind=='monster' and OctoGuideClosestLivingUnit then
+  if entry.kind=='monster' and OctoGuideClosestLivingUnit and not G.RequiredTargetAura(step) then
    local posOK,w,n,d,guid=pcall(OctoGuideClosestLivingUnit,entry.id,step.questID==5441 and 3 or 0)
    if posOK and type(w)=='number' and type(n)=='number' and guid then
     local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},GetPlayerFacing())
@@ -44,17 +44,18 @@ function G.ReadObservedTarget(step)
     if type(name)=='table' then name=name[1] end
     if type(name)=='string' then local found,token=pcall(UnitTokenFromName,name,true);if found and token then table.insert(tokens,token) end end
    end
+   if prior and (prior.token or prior.guid) then table.insert(tokens,prior.token or prior.guid) end
    for _,token in ipairs(tokens) do
     local good,id=pcall(UnitCreatureID,token)
     if good and id==entry.id then
      local deadOK,dead=pcall(UnitIsDeadOrGhost,token);local healthOK,health=pcall(UnitHealth,token)
      local posOK,w,n,z,m=pcall(UnitPosition,token)
-     local usable=step.questID~=5441 or (UnitStandState and UnitStandState(token)==3)
+     local usable=G.UnitEligibleForStep(step,token)
      if usable and deadOK and not dead and healthOK and type(health)=='number' and health>0 and posOK and w and n and m==map then
       local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=m},GetPlayerFacing())
       if r then
        r.worldWest=w;r.worldNorth=n;r.worldMap=m;r.entry=entry.id;r.token=token;r.label='Live quest target'
-       if prior and prior.token==token and prior.entry==entry.id then previous=r end
+       if prior and (prior.token==token or prior.guid==token) and prior.entry==entry.id then previous=r end
        if not best or r.yards<best.yards then best=r end
       end
      end
@@ -68,6 +69,7 @@ function G.ReadObservedTarget(step)
    end
   end
  end
+ if previous and best and previous.yards<=best.yards*1.15+2 then return previous end
  return best
 end
 function G.NavigationRead(step)
@@ -107,12 +109,17 @@ function G.SecondaryTarget(step)
  if not G.db.secondaryArrow or not step or not work[step.action] then return nil end
  local now=GetTime and GetTime() or 0;local key=G.Key(step)
  if G.secondaryChoice and G.secondaryChoice.key==key and now-G.secondaryChoice.time<.12 then return G.secondaryChoice.step end
- local best,distance
+ local best,distance,priorResult,priorStep
  for _,other in ipairs(G.Concurrent(step)) do
   local r=G.SecondaryRead(other)
+  if G.secondaryChoice and other==G.secondaryChoice.step and not G.Satisfied(other) and G.QuestIndex(other.questID) then priorStep=other;priorResult=r end
   local observed=r and (r.guid or r.token or r.label=='Observed quest object')
   local current=best and G.SecondaryRead(best);local currentObserved=current and (current.guid or current.token or current.label=='Observed quest object')
   if r and (not best or (observed and not currentObserved) or ((not not observed)==(not not currentObserved) and r.yards<distance)) then best=other;distance=r.yards end
+ end
+ if best and priorStep and priorResult then
+  local picked=G.SecondaryRead(best);local a=priorResult.guid or priorResult.token or priorResult.label=='Observed quest object';local b=picked and (picked.guid or picked.token or picked.label=='Observed quest object')
+  if (not not a)==(not not b) and priorResult.yards<=distance*1.20+2 then best=priorStep end
  end
  G.secondaryChoice={key=key,time=now,step=best};return best
 end
@@ -149,4 +156,28 @@ function G.RefreshObserved(r)
  if not fresh then return nil end
  for k,v in pairs(r) do if k~='angle' and k~='yards' and k~='arrived' then fresh[k]=v end end
  return fresh
+end
+
+-- Explicit target-state requirements can be reused by future item-use quests.
+function G.RequiredTargetAura(step)
+ return step and (step.targetAura or (step.questID==5441 and 17743))
+end
+function G.UnitEligibleForStep(step,token)
+ local required=G.RequiredTargetAura(step)
+ if not required then return true end
+ local known=false
+ if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+  for _,filter in ipairs({'HELPFUL','HARMFUL'}) do
+   for i=1,40 do
+    local ok,a=pcall(C_UnitAuras.GetAuraDataByIndex,token,i,filter)
+    if ok then known=true end
+    if not ok or not a then break end
+    if a.spellId==required or a.spellID==required then return true end
+   end
+  end
+ end
+ if known then return false end
+ local fallback=step.targetStandState or (step.questID==5441 and 3)
+ if fallback and UnitStandState then local ok,state=pcall(UnitStandState,token);return ok and state==fallback end
+ return false
 end

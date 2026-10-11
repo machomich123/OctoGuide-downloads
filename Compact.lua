@@ -26,6 +26,24 @@ function G.StyleButton(b)
  b:SetScript('OnLeave',function() state('ButtonNormal') end)
  state('ButtonNormal')
 end
+function G.StyleControl(b,kind)
+ b.controlType=kind;b.surface:Hide();b.label:Hide()
+ for _,t in ipairs(b.parts or {}) do t:Hide() end
+ b.controlArt=b.controlArt or b:CreateTexture(nil,'OVERLAY')
+ local function state(name)
+  local asset=kind
+  if kind=='Toggle' then asset=b.value=='v' and 'Down' or 'Up' end
+  b.controlArt:ClearAllPoints();b.controlArt:SetPoint('CENTER',b,'CENTER',0,0)
+  local size=math.min(b:GetWidth(),b:GetHeight());b.controlArt:SetWidth(size);b.controlArt:SetHeight(size)
+  b.controlArt:SetTexture(art..'Control054'..asset..(name=='ButtonNormal' and '' or 'Hover'))
+ end
+ b.restyled=state
+ b:SetScript('OnMouseDown',function() state('ButtonPressed') end)
+ b:SetScript('OnMouseUp',function() state('ButtonNormal') end)
+ b:SetScript('OnEnter',function() state('ButtonHover') end)
+ b:SetScript('OnLeave',function() state('ButtonNormal') end)
+ state('ButtonNormal')
+end
 function G.MakeMovable(p,key)
  p:EnableMouse(true);p:SetMovable(true);p:RegisterForDrag('LeftButton')
  p:SetScript('OnDragStart',function() p:StartMoving() end)
@@ -53,6 +71,7 @@ function G.BuildUI()
  f.arrow:SetWidth(55);f.arrow:SetHeight(55);f.secondaryArrow:SetWidth(25);f.secondaryArrow:SetHeight(25)
  for _,p in ipairs({G.menu,G.options}) do for _,b in ipairs(p.rows or {}) do G.StyleButton(b) end end
  for _,b in ipairs({f.back,f.skip,f.done,f.menu,f.mode,f.settingsButton,f.close,f.controlsToggle,f.routeMode,G.menu.levelButton,G.options.partyButton,G.options.secondaryButton,G.options.transparentButton,G.options.bugButton,G.options.smaller,G.options.wider,G.options.close}) do G.StyleButton(b) end
+ G.StyleControl(f.close,'Close');G.StyleControl(f.controlsToggle,'Toggle')
  -- Buttons are styled at construction too, including page and report controls.
 end
 local button=G.MakeButton

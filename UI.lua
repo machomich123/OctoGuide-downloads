@@ -135,7 +135,7 @@ function G.Render(layoutOnly)
  f.route:SetText(source..' | '..G.RouteLabel(guide)..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
  local names={accept='ACCEPT QUEST',turnin='TURN IN QUEST',objective='CURRENT OBJECTIVES',complete='CURRENT OBJECTIVES',travel='TRAVEL',collect='GATHER',death='NORMAL SHORTCUT'}
  f.section:SetText(names[action] or string.upper(action or 'CURRENT STEP'));if full then f.section:Show() else f.section:Hide() end
- local cardTop=full and 96 or 30;local titleTop=full and 130 or 42;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)
+ local cardTop=full and 96 or 54;local titleTop=full and 130 or 66;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)
  f.icon:SetTexture(action=='turnin' and 'Interface\\GossipFrame\\ActiveQuestIcon' or 'Interface\\GossipFrame\\AvailableQuestIcon');point(f.icon,f,27,titleTop)
  point(f.step,f,65,titleTop);local y=titleTop+height(f.step,title,width-188,17)+8
  point(f.arrow,f,width-86,titleTop-2);point(f.distance,f,width-109,titleTop+54)
@@ -205,8 +205,8 @@ function G.Render(layoutOnly)
  end
  f.done:SetText(primary)
  local toggleY=collapsed and y or buttonY+34
- if f.controlsToggle then point(f.controlsToggle,f,(width-44)/2,toggleY);f.controlsToggle:SetText(collapsed and 'v' or '^');f.controlsToggle:Show() end
- point(f.close,f,width-58,8);f.close:Show()
+ if f.controlsToggle then point(f.controlsToggle,f,(width-44)/2,toggleY);f.controlsToggle:SetText(collapsed and 'v' or '^');if f.controlsToggle.restyled then f.controlsToggle.restyled('ButtonNormal') end;f.controlsToggle:Show() end
+ point(f.close,f,width-58,full and 22 or 14);f.close:Show()
  if f.close.SetFrameLevel and f.GetFrameLevel then f.close:SetFrameLevel(f:GetFrameLevel()+25);f.controlsToggle:SetFrameLevel(f:GetFrameLevel()+25) end
  local contentHeight=toggleY+38;f.contentHeight=contentHeight
  local viewport=UIParent:GetHeight()*UIParent:GetEffectiveScale()/f:GetEffectiveScale()
