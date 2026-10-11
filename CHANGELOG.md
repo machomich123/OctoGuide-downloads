@@ -1,3 +1,12 @@
+## 0.4.1
+
+- External pfQuest history no longer skips quests during automatic placement.
+- Starter characters below level 5 keep route order unless their own quest log or confirmed history gives a placement.
+- Saved progress is checked against character name and realm; mismatched progress is archived separately.
+- Old automatic placement cursors are discarded once, with a recoverable copy. Manual progress is retained.
+- Unavailable acceptance steps explicitly show the required level.
+- Regression reproduced against 0.4.0 placement and passed after correction. Native gameplay remains unverified.
+
 # 0.4.0
 
 - Concurrent quest goals, personal class tasks, Auto/Solo/Group settings and level navigation.

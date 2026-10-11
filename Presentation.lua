@@ -33,6 +33,10 @@ function G.Present(s)
     local list=G.Concurrent(s);local seen={}
     for _,a in ipairs(list) do if a.questID and not seen[a.questID] then body=body..'\nDo alongside this step: '..a.text;seen[a.questID]=true end end
   end
+  if s.action=='accept' and s.minlevel and UnitLevel('player')<s.minlevel then
+    title='Reach level '..s.minlevel..' before accepting this quest'
+    body='This quest is not available at your current level. Finish earlier available quests or gain experience, then return.\n'..body
+  end
   return title,body,s.action
 end
 function G.RawNavTarget()

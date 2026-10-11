@@ -13,7 +13,7 @@ end
 function G.RefreshHistory(serverResponse)
   G.historyHints={}
   -- pfQuest permits manual completion marks. Its cache is a placement hint only.
-  if type(pfQuest_history)=='table' then for id,data in pairs(pfQuest_history) do if validID(id) and type(data)=='table' then G.historyHints[id]=true end end end
+  -- External addon caches have no verified character ownership. Never use them to skip route steps.
   if serverResponse and type(GetQuestsCompleted)=='function' then
     local result={};local ok,data=pcall(GetQuestsCompleted,result)
     if ok then
@@ -41,7 +41,7 @@ end
 local function recordedDone(id)
   -- Recorded history is sufficient for a suggested cursor, never for Sync's
   -- server-confirmed completion facts. Manual pfQuest marks remain reversible.
-  return questDone(id) or (G.historyHints and G.historyHints[id])
+  return questDone(id)
 end
 local function positionPenalty(s)
   if not s.zone or not s.x or not s.y or not OctoGuideNavigation then return 0 end
@@ -114,7 +114,7 @@ function G.FindPlacement()
       local pageIndex=1;local pageScore
       for i,s in ipairs(steps) do
         if not s.page or i==1 or s.page~=steps[i-1].page then pageIndex=i end
-        if s.expectedLevel and math.abs(s.expectedLevel-level)<1.5 and s.zone and s.x and s.y then
+        if level>=5 and s.expectedLevel and s.expectedLevel<=level and math.abs(s.expectedLevel-level)<1.5 and s.zone and s.x and s.y then
           local score=math.abs(s.expectedLevel-level)*12+positionPenalty(s)
           if not pageScore or score<pageScore then pageScore=score;candidate.index=pageIndex;candidate.reason='level, location and route prerequisites' end
         end

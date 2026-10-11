@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.4.0',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.4.1',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -259,11 +259,30 @@ function G.DefaultGuide()
   end
   return best
 end
+function G.BindCharacter()
+  local name=UnitName and UnitName('player')
+  local realm=GetRealmName and GetRealmName()
+  if not name or name=='' or not realm or realm=='' then return end
+  local owner=realm..':'..name
+  if G.db.characterOwner and G.db.characterOwner~=owner then
+    G.db.characterArchives=G.db.characterArchives or {}
+    G.db.characterArchives[G.db.characterOwner]={progress=G.db.progress,completedQuests=G.db.completedQuests,placements=G.db.placements,guide=G.db.guide}
+    local saved=G.db.characterArchives[owner] or {}
+    G.db.progress=saved.progress or {};G.db.completedQuests=saved.completedQuests or {}
+    G.db.placements=saved.placements;G.db.guide=saved.guide;G.db.reviewGuide=nil;G.db.historySource=nil
+  end
+  G.db.characterOwner=owner
+  if G.db.placementVersion~=2 then
+    -- Discard old automatic cursors, retain manual progress and a backup for review.
+    G.db.previousPlacements=G.db.placements;G.db.placements=nil;G.db.placementVersion=2
+  end
+end
 function G.Init()
   if G.ready then return end
   local cname,class=UnitClass('player');local rname,race=UnitRace('player')
   G.player={class=class or cname,race=race or rname,faction=UnitFactionGroup('player')}
   OctoGuideDB=OctoGuideDB or {};G.db=OctoGuideDB;G.db.progress=G.db.progress or {};G.db.completedQuests=G.db.completedQuests or {};G.db.view=G.db.view or 'minimal'
+  G.BindCharacter()
   -- Older common-step keys remain unchanged. Mode-only keys are never migrated:
   -- a skip made before modes existed must not silently complete an alternative.
   if G.db.mode~='normal' and G.db.mode~='hardcore' then G.db.mode='hardcore' end
