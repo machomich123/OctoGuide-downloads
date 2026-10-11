@@ -1,3 +1,7 @@
+## 0.4.5
+
+- Validate saved window anchors before SetPoint, recover malformed positions automatically, and handle four/five-value GetPoint results. Drag and resize share the same validated saving. Startup is ready only after UI construction; partial frames cannot crash arrow updates.
+
 ## 0.4.4
 
 - Zoom range is now 30-150 percent. Settings stay at a fixed scale so dragging cannot move the slider under the cursor. Slider callbacks do not write back to the slider being dragged.

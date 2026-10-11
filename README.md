@@ -1,4 +1,4 @@
-# OctoGuide 0.4.4
+# OctoGuide 0.4.5
 
 Horde leveling guidance for OctoWoW / WoW 1.12.1. Normal and Hardcore remain separate choices. The original Vanilla Questing baseline is retained with its MIT notices and saved progress.
 

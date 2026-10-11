@@ -33,8 +33,8 @@ end
 function G.BuildUI()
  local f=CreateFrame('Frame','OctoGuideFrame',UIParent);G.frame=f;f:SetWidth(460);f:SetHeight(600);f:SetPoint('CENTER',UIParent,'CENTER',0,80);f:SetFrameStrata('MEDIUM');f:EnableMouse(true);f:SetMovable(true);f:RegisterForDrag('LeftButton')
  f:SetScript('OnDragStart',function() this:StartMoving() end)
- f:SetScript('OnDragStop',function() this:StopMovingOrSizing();local p,r,rp,x,y=this:GetPoint();G.db.position={p,rp,x,y} end)
- if G.db.position then local p=G.db.position;f:ClearAllPoints();f:SetPoint(p[1],UIParent,p[2],p[3],p[4]) end
+ f:SetScript('OnDragStop',function() this:StopMovingOrSizing();G.SavePosition(this) end)
+ G.RestorePosition(f)
  G.BuildResizeHandles(f)
  f.bg=f:CreateTexture(nil,'BACKGROUND');f.bg:SetAllPoints(f);f.bg:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\GuideFullV3');if f.bg.SetTexCoord then f.bg:SetTexCoord(.24,.76,.25,.45) end
  f.skin=G.CreatePanelSkin(f)
@@ -105,7 +105,7 @@ function G.RenderMenu()
 end
 function G.ToggleMenu() if G.menu:IsShown() then G.menu:Hide() else G.RenderMenu();G.menu:Show() end end
 function G.Render(layoutOnly)
- if not G.frame then return end
+ if not G.frame or not G.frame.arrow or not G.frame.distance then return end
  local f=G.frame;local full=G.db.view=='full';local width=math.max(380,math.min(800,(G.db.widths or {})[G.db.view] or (full and 460 or 490)));f:SetWidth(width)
  -- Legacy background selection is replaced by independent skins.
  -- f.bg:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\'..((full and 'GuideFull' or 'GuideMinimal')..OG_BG))
@@ -175,7 +175,7 @@ function G.Render(layoutOnly)
  if not layoutOnly and G.UpdateMaps then G.UpdateMaps(true) end
 end
 function G.UpdateArrow(elapsed)
- local f=G.frame;if not f or not f:IsShown() then return end
+ local f=G.frame;if not f or not f.arrow or not f.distance or not f:IsShown() then return end
  local s=G.NavTarget();if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
  local result,why=OctoGuideNavigation.ReadWaypoint(s)
  if not result then f.arrow:Hide();f.distance:SetText(why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end

@@ -1,4 +1,24 @@
 local G=OctoGuide
+local anchors={TOPLEFT=true,TOP=true,TOPRIGHT=true,LEFT=true,CENTER=true,RIGHT=true,BOTTOMLEFT=true,BOTTOM=true,BOTTOMRIGHT=true}
+local function validPosition(p)
+ return type(p)=='table' and anchors[p[1]] and anchors[p[2]] and type(p[3])=='number' and type(p[4])=='number' and p[3]==p[3] and p[4]==p[4] and math.abs(p[3])<100000 and math.abs(p[4])<100000
+end
+function G.SavePosition(frame)
+ local point,relative,relativePoint,x,y=frame:GetPoint()
+ -- Support clients returning either (point, frame, relativePoint, x, y)
+ -- or (point, relativePoint, x, y).
+ if type(relative)=='string' and type(relativePoint)=='number' and type(x)=='number' and y==nil then y=x;x=relativePoint;relativePoint=relative end
+ local p={point,relativePoint,x,y}
+ if validPosition(p) then G.db.position=p;return true end
+ return false
+end
+function G.RestorePosition(frame)
+ local p=G.db.position;if not p then return end
+ if type(p)=='table' and anchors[p[1]] and type(p[2])=='number' and type(p[3])=='number' and p[4]==nil then p={p[1],p[1],p[2],p[3]} end
+ if not validPosition(p) then G.db.invalidPosition=G.db.position;G.db.position=nil;return end
+ local ok=pcall(function() frame:ClearAllPoints();frame:SetPoint(p[1],UIParent,p[2],p[3],p[4]) end)
+ if ok then G.db.position=p else G.db.invalidPosition=G.db.position;G.db.position=nil;frame:ClearAllPoints();frame:SetPoint('CENTER',UIParent,'CENTER',0,80) end
+end
 local art='Interface\\AddOns\\OctoGuide-downloads\\Assets\\GuideFullV3'
 function G.CreatePanelSkin(parent)
  local pieces={}
@@ -70,7 +90,7 @@ function G.BuildResizeHandles(f)
    G.resizing=true
   end)
   h:SetScript('OnUpdate',function() if G.resizeDrag and G.resizeDrag.handle==this then G.UpdateResize() end end)
-  h:SetScript('OnMouseUp',function() if G.resizeDrag and G.resizeDrag.handle==this then G.UpdateResize();G.resizeDrag=nil;G.resizing=false;local p,r,rp,x,y=f:GetPoint();G.db.position={p,rp,x,y} end end)
+  h:SetScript('OnMouseUp',function() if G.resizeDrag and G.resizeDrag.handle==this then G.UpdateResize();G.resizeDrag=nil;G.resizing=false;G.SavePosition(f) end end)
  end
 end
 function G.UpdateResize()

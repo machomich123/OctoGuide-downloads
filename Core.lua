@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.4.4',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.4.5',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -286,7 +286,7 @@ function G.Init()
   -- Older common-step keys remain unchanged. Mode-only keys are never migrated:
   -- a skip made before modes existed must not silently complete an alternative.
   if G.db.mode~='normal' and G.db.mode~='hardcore' then G.db.mode='hardcore' end
-  G.ready=true;G.BuildUI()
+  G.BuildUI();G.ready=true
   if G.InitProgress then G.InitProgress() end
   if G.BuildMaps then G.BuildMaps() end
   local id=G.db.guide;local savedPlayable=G.Playable(G.guides[id]);if not savedPlayable then id=G.DefaultGuide() end
