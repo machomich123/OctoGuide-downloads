@@ -1,3 +1,7 @@
+## 0.4.2
+
+- Show the loaded runtime version beside OctoGuide in the header, in both views.
+
 ## 0.4.1
 
 - External pfQuest history no longer skips quests during automatic placement.

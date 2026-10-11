@@ -41,6 +41,7 @@ function G.BuildUI()
  f.header={}
  for i=1,3 do local t=f:CreateTexture(nil,'ARTWORK');t:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\GuideFullV3');f.header[i]=t end
  f.title=label(f,21,240,true);point(f.title,f,105,16);f.title:SetHeight(25);f.title:SetText('OctoGuide')
+ f.version=label(f,10,50);f.version:SetHeight(14);f.version:SetText('v'..G.version)
  f.route=label(f,10,400);point(f.route,f,22,54);f.route:SetHeight(18)
  f.routeMode=button(f,'Hardcore',78,function() G.SetMode(G.Mode()=='hardcore' and 'normal' or 'hardcore') end)
  f.currentCard=card(f);point(f.currentCard,f,15,78)

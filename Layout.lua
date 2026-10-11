@@ -20,7 +20,8 @@ function G.LayoutHeader(f,w)
   t:ClearAllPoints();t:SetPoint('TOPLEFT',f,'TOPLEFT',x,0);t:SetWidth(width);t:SetHeight(92);if t.SetTexCoord then t:SetTexCoord(u1,u2,0,.136) end
  end
  part(left,0,96,0,.212);part(center,96,w-130,.212,.925);part(right,w-34,34,.925,1)
- f.title:ClearAllPoints();f.title:SetPoint('TOPLEFT',f,'TOPLEFT',108,-22);f.title:SetWidth(w-222)
+ f.title:ClearAllPoints();f.title:SetPoint('TOPLEFT',f,'TOPLEFT',108,-22);f.title:SetWidth(110)
+ f.version:ClearAllPoints();f.version:SetPoint('TOPLEFT',f,'TOPLEFT',222,-30);f.version:SetWidth(50)
  f.route:ClearAllPoints();f.route:SetPoint('TOPLEFT',f,'TOPLEFT',108,-55);f.route:SetWidth(w-134)
 end
 function G.ApplyZoom()
