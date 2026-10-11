@@ -72,7 +72,7 @@ function G.BuildUI()
  menu.page=1
  local x=20
  for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
- menu.levelButton=button(menu,'Current level / All',150,function() menu.level=menu.level and nil or UnitLevel('player');menu.page=1;G.RenderMenu() end);point(menu.levelButton,menu,20,48)
+ menu.levelButton=button(menu,'Show current level',150,function() if menu.level then menu.level=nil else menu.level=UnitLevel('player') end;menu.page=1;G.RenderMenu() end);point(menu.levelButton,menu,20,48)
  menu:Hide()
  local options=card(UIParent);G.options=options;options:SetWidth(350);options:SetHeight(450);options:SetPoint('CENTER',UIParent,'CENTER',0,0);options:SetFrameStrata('DIALOG');if options.SetFrameLevel and f.GetFrameLevel then options:SetFrameLevel(f:GetFrameLevel()+30) end;options:EnableMouse(true)
  options.title=label(options,18,310,true);point(options.title,options,20,18);options.title:SetHeight(24);options.title:SetText('OctoGuide settings')
@@ -97,6 +97,7 @@ function G.RenderSettings()
 end
 function G.ToggleSettings() if G.options:IsShown() then G.options:Hide() else G.RenderSettings();G.options:Show() end end
 function G.RenderMenu()
+ G.menu.levelButton:SetText(G.menu.level and 'Show all levels' or 'Show current level')
  local list=G.LevelGuides(G.menu.level)
  local pages=math.max(1,math.ceil(table.getn(list)/14));G.menu.page=math.min(G.menu.page,pages)
  G.menu.info:SetText((G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..' | '..(G.menu.level and ('Level '..G.menu.level) or 'All levels')..' | Page '..G.menu.page..' / '..pages)

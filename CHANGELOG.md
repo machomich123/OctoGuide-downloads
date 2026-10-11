@@ -1,3 +1,7 @@
+## 0.4.3
+
+- Fix Current level / All getting stuck on the current-level filter. The button now names the action: Show current level or Show all levels.
+
 ## 0.4.2
 
 - Show the loaded runtime version beside OctoGuide in the header, in both views.
