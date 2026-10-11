@@ -114,7 +114,7 @@ function G.FindPlacement()
       local pageIndex=1;local pageScore
       for i,s in ipairs(steps) do
         if not s.page or i==1 or s.page~=steps[i-1].page then pageIndex=i end
-        if level>=5 and s.expectedLevel and s.expectedLevel<=level and math.abs(s.expectedLevel-level)<1.5 and s.zone and s.x and s.y then
+        if g.routeFamily~='rxp' and level>=5 and s.expectedLevel and s.expectedLevel<=level and math.abs(s.expectedLevel-level)<1.5 and s.zone and s.x and s.y then
           local score=math.abs(s.expectedLevel-level)*12+positionPenalty(s)
           if not pageScore or score<pageScore then pageScore=score;candidate.index=pageIndex;candidate.reason='level, location and route prerequisites' end
         end

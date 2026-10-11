@@ -73,12 +73,43 @@ function G.SetRouteSource(source)
   if G.menu then G.RenderMenu() end
   return true
 end
+-- A saved cursor is not proof that independent earlier quests were accepted.
+-- Reconcile the whole preceding pickup sequence, including abandoned quests.
+function G.MissingPickup(index)
+  if not G.state or G.state.guide.routeFamily~='rxp' or G.pauseAuto then return nil end
+  local lookup=C_QuestLog and (type(C_QuestLog.GetLogIndexForQuestID)=='function' or type(C_QuestLog.GetQuestIDForLogIndex)=='function')
+  if not lookup and type(GetQuestIDFromLogIndex)~='function' then return nil end
+  for i=1,index-1 do
+    local a=G.state.steps[i]
+    if a.action=='accept' and a.questID and not G.QuestIndex(a.questID) and not G.db.completedQuests[a.questID] then
+      local marked=G.db.progress[G.Key(a)]
+      local completed=false
+      if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted)=='function' then
+        local ok,done=pcall(C_QuestLog.IsQuestFlaggedCompleted,a.questID);completed=ok and done==true
+      end
+      -- Explicit Done/Skip remains a user decision; observed acceptance alone
+      -- never proves a quest is still in the log or was turned in.
+      if not completed and marked~='manual' and marked~='skipped' and G.SourceEligible(a) then return i end
+    end
+  end
+end
 local baseCurrent=G.Current
 function G.Current()
   if not G.state then return nil end
   for i=G.state.startIndex or 1,table.getn(G.state.steps) do
     local s=G.state.steps[i]
-    if not s.background and not s.informational and not G.db.progress[G.Key(s)] then G.state.index=i;return s end
+    if not s.background and not s.informational and not G.db.progress[G.Key(s)] then
+      local pickup=G.MissingPickup and G.MissingPickup(i)
+      if pickup then
+        G.state.startIndex=math.min(G.state.startIndex or 1,pickup)
+        G.state.index=pickup
+        G.db.placements=G.db.placements or {}
+        G.db.placements[G.state.guide.id]={stepID=G.state.steps[pickup].id,reason='missing quest pickup'}
+        G.db.progress[G.Key(G.state.steps[pickup])]=nil
+        return G.state.steps[pickup]
+      end
+      G.state.index=i;return s
+    end
   end
   G.state.index=nil;return nil
 end

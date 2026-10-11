@@ -1,3 +1,8 @@
+## 0.4.8
+
+- Recover missing earlier RestedXP quest pickups, including saved cursors after Senjin and abandoned quests. Preserve explicit Done/Skip and confirmed history.
+- Stop choosing RestedXP source pages from interpolated level estimates.
+
 ## 0.4.7
 
 - Give the full OctoGuide title adequate measured width, a separate version line and wrapped route text.
