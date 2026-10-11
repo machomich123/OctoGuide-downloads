@@ -72,7 +72,7 @@ SLASH_OCTOGUIDE1='/octoguide';SLASH_OCTOGUIDE2='/oguide';SlashCmdList['OCTOGUIDE
 local events=CreateFrame('Frame');G.events=events
 for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE','PARTY_MEMBERS_CHANGED'}) do pcall(function() events:RegisterEvent(ev) end) end
 if G.InitProgress then G.InitProgress() end
-events:SetScript('OnEvent',function() if G.ReportEvent then G.ReportEvent(event) end;G.Event(event,arg1,arg2);if G.InstallReportErrors then G.InstallReportErrors() end end)
+events:SetScript('OnEvent',function() if G.InstallReportErrors then G.InstallReportErrors() end;if G.ReportEvent then G.ReportEvent(event) end;G.Event(event,arg1,arg2) end)
 events:SetScript('OnUpdate',function()
   if not G.ready then return end
   G.UpdateArrow(arg1 or .016)

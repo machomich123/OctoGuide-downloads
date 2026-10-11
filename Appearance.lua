@@ -78,13 +78,14 @@ end
 function G.UpdateSecondaryArrow()
  local f=G.frame;if not f.secondaryArrow then return end
  f.targetEvidence:ClearAllPoints();f.targetEvidence:SetPoint('TOPLEFT',f.distance,'BOTTOMLEFT',0,-2)
- local target=G.SecondaryTarget and G.SecondaryTarget(G.Current());local r=target and OctoGuideNavigation.ReadWaypoint(target)
+ local target=G.SecondaryTarget and G.SecondaryTarget(G.Current());local r=target and (G.SecondaryRead and G.SecondaryRead(target) or OctoGuideNavigation.ReadWaypoint(target))
  if r and r.angle and f.secondaryArrow.SetRotation then
-  f.secondaryArrow:SetRotation(-r.angle);point(f.secondaryArrow,f,f:GetWidth()-80,220);point(f.secondaryText,f,f:GetWidth()-113,244)
-  local title=G.Present(target);f.secondaryText:SetText('Also: '..title..'\n'..math.floor(r.yards+.5)..' yd');f.secondaryText:SetHeight(40);f.secondaryText:Show();f.secondaryArrow:Show()
+  f.secondaryArrow:SetRotation(-r.angle);point(f.secondaryArrow,f,f:GetWidth()-80,(G.db.view=='full' and 130 or 42)+108);point(f.secondaryText,f,f:GetWidth()-113,(G.db.view=='full' and 130 or 42)+135)
+  local title=G.Present(target);f.secondaryText:SetText('Also: '..title..'\n'..math.floor(r.yards+.5)..' yd | '..(r.label or 'Quest area'));f.secondaryText:SetHeight(55);f.secondaryText:Show();f.secondaryArrow:Show()
  else f.secondaryArrow:Hide();f.secondaryText:Hide() end
 end
 function G.ShowReport()
+ if G.CaptureReportUI and (not G.reportWindow or not G.reportWindow:IsShown()) then G.CaptureReportUI() end
  if not G.reportWindow then
   local p=G.MakeCard(UIParent);G.reportWindow=p;p:SetWidth(440);p:SetHeight(300);p:SetPoint('CENTER',UIParent,'CENTER',0,0);p:SetFrameStrata('DIALOG');p:EnableMouse(true);skin(p)
   if p.SetFrameLevel and G.options.GetFrameLevel then p:SetFrameLevel(G.options:GetFrameLevel()+10) end
@@ -97,9 +98,11 @@ function G.ShowReport()
   scroll:EnableMouse(true);scroll:SetScript('OnMouseDown',function() if field.SetFocus then field:SetFocus() end end)
   if scroll.EnableMouseWheel then scroll:EnableMouseWheel(true);scroll:SetScript('OnMouseWheel',function() local maximum=math.max(0,field:GetHeight()-94);scroll:SetVerticalScroll(math.max(0,math.min(maximum,(scroll:GetVerticalScroll() or 0)-(arg1 or 0)*24))) end) end
   p.status=G.MakeLabel(p,10,390);point(p.status,p,25,204);p.status:SetHeight(40)
-  local send=G.MakeButton(p,'Save report',110,function()
-   local r,why=G.MakeReport(field:GetText());p.status:SetText(r and ('Saved locally: '..r.id..'. Online upload is unavailable. Saved to disk on logout or /reload.') or why)
-   if r then field:SetText('');field:ClearFocus() end
+  local send=G.MakeButton(p,'Send',110,function()
+   local r,why
+   if G.SendReport then r,why=G.SendReport(field:GetText()) else r,why=G.MakeReport(field:GetText()) end
+   p.status:SetText(why or (r and ('Saved locally: '..r.id) or 'Unable to save report.'))
+   if r then field:ClearFocus() end
   end);point(send,p,25,255)
   local close=G.MakeButton(p,'Close',85,function() p:Hide() end);point(close,p,330,255)
  end

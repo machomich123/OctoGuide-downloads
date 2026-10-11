@@ -32,6 +32,29 @@ function G.MakeReport(description)
   route=G.state and G.state.guide.id,step=s and s.id,quest=s and s.questID,objectives=s and G.Objectives(s),navigation=G.navigationEvidence,
   settings={zoom=G.db.zoom,view=G.db.view,mode=G.Mode(),party=G.PartyMode(),secondaryArrow=G.db.secondaryArrow,transparent=G.db.transparent,opacity=G.db.opacity,width=G.frame:GetWidth(),height=G.frame:GetHeight()},
   ui={guide=snapshot(G.frame),guides=snapshot(G.menu),settings=snapshot(G.options)},events={},errors={},status='saved locally',images='UI state snapshots; pixel screenshots unavailable',upload='unavailable in this client'}
+ r.addons={};r.questLog={};r.completedQuestIDs={}
+ if GetBuildInfo then local ok,version,build,date=pcall(GetBuildInfo);if ok then r.client={version=version,build=build,date=date} end end
+ if OctoGuideBridgeVersion then local ok,version=pcall(OctoGuideBridgeVersion);if ok then r.bridgeVersion=version end end
+ if GetNumAddOns and GetAddOnInfo then
+  for i=1,math.min(GetNumAddOns(),200) do
+   local name,title,notes,enabled,loadable,reason=GetAddOnInfo(i)
+   local version;if name and GetAddOnMetadata then local ok,v=pcall(GetAddOnMetadata,name,'Version');if ok then version=v end end
+   local loaded;if name and IsAddOnLoaded then loaded=IsAddOnLoaded(name) end
+   table.insert(r.addons,{name=name,version=version,enabled=enabled==true or enabled==1,loaded=loaded==true or loaded==1,loadable=loadable==true or loadable==1,reason=reason})
+  end
+ end
+ if GetNumQuestLogEntries and GetQuestLogTitle then
+  for i=1,math.min(GetNumQuestLogEntries(),100) do
+   local title,level,tag,header,collapsed,complete=GetQuestLogTitle(i)
+   if not header then
+    local id;if C_QuestLog and C_QuestLog.GetQuestIDForLogIndex then local ok,v=pcall(C_QuestLog.GetQuestIDForLogIndex,i);if ok then id=v end
+    elseif GetQuestIDFromLogIndex then local ok,v=pcall(GetQuestIDFromLogIndex,i);if ok then id=v end end
+    table.insert(r.questLog,{id=id,title=title,level=level,complete=complete})
+   end
+  end
+ end
+ for id,done in pairs(G.db.completedQuests or {}) do if done and table.getn(r.completedQuestIDs)<2000 then table.insert(r.completedQuestIDs,id) end end
+ r.stepIndex=G.state and G.state.index;r.characterTracking=G.db.characterOwner~=nil
  for _,e in ipairs(G.reportEvents) do table.insert(r.events,{event=e.event,time=e.time}) end
  for _,e in ipairs(G.reportErrors or {}) do table.insert(r.errors,e) end
  G.db.reports=G.db.reports or {};G.db.reportCounter=(G.db.reportCounter or 0)+1;r.id=tostring(r.time)..'-'..G.db.reportCounter

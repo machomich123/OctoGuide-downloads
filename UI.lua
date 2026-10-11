@@ -30,6 +30,7 @@ local function button(p,v,w,fn)
  b:SetText(v);b:SetScript('OnClick',fn)
  b:SetScript('OnEnter',function() b.surface:SetTexture(asset..'ButtonHover') end)
  b:SetScript('OnLeave',function() b.surface:SetTexture(asset..'ButtonNormal') end)
+ if G.StyleButton then G.StyleButton(b) end
  return b
 end
 G.MakeLabel=label;G.Place=point;G.MakeCard=card;G.MakeButton=button
@@ -63,7 +64,7 @@ function G.BuildUI()
  f.next=label(f,10,300);f.next:Hide();f.footer=label(f,10,300);f.footer:Hide()
  f.back=button(f,'Back',49,function() G.Back() end)
  f.skip=button(f,'Skip',49,function() G.Mark('skipped');G.Sync();G.Render() end)
- f.done=button(f,'Done',56,function() G.Advance() end)
+ f.done=button(f,'Done',56,function() if G.StepButton and G.StepButton(G.Current())=='Skip' then G.Mark('skipped');G.Sync();G.Render() else G.Advance() end end)
  f.menu=button(f,'Guides',60,function() G.ToggleMenu() end)
  f.mode=button(f,'Expand',66,function() G.db.view=G.db.view=='full' and 'minimal' or 'full';G.Render() end)
  f.settingsButton=button(f,'Settings',65,function() G.ToggleSettings() end)
@@ -73,8 +74,8 @@ function G.BuildUI()
  menu.info=label(menu,11,420);point(menu.info,menu,180,48);menu.info:SetWidth(260);menu.info:SetHeight(25)
  menu.rows={};for i=1,14 do local row=button(menu,'',420,function() if this.guideID then local ok,why=G.Select(this.guideID);if ok then G.frame:Show();G.db.hidden=false;G.menu:Hide() else G.Chat(why) end end end);point(row,menu,20,78+(i-1)*28);menu.rows[i]=row end
  menu.page=1
- local x=20
- for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
+ local x=20;menu.pageButtons={}
+ for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);b.pageX=x;table.insert(menu.pageButtons,b);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
  menu.levelButton=button(menu,'Show current level',150,function() if menu.level then menu.level=nil else menu.level=UnitLevel('player') end;menu.page=1;G.RenderMenu() end);point(menu.levelButton,menu,20,48)
  menu:Hide()
  if G.BuildMenus then G.BuildMenus() end
@@ -116,6 +117,8 @@ function G.Render(layoutOnly)
  -- Legacy background selection is replaced by independent skins.
  -- f.bg:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\'..((full and 'GuideFull' or 'GuideMinimal')..OG_BG))
  G.LayoutHeader(f,width)
+ for _,t in ipairs(f.header) do if full then t:Show() else t:Hide() end end
+ for _,t in ipairs({f.title,f.version,f.route,f.routeMode}) do if full then t:Show() else t:Hide() end end
  f.routeMode:SetText(G.Mode()=='hardcore' and 'Hardcore' or 'Normal');point(f.routeMode,f,width-102,24);f.mode:SetText(full and 'Minimal' or 'Expand')
  local cached=layoutOnly and f.layoutData
  local s=cached and cached.step or G.Current();local guide=G.state and G.state.guide
@@ -131,7 +134,7 @@ function G.Render(layoutOnly)
  f.route:SetText(source..' | '..G.RouteLabel(guide)..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
  local names={accept='ACCEPT QUEST',turnin='TURN IN QUEST',objective='CURRENT OBJECTIVES',complete='CURRENT OBJECTIVES',travel='TRAVEL',collect='GATHER',death='NORMAL SHORTCUT'}
  f.section:SetText(names[action] or string.upper(action or 'CURRENT STEP'));if full then f.section:Show() else f.section:Hide() end
- local cardTop=96;local titleTop=full and 130 or 112;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)
+ local cardTop=full and 96 or 30;local titleTop=full and 130 or 42;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)
  f.icon:SetTexture(action=='turnin' and 'Interface\\GossipFrame\\ActiveQuestIcon' or 'Interface\\GossipFrame\\AvailableQuestIcon');point(f.icon,f,27,titleTop)
  point(f.step,f,65,titleTop);local y=titleTop+height(f.step,title,width-188,17)+8
  point(f.arrow,f,width-86,titleTop-2);point(f.distance,f,width-109,titleTop+54)
@@ -141,7 +144,7 @@ function G.Render(layoutOnly)
   if f.detailsScroll.lastBody~=body then f.detailsScroll:SetVerticalScroll(0);f.detailsScroll.lastBody=body end
   y=y+visible+9;f.details:Show();f.detailsScroll:Show()
  else f.details:SetText('');f.details:Hide();f.detailsScroll:Hide() end
- y=math.max(y,titleTop+100,G.db.secondaryArrow and 290 or 0)
+ y=math.max(y,titleTop+100,G.db.secondaryArrow and titleTop+195 or 0)
  for i,row in ipairs(f.objectives) do local o=objectives[i]
   if o then
    point(row,f,25,y);row:SetWidth(width-50)
@@ -155,6 +158,7 @@ function G.Render(layoutOnly)
  end
  local note=''
  if s and s.minlevel and UnitLevel('player')<s.minlevel then note='Requires level '..s.minlevel..'.'
+ elseif s and s.optionalSupply then note='Optional supplies: buy only what you need. Use Skip to continue.'
  elseif s and s.action=='turnin' then note='Advances after the quest reward is confirmed.'
  elseif s and s.manual and table.getn(objectives)==0 then note='Use Done after completing this local action.' end
  if note~='' then point(f.note,f,28,y+3);y=y+height(f.note,note,width-56,10)+9;f.note:Show() else f.note:Hide() end
@@ -177,15 +181,26 @@ function G.Render(layoutOnly)
   end
   f.nextCard:SetHeight(y-top+8);y=y+20
  else f.nextCard:Hide();f.nextTitle:Hide();for _,row in ipairs(f.nextRows) do row:Hide() end end
- local buttons={f.back,f.skip,f.done,f.menu,f.mode,f.settingsButton,f.close}
- local total=0;for _,b in ipairs(buttons) do total=total+b.width end
+ local primary=G.StepButton and G.StepButton(s) or (s and 'Done' or 'Next')
+ local collapsed=G.ControlsCollapsed and G.ControlsCollapsed()
+ local buttons={f.back,f.done,f.menu,f.mode,f.settingsButton}
+ f.skip:Hide()
  local x=24;local buttonY=y
  for _,b in ipairs(buttons) do
-  if x+b.width>width-24 then x=24;buttonY=buttonY+32 end
-  b:SetWidth(b.width);b.label:SetWidth(b.width-4);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);x=x+b.width+6
+  if collapsed then b:Hide() else
+   if x+b.width>width-55 then x=24;buttonY=buttonY+32 end
+   b:SetWidth(b.width);b.label:SetWidth(b.width-4);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);b:Show();if b.restyled then b.restyled('ButtonNormal') end;x=x+b.width+6
+  end
  end
- f.done:SetText(s and 'Done' or 'Next');local contentHeight=buttonY+44;f.contentHeight=contentHeight;local finalHeight=math.max(contentHeight,(G.db.heights or {})[G.db.view] or 0);f:SetHeight(finalHeight)
- if finalHeight>contentHeight then for _,b in ipairs(buttons) do point(b,f,b.layoutX,b.layoutY+finalHeight-contentHeight) end end
+ f.done:SetText(primary)
+ if f.controlsToggle then point(f.controlsToggle,f,width-43,buttonY);f.controlsToggle:SetText(collapsed and 'v' or '^');f.controlsToggle:Show() end
+ point(f.close,f,8,6);f.close:Show()
+ local contentHeight=buttonY+38;f.contentHeight=contentHeight
+ local finalHeight=math.max(contentHeight,(G.db.heights or {})[G.db.view] or 0);f:SetHeight(finalHeight)
+ if finalHeight>contentHeight then
+  for _,b in ipairs(buttons) do point(b,f,b.layoutX or 24,(b.layoutY or y)+finalHeight-contentHeight) end
+  if f.controlsToggle then point(f.controlsToggle,f,width-43,buttonY+finalHeight-contentHeight) end
+ end
  G.LayoutPanelSkin(f.skin,width,f:GetHeight());G.ApplyZoom();if G.ApplyOpacity then G.ApplyOpacity() end
  G.tooltipText=nil
  if not layoutOnly then G.navigationTarget=G.NavTarget();G.UpdateArrow() end

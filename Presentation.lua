@@ -28,6 +28,7 @@ function G.Present(s)
     for _,note in ipairs(G.SourceNotes(s)) do if note~='' and not seen[note] then body=body..'\n'..note;seen[note]=true end end
   end
   if s.personalClass then body='Personal '..s.personalClass..' task: each player of this class must complete their own unlock.\n'..body end
+  if s.optionalSupply then title='Optional: food and drinks';body=body..'\nBuy only what you need. Skip this visit if you already have supplies.' end
   if G.PartyMode and G.PartyMode()=='group' and s.questID and (s.action=='complete' or s.action=='objective' or s.action=='collect') then body=body..'\nGroup: check each player\'s own quest progress. Item drops and class unlocks may be individual.' end
   if G.Concurrent then
     local list=G.Concurrent(s);local seen={}
