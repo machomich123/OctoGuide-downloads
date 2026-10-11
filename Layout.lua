@@ -25,14 +25,16 @@ function G.LayoutHeader(f,w)
  f.route:ClearAllPoints();f.route:SetPoint('TOPLEFT',f,'TOPLEFT',108,-55);f.route:SetWidth(w-134)
 end
 function G.ApplyZoom()
- local scale=math.max(60,math.min(150,G.db.zoom or 100))/100
- for _,f in ipairs({G.frame,G.menu,G.options}) do if f and f.SetScale then f:SetScale(scale) end end
+ local scale=math.max(30,math.min(150,G.db.zoom or 100))/100
+ for _,f in ipairs({G.frame,G.menu}) do if f and f.SetScale then f:SetScale(scale) end end
+ -- Keep the slider under the cursor and settings readable at small guide zoom.
+ if G.options and G.options.SetScale then G.options:SetScale(1) end
 end
-function G.SetZoom(value)
+function G.SetZoom(value,fromSlider)
  local n=tonumber(value);if not n then return false end
- G.db.zoom=math.floor(math.max(60,math.min(150,n))+.5);G.ApplyZoom()
+ G.db.zoom=math.floor(math.max(30,math.min(150,n))+.5);G.ApplyZoom()
  if G.options and G.options.zoomField then
-  G.zoomUpdating=true;G.options.zoomField:SetText(tostring(G.db.zoom));if G.options.zoomSlider then G.options.zoomSlider:SetValue(G.db.zoom) end;G.zoomUpdating=false
+  G.zoomUpdating=true;G.options.zoomField:SetText(tostring(G.db.zoom));if G.options.zoomSlider and not fromSlider then G.options.zoomSlider:SetValue(G.db.zoom) end;G.zoomUpdating=false
  end
  return true
 end
@@ -51,9 +53,9 @@ function G.BuildZoomControls(p,label,point)
  field:SetScript('OnEscapePressed',function() this:SetText(tostring(G.db.zoom or 100));this:ClearFocus() end)
  local slider=CreateFrame('Slider',nil,p);p.zoomSlider=slider;slider:EnableMouse(true);slider:SetWidth(286);slider:SetHeight(18);slider:SetPoint('TOPLEFT',p,'TOPLEFT',25,-340)
  if slider.SetOrientation then slider:SetOrientation('HORIZONTAL') end
- if slider.SetMinMaxValues then slider:SetMinMaxValues(60,150);slider:SetValueStep(1);slider:SetThumbTexture('Interface\\Buttons\\UI-SliderBar-Button-Horizontal');slider:SetBackdrop({bgFile='Interface\\Buttons\\UI-SliderBar-Background',edgeFile='Interface\\Buttons\\UI-SliderBar-Border',tile=true,tileSize=8,edgeSize=8});slider:SetValue(G.db.zoom or 100) end
- slider:SetScript('OnValueChanged',function() if not G.zoomUpdating then G.SetZoom(this:GetValue()) end end)
- p.zoomHint=label(p,10,285);point(p.zoomHint,p,25,366);p.zoomHint:SetHeight(18);p.zoomHint:SetText('60% - 150%. Enter a value and press Enter.')
+ if slider.SetMinMaxValues then slider:SetMinMaxValues(30,150);slider:SetValueStep(1);slider:SetThumbTexture('Interface\\Buttons\\UI-SliderBar-Button-Horizontal');slider:SetBackdrop({bgFile='Interface\\Buttons\\UI-SliderBar-Background',edgeFile='Interface\\Buttons\\UI-SliderBar-Border',tile=true,tileSize=8,edgeSize=8});slider:SetValue(G.db.zoom or 100) end
+ slider:SetScript('OnValueChanged',function() if not G.zoomUpdating then G.SetZoom(slider:GetValue(),true) end end)
+ p.zoomHint=label(p,10,285);point(p.zoomHint,p,25,366);p.zoomHint:SetHeight(18);p.zoomHint:SetText('30% - 150%. Enter a value and press Enter.')
 end
 function G.BuildResizeHandles(f)
  f.resizeHandles={}

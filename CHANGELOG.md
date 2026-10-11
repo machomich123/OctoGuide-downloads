@@ -1,3 +1,7 @@
+## 0.4.4
+
+- Zoom range is now 30-150 percent. Settings stay at a fixed scale so dragging cannot move the slider under the cursor. Slider callbacks do not write back to the slider being dragged.
+
 ## 0.4.3
 
 - Fix Current level / All getting stuck on the current-level filter. The button now names the action: Show current level or Show all levels.
