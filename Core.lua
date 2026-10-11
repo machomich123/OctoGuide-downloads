@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.4.10',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.5.0',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -190,7 +190,7 @@ function G.Objectives(step)
       local ok,id,kindID=pcall(GetQuestLogLeaderBoardID,i,index)
       if ok then objectiveID=id;objectiveKind=kindID end
     end
-    table.insert(list,{text=text,name=name,current=current,required=required,done=done and true or false,index=i,id=objectiveID,kind=kind or objectiveKind})
+    table.insert(list,{text=text,name=name,current=current,required=required,done=done and true or false,index=i,id=objectiveID,kind=kind or objectiveKind,idKind=objectiveKind})
   end
   return list
 end

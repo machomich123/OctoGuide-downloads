@@ -41,7 +41,7 @@ function G.HandleSlash(msg)
   elseif cmd=='sync' then G.AutoPlace(false)
   elseif cmd=='route' then G.gatherTarget=nil;G.Render()
   elseif cmd=='mining' or cmd=='herbalism' then local ok,why=G.Gather(cmd=='mining' and 'ore' or 'herb');if not ok then G.Chat(why) end
-  elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | solo | group | auto | rxp | baseline | level N | check | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
+  elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | solo | group | auto | level N | check | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
   else G.db.hidden=false;G.frame:Show();G.Render() end
 end
 
@@ -72,7 +72,7 @@ SLASH_OCTOGUIDE1='/octoguide';SLASH_OCTOGUIDE2='/oguide';SlashCmdList['OCTOGUIDE
 local events=CreateFrame('Frame');G.events=events
 for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE','PARTY_MEMBERS_CHANGED'}) do pcall(function() events:RegisterEvent(ev) end) end
 if G.InitProgress then G.InitProgress() end
-events:SetScript('OnEvent',function() G.Event(event,arg1,arg2) end)
+events:SetScript('OnEvent',function() if G.ReportEvent then G.ReportEvent(event) end;G.Event(event,arg1,arg2);if G.InstallReportErrors then G.InstallReportErrors() end end)
 events:SetScript('OnUpdate',function()
   if not G.ready then return end
   G.UpdateArrow(arg1 or .016)

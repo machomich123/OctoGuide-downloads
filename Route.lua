@@ -13,9 +13,7 @@ function G.RegisterGuide(meta,steps)
   if meta.routeFamily=='rxp' then G.hasFamilyRoutes=true end
 end
 function G.RouteSource()
-  local chosen=G.db and G.db.routeSource
-  if chosen=='rxp' and not G.hasFamilyRoutes then return 'baseline' end
-  return chosen or (G.hasFamilyRoutes and 'rxp' or 'baseline')
+  return G.hasFamilyRoutes and 'rxp' or 'baseline'
 end
 function G.PartyMode()
   local setting=G.db and G.db.partyMode or 'auto'
@@ -107,6 +105,18 @@ function G.Current()
         G.db.placements[G.state.guide.id]={stepID=G.state.steps[pickup].id,reason='missing quest pickup'}
         G.db.progress[G.Key(G.state.steps[pickup])]=nil
         return G.state.steps[pickup]
+      end
+      -- Finish pickups explicitly grouped with this work before starting it.
+      -- Never pull in later blocks or cross a turn-in in the same block.
+      if (s.action=='complete' or s.action=='objective') and G.SourceEligible(s) then
+       for j=i+1,table.getn(G.state.steps) do
+        local a=G.state.steps[j]
+        if a.sourceBlock~=s.sourceBlock or a.action=='turnin' then break end
+        local lookup=(C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID)=='function') or type(GetQuestIDFromLogIndex)=='function'
+        if lookup and a.action=='accept' and a.questID and not G.db.progress[G.Key(a)] and not G.Satisfied(a) and G.SourceEligible(a) and (not a.minlevel or UnitLevel('player')>=a.minlevel) then
+         G.state.index=j;return a
+        end
+       end
       end
       G.state.index=i;return s
     end

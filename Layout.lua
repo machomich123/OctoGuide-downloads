@@ -25,13 +25,13 @@ function G.CreatePanelSkin(parent)
  for i=1,9 do local t=parent:CreateTexture(nil,'BORDER');t:SetTexture(art);pieces[i]=t end
  return pieces
 end
-function G.LayoutPanelSkin(pieces,w,h)
+function G.LayoutPanelSkin(pieces,w,h,parent)
  -- Slice the existing high resolution art in texture coordinates. Fixed
  -- corners are never stretched, and the logo is not part of this panel.
  local u={0,.047,.953,1};local v={.14,.171,.54,.571};local x={0,18,w-18,w};local y={0,18,h-18,h}
  local k=0
  for row=1,3 do for col=1,3 do
-  k=k+1;local t=pieces[k];t:ClearAllPoints();t:SetPoint('TOPLEFT',G.frame,'TOPLEFT',x[col],-y[row]);t:SetWidth(x[col+1]-x[col]);t:SetHeight(y[row+1]-y[row]);if t.SetTexCoord then if col==1 then t:SetTexCoord(u[4],v[row],u[4],v[row+1],u[3],v[row],u[3],v[row+1]) else t:SetTexCoord(u[col],u[col+1],v[row],v[row+1]) end end
+  k=k+1;local t=pieces[k];t:ClearAllPoints();t:SetPoint('TOPLEFT',parent or G.frame,'TOPLEFT',x[col],-y[row]);t:SetWidth(x[col+1]-x[col]);t:SetHeight(y[row+1]-y[row]);if t.SetTexCoord then if col==1 then t:SetTexCoord(u[4],v[row],u[4],v[row+1],u[3],v[row],u[3],v[row+1]) else t:SetTexCoord(u[col],u[col+1],v[row],v[row+1]) end end
  end end
 end
 function G.LayoutHeader(f,w)

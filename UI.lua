@@ -19,17 +19,20 @@ end
 local function button(p,v,w,fn)
  local b=CreateFrame('Button',nil,p);b:SetWidth(w);b:SetHeight(26);b.width=w
  b:SetBackdrop({bgFile='Interface\\Tooltips\\UI-Tooltip-Background',edgeFile='Interface\\Tooltips\\UI-Tooltip-Border',tile=true,tileSize=16,edgeSize=8,insets={left=3,right=3,top=3,bottom=3}});b:SetBackdropColor(.04,.055,.075,.98)
- b.surface=b:CreateTexture(nil,'ARTWORK');b.surface:SetAllPoints(b);b.surface:SetTexture('Interface\\Buttons\\UI-Panel-Button-Up');if b.surface.SetTexCoord then b.surface:SetTexCoord(0,.625,0,.6875) end
- b:SetScript('OnMouseDown',function() this.surface:SetTexture('Interface\\Buttons\\UI-Panel-Button-Down') end)
- b:SetScript('OnMouseUp',function() this.surface:SetTexture('Interface\\Buttons\\UI-Panel-Button-Up') end)
+ b.surface=b:CreateTexture(nil,'ARTWORK');b.surface:SetAllPoints(b)
+ local asset='Interface\\AddOns\\OctoGuide-downloads\\Assets\\'
+ b.surface:SetTexture(asset..'ButtonNormal')
+ b:SetScript('OnMouseDown',function() b.surface:SetTexture(asset..'ButtonPressed') end)
+ b:SetScript('OnMouseUp',function() b.surface:SetTexture(asset..'ButtonNormal') end)
  if b.SetBackdropBorderColor then b:SetBackdropBorderColor(.4,.3,.12,.8) end
  b.label=label(b,11,w-8,true);b.label:SetPoint('CENTER',b,'CENTER',0,0);b.label:SetHeight(18);b.label:SetJustifyH('CENTER');if b.label.SetJustifyV then b.label:SetJustifyV('MIDDLE') end
  function b:SetText(value) self.value=value;self.label:SetText(value) end
  b:SetText(v);b:SetScript('OnClick',fn)
- b:SetScript('OnEnter',function() this:SetBackdropColor(.11,.13,.16,1) end)
- b:SetScript('OnLeave',function() this:SetBackdropColor(.04,.055,.075,.98) end)
+ b:SetScript('OnEnter',function() b.surface:SetTexture(asset..'ButtonHover') end)
+ b:SetScript('OnLeave',function() b.surface:SetTexture(asset..'ButtonNormal') end)
  return b
 end
+G.MakeLabel=label;G.Place=point;G.MakeCard=card;G.MakeButton=button
 function G.BuildUI()
  local f=CreateFrame('Frame','OctoGuideFrame',UIParent);G.frame=f;f:SetWidth(460);f:SetHeight(600);f:SetPoint('CENTER',UIParent,'CENTER',0,80);f:SetFrameStrata('MEDIUM');f:EnableMouse(true);f:SetMovable(true);f:RegisterForDrag('LeftButton')
  f:SetScript('OnDragStart',function() this:StartMoving() end)
@@ -74,6 +77,7 @@ function G.BuildUI()
  for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
  menu.levelButton=button(menu,'Show current level',150,function() if menu.level then menu.level=nil else menu.level=UnitLevel('player') end;menu.page=1;G.RenderMenu() end);point(menu.levelButton,menu,20,48)
  menu:Hide()
+ if G.BuildMenus then G.BuildMenus() end
  local options=card(UIParent);G.options=options;options:SetWidth(350);options:SetHeight(450);options:SetPoint('CENTER',UIParent,'CENTER',0,0);options:SetFrameStrata('DIALOG');if options.SetFrameLevel and f.GetFrameLevel then options:SetFrameLevel(f:GetFrameLevel()+30) end;options:EnableMouse(true)
  options.title=label(options,18,310,true);point(options.title,options,20,18);options.title:SetHeight(24);options.title:SetText('OctoGuide settings')
  options.rows={}
@@ -85,13 +89,15 @@ function G.BuildUI()
  G.BuildZoomControls(options,label,point)
  local smaller=button(options,'Narrower',95,function() G.ResizeWidth(-40) end);point(smaller,options,20,394)
  local wider=button(options,'Wider',95,function() G.ResizeWidth(40) end);point(wider,options,125,394)
- local b=button(options,'Close',80,function() options:Hide() end);point(b,options,245,394);options:Hide()
+ local b=button(options,'Close',80,function() options:Hide() end);point(b,options,245,394);options.close=b;options.smaller=smaller;options.wider=wider;options:Hide()
+ if G.UpgradeSettings then G.UpgradeSettings() end
 end
 function G.ResizeWidth(delta)
  G.db.widths=G.db.widths or {};local view=G.db.view or 'full';G.db.widths[view]=math.max(380,math.min(800,(G.db.widths[view] or G.frame:GetWidth())+delta));G.Render()
 end
 function G.RenderSettings()
  G.options.partyButton:SetText('Party: '..(G.db.partyMode or 'auto')..' ('..G.PartyMode()..')')
+ if G.UpdateAppearanceSettings then G.UpdateAppearanceSettings() end
  local o=G.MapOptions and G.MapOptions() or G.db.mapOptions or {}
  for _,b in ipairs(G.options.rows) do b:SetText((o[b.optionKey]~=false and '[ON] ' or '[OFF] ')..b.optionLabel) end
 end
@@ -135,7 +141,7 @@ function G.Render(layoutOnly)
   if f.detailsScroll.lastBody~=body then f.detailsScroll:SetVerticalScroll(0);f.detailsScroll.lastBody=body end
   y=y+visible+9;f.details:Show();f.detailsScroll:Show()
  else f.details:SetText('');f.details:Hide();f.detailsScroll:Hide() end
- y=math.max(y,titleTop+80)
+ y=math.max(y,titleTop+100,G.db.secondaryArrow and 290 or 0)
  for i,row in ipairs(f.objectives) do local o=objectives[i]
   if o then
    point(row,f,25,y);row:SetWidth(width-50)
@@ -180,15 +186,15 @@ function G.Render(layoutOnly)
  end
  f.done:SetText(s and 'Done' or 'Next');local contentHeight=buttonY+44;f.contentHeight=contentHeight;local finalHeight=math.max(contentHeight,(G.db.heights or {})[G.db.view] or 0);f:SetHeight(finalHeight)
  if finalHeight>contentHeight then for _,b in ipairs(buttons) do point(b,f,b.layoutX,b.layoutY+finalHeight-contentHeight) end end
- G.LayoutPanelSkin(f.skin,width,f:GetHeight());G.ApplyZoom()
+ G.LayoutPanelSkin(f.skin,width,f:GetHeight());G.ApplyZoom();if G.ApplyOpacity then G.ApplyOpacity() end
  G.tooltipText=nil
  if not layoutOnly then G.navigationTarget=G.NavTarget();G.UpdateArrow() end
  if not layoutOnly and G.UpdateMaps then G.UpdateMaps(true) end
 end
 function G.UpdateArrow(elapsed)
  local f=G.frame;if not f or not f.arrow or not f.distance or not f:IsShown() then return end
- local s=G.NavTarget();if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
- local result,why=OctoGuideNavigation.ReadWaypoint(s)
+ local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow() end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
+ local result,why;if G.NavigationRead and not G.gatherTarget then result,why=G.NavigationRead(G.Current()) else result,why=OctoGuideNavigation.ReadWaypoint(s) end
  if not result then f.arrow:Hide();f.distance:SetText(why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
  local angle=result.angle
  if angle and elapsed and f.arrowAngle then local d=math.mod(angle-f.arrowAngle+3*math.pi,2*math.pi)-math.pi;angle=f.arrowAngle+d*(1-math.exp(-18*math.min(elapsed,.1))) end
@@ -202,5 +208,6 @@ function G.UpdateArrow(elapsed)
  end
  if rotated then f.arrow:Show() else f.arrow:Hide() end
  f.distance:SetText(math.floor(result.yards+.5)..' yd')
+ if f.targetEvidence then f.targetEvidence:SetText(G.navigationEvidence or 'Route waypoint') end
 end
 
