@@ -27,7 +27,7 @@ function G.StyleButton(b)
  state('ButtonNormal')
 end
 function G.StyleControl(b,kind)
- b.controlType=kind;b.surface:Hide();b.label:Hide()
+ b.controlType=kind;b:SetBackdrop(nil);b.surface:Hide();b.label:Hide()
  for _,t in ipairs(b.parts or {}) do t:Hide() end
  b.controlArt=b.controlArt or b:CreateTexture(nil,'OVERLAY')
  local function state(name)
