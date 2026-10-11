@@ -40,15 +40,22 @@ function G.LayoutHeader(f,w)
   t:ClearAllPoints();t:SetPoint('TOPLEFT',f,'TOPLEFT',x,0);t:SetWidth(width);t:SetHeight(92);if t.SetTexCoord then t:SetTexCoord(u1,u2,0,.136) end
  end
  part(left,0,96,0,.212);part(center,96,w-130,.212,.925);part(right,w-34,34,.925,1)
- f.title:ClearAllPoints();f.title:SetPoint('TOPLEFT',f,'TOPLEFT',108,-22);f.title:SetWidth(110)
- f.version:ClearAllPoints();f.version:SetPoint('TOPLEFT',f,'TOPLEFT',222,-30);f.version:SetWidth(50)
- f.route:ClearAllPoints();f.route:SetPoint('TOPLEFT',f,'TOPLEFT',108,-55);f.route:SetWidth(w-134)
+ f.title:SetWidth(500)
+ local titleWidth=f.title.GetStringWidth and math.ceil(f.title:GetStringWidth()+8) or 140
+ titleWidth=math.max(140,titleWidth)
+ f.title:ClearAllPoints();f.title:SetPoint('TOPLEFT',f,'TOPLEFT',108,-17);f.title:SetWidth(titleWidth)
+ f.version:ClearAllPoints();f.version:SetPoint('TOPLEFT',f,'TOPLEFT',108,-43);f.version:SetWidth(60)
+ f.route:ClearAllPoints();f.route:SetPoint('TOPLEFT',f,'TOPLEFT',108,-62);f.route:SetWidth(w-134);f.route:SetHeight(30)
+ if f.route.SetWordWrap then f.route:SetWordWrap(true) end
 end
 function G.ApplyZoom()
  local scale=math.max(30,math.min(150,G.db.zoom or 100))/100
  for _,f in ipairs({G.frame,G.menu}) do if f and f.SetScale then f:SetScale(scale) end end
  -- Keep the slider under the cursor and settings readable at small guide zoom.
  if G.options and G.options.SetScale then G.options:SetScale(1) end
+ if G.frame and G.frame.resizeHandles then
+  for _,h in pairs(G.frame.resizeHandles) do local size=24/scale;h:SetWidth(size);h:SetHeight(size) end
+ end
 end
 function G.SetZoom(value,fromSlider)
  local n=tonumber(value);if not n then return false end
@@ -80,13 +87,20 @@ end
 function G.BuildResizeHandles(f)
  f.resizeHandles={}
  for _,corner in ipairs({'TOPLEFT','TOPRIGHT','BOTTOMLEFT','BOTTOMRIGHT'}) do
-  local h=CreateFrame('Frame',nil,f);h:SetWidth(16);h:SetHeight(16);h:SetPoint(corner,f,corner,0,0);h:EnableMouse(true);h.corner=corner;f.resizeHandles[corner]=h
+  local h=CreateFrame('Frame',nil,f);h:SetWidth(24);h:SetHeight(24);h:SetPoint(corner,f,corner,0,0);h:EnableMouse(true);h.corner=corner;f.resizeHandles[corner]=h
+  local marker=h:CreateTexture(nil,'OVERLAY');marker:SetTexture('Interface\\Buttons\\WHITE8X8');marker:SetWidth(7);marker:SetHeight(7);marker:SetPoint(corner,h,corner,0,0);if marker.SetVertexColor then marker:SetVertexColor(.85,.65,.25,.7) end
   if h.SetFrameLevel and f.GetFrameLevel then h:SetFrameLevel(f:GetFrameLevel()+20) end
   h:SetScript('OnMouseDown',function()
    if arg1 and arg1~='LeftButton' then return end
    if not GetCursorPosition then return end
    local cx,cy=GetCursorPosition();local scale=f:GetEffectiveScale()
-   G.resizeDrag={handle=this,corner=this.corner,x=cx/scale,y=cy/scale,width=f:GetWidth(),height=f:GetHeight(),left=f:GetLeft(),bottom=f:GetBottom(),scale=scale}
+   local p,r,rp,x,y=f:GetPoint()
+   if type(r)=='string' and type(rp)=='number' and type(x)=='number' and y==nil then y=x;x=rp;rp=r;r=UIParent end
+   r=r or UIParent
+   if type(x)~='number' or type(y)~='number' then return end
+   local ax=string.find(p,'LEFT',1,true) and 0 or (string.find(p,'RIGHT',1,true) and 1 or .5)
+   local ay=string.find(p,'BOTTOM',1,true) and 0 or (string.find(p,'TOP',1,true) and 1 or .5)
+   G.resizeDrag={handle=this,corner=this.corner,x=cx/scale,y=cy/scale,width=f:GetWidth(),height=f:GetHeight(),scale=scale,point=p,relative=r,relativePoint=rp,offsetX=x,offsetY=y,ax=ax,ay=ay,relativeScale=r:GetEffectiveScale()}
    G.resizing=true
   end)
   h:SetScript('OnUpdate',function() if G.resizeDrag and G.resizeDrag.handle==this then G.UpdateResize() end end)
@@ -103,6 +117,8 @@ function G.UpdateResize()
  G.Render(true)
  -- Keep the diagonally opposite corner fixed after text reflow determines
  -- the minimum content height. Coordinates are converted to parent units.
- local x=d.left+(left and d.width-width or 0);local y=d.bottom+(bottom and d.height-f:GetHeight() or 0)
- local ratio=f:GetEffectiveScale()/UIParent:GetEffectiveScale();f:ClearAllPoints();f:SetPoint('BOTTOMLEFT',UIParent,'BOTTOMLEFT',x*ratio,y*ratio)
+ local dw=width-d.width;local dh=f:GetHeight()-d.height
+ local x=(left and -(1-d.ax) or d.ax)*dw
+ local y=(bottom and -(1-d.ay) or d.ay)*dh
+ local ratio=d.scale/d.relativeScale;f:ClearAllPoints();f:SetPoint(d.point,d.relative,d.relativePoint,d.offsetX+x*ratio,d.offsetY+y*ratio)
 end

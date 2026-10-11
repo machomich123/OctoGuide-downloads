@@ -1,3 +1,8 @@
+## 0.4.7
+
+- Give the full OctoGuide title adequate measured width, a separate version line and wrapped route text.
+- Resize preserves the original anchor and opposite corner at every zoom instead of converting GetLeft/GetBottom again. Corner hit areas keep 24 display units across zoom and have visible markers.
+
 ## 0.4.6
 
 - Show RestedXP route installation and selected source in the guide header.
