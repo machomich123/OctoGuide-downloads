@@ -11,6 +11,8 @@ local function cornerPosition(corner)
  local yy=string.find(corner,'BOTTOM',1,true) and 0 or 1
  return x*r:GetEffectiveScale()+(xx-ax)*f:GetWidth()*f:GetEffectiveScale(),y*r:GetEffectiveScale()+(yy-ay)*f:GetHeight()*f:GetEffectiveScale()
 end
+function f:GetLeft() local p,r,rp,x,y=self:GetPoint();local ax=string.find(p,'LEFT',1,true) and 0 or (string.find(p,'RIGHT',1,true) and 1 or .5);return x*r:GetEffectiveScale()/self:GetEffectiveScale()-ax*self:GetWidth() end
+function f:GetBottom() local p,r,rp,x,y=self:GetPoint();local ay=string.find(p,'BOTTOM',1,true) and 0 or (string.find(p,'TOP',1,true) and 1 or .5);return y*r:GetEffectiveScale()/self:GetEffectiveScale()-ay*self:GetHeight() end
 local opposites={TOPLEFT='BOTTOMRIGHT',TOPRIGHT='BOTTOMLEFT',BOTTOMLEFT='TOPRIGHT',BOTTOMRIGHT='TOPLEFT'}
 local count=0
 for _,parentScale in ipairs({.8,1,1.25}) do
@@ -22,14 +24,14 @@ for _,parentScale in ipairs({.8,1,1.25}) do
    f:ClearAllPoints();f:SetPoint('CENTER',UIParent,'CENTER',5,10)
    local h=f.resizeHandles[corner];assert(math.abs(h.width*zoom/100-24)<.0001)
    local beforeX,beforeY=cornerPosition(opposite);local width=f.width;local height=f.height
-   cx=500;cy=600;this=h;arg1='LeftButton';h.scripts.OnMouseDown();G.UpdateResize()
-   assert(f.point[4]==5 and f.point[5]==10,'Mouse-down must not jump at low zoom')
+   cx=500;cy=600;this=h;arg1='LeftButton';h.scripts.OnMouseDown();local pointReader=f.GetPoint;f.GetPoint=function() error('Native GetPoint must not be used during resize') end;G.UpdateResize();f.GetPoint=pointReader
+   local initialX,initialY=cornerPosition(opposite);assert(math.abs(initialX-beforeX)<.0001 and math.abs(initialY-beforeY)<.0001,'Mouse-down must not jump at low zoom')
    cx=cx+(string.find(corner,'LEFT',1,true) and -30 or 30)
    cy=cy+(string.find(corner,'BOTTOM',1,true) and -20 or 20)
    G.UpdateResize();local afterX,afterY=cornerPosition(opposite)
    assert(math.abs(beforeX-afterX)<.0001 and math.abs(beforeY-afterY)<.0001,'Opposite corner must remain fixed')
    assert(math.abs(f.width-width-30/f:GetEffectiveScale())<.0001 and math.abs(f.height-height-20/f:GetEffectiveScale())<.0001,'Resize must follow cursor in physical pixels')
-   this=h;h.scripts.OnMouseUp();assert(not G.resizing and not G.resizeDrag)
+   this=h;f.GetPoint=function() error('Native GetPoint must not be used on resize release') end;h.scripts.OnMouseUp();f.GetPoint=pointReader;assert(not G.resizing and not G.resizeDrag)
    count=count+1
   end
  end

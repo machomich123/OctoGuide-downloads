@@ -1,3 +1,8 @@
+## 0.4.9
+
+- Resize uses resolved screen geometry and UIParent rather than dereferencing the native relative-region returned by GetPoint. Captured handles avoid global callback context dependency. Resize release saves its computed anchor directly.
+- Native crash at 0x0070211C reported during resize; exact in-world fault not reproduced offline. This release removes the suspect path, with native resize stress and geometry checks.
+
 ## 0.4.8
 
 - Recover missing earlier RestedXP quest pickups, including saved cursors after Senjin and abandoned quests. Preserve explicit Done/Skip and confirmed history.

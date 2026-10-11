@@ -94,17 +94,16 @@ function G.BuildResizeHandles(f)
    if arg1 and arg1~='LeftButton' then return end
    if not GetCursorPosition then return end
    local cx,cy=GetCursorPosition();local scale=f:GetEffectiveScale()
-   local p,r,rp,x,y=f:GetPoint()
-   if type(r)=='string' and type(rp)=='number' and type(x)=='number' and y==nil then y=x;x=rp;rp=r;r=UIParent end
-   r=r or UIParent
-   if type(x)~='number' or type(y)~='number' then return end
-   local ax=string.find(p,'LEFT',1,true) and 0 or (string.find(p,'RIGHT',1,true) and 1 or .5)
-   local ay=string.find(p,'BOTTOM',1,true) and 0 or (string.find(p,'TOP',1,true) and 1 or .5)
-   G.resizeDrag={handle=this,corner=this.corner,x=cx/scale,y=cy/scale,width=f:GetWidth(),height=f:GetHeight(),scale=scale,point=p,relative=r,relativePoint=rp,offsetX=x,offsetY=y,ax=ax,ay=ay,relativeScale=r:GetEffectiveScale()}
+   -- Vanilla GetPoint may return a native relative-region userdata. Do not
+   -- dereference or retain it while resizing; use resolved screen geometry.
+   local parentScale=UIParent:GetEffectiveScale()
+   local left,bottom=f:GetLeft(),f:GetBottom()
+   if type(left)~='number' or type(bottom)~='number' or scale<=0 or parentScale<=0 then return end
+   G.resizeDrag={handle=h,corner=h.corner,x=cx/scale,y=cy/scale,width=f:GetWidth(),height=f:GetHeight(),scale=scale,point='BOTTOMLEFT',relative=UIParent,relativePoint='BOTTOMLEFT',offsetX=left*scale/parentScale,offsetY=bottom*scale/parentScale,ax=0,ay=0,relativeScale=parentScale}
    G.resizing=true
   end)
-  h:SetScript('OnUpdate',function() if G.resizeDrag and G.resizeDrag.handle==this then G.UpdateResize() end end)
-  h:SetScript('OnMouseUp',function() if G.resizeDrag and G.resizeDrag.handle==this then G.UpdateResize();G.resizeDrag=nil;G.resizing=false;G.SavePosition(f) end end)
+  h:SetScript('OnUpdate',function() if G.resizeDrag and G.resizeDrag.handle==h then G.UpdateResize() end end)
+  h:SetScript('OnMouseUp',function() if G.resizeDrag and G.resizeDrag.handle==h then G.UpdateResize();G.resizeDrag=nil;G.resizing=false;G.db.position={'BOTTOMLEFT','BOTTOMLEFT',G.resizeDragFinalX,G.resizeDragFinalY} end end)
  end
 end
 function G.UpdateResize()
@@ -120,5 +119,7 @@ function G.UpdateResize()
  local dw=width-d.width;local dh=f:GetHeight()-d.height
  local x=(left and -(1-d.ax) or d.ax)*dw
  local y=(bottom and -(1-d.ay) or d.ay)*dh
- local ratio=d.scale/d.relativeScale;f:ClearAllPoints();f:SetPoint(d.point,d.relative,d.relativePoint,d.offsetX+x*ratio,d.offsetY+y*ratio)
+ local ratio=d.scale/d.relativeScale
+ G.resizeDragFinalX=d.offsetX+x*ratio;G.resizeDragFinalY=d.offsetY+y*ratio
+ f:ClearAllPoints();f:SetPoint('BOTTOMLEFT',UIParent,'BOTTOMLEFT',G.resizeDragFinalX,G.resizeDragFinalY)
 end
