@@ -1,3 +1,9 @@
+## 0.4.10
+
+- Fix resize coordinates: Vanilla SetPoint uses the positioned region scale, not the relative parent scale. Native position regression reproduces the old jump and checks no jump plus fixed opposite corner.
+- Remove added yellow corner markers while retaining constant-size hit areas.
+- Keep route header above the border; separate upcoming task titles from indented instructions using different colors.
+
 ## 0.4.9
 
 - Resize uses resolved screen geometry and UIParent rather than dereferencing the native relative-region returned by GetPoint. Captured handles avoid global callback context dependency. Resize release saves its computed anchor directly.

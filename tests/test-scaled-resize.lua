@@ -9,10 +9,10 @@ local function cornerPosition(corner)
  local ay=string.find(p,'BOTTOM',1,true) and 0 or (string.find(p,'TOP',1,true) and 1 or .5)
  local xx=string.find(corner,'LEFT',1,true) and 0 or 1
  local yy=string.find(corner,'BOTTOM',1,true) and 0 or 1
- return x*r:GetEffectiveScale()+(xx-ax)*f:GetWidth()*f:GetEffectiveScale(),y*r:GetEffectiveScale()+(yy-ay)*f:GetHeight()*f:GetEffectiveScale()
+ return x*f:GetEffectiveScale()+(xx-ax)*f:GetWidth()*f:GetEffectiveScale(),y*f:GetEffectiveScale()+(yy-ay)*f:GetHeight()*f:GetEffectiveScale()
 end
-function f:GetLeft() local p,r,rp,x,y=self:GetPoint();local ax=string.find(p,'LEFT',1,true) and 0 or (string.find(p,'RIGHT',1,true) and 1 or .5);return x*r:GetEffectiveScale()/self:GetEffectiveScale()-ax*self:GetWidth() end
-function f:GetBottom() local p,r,rp,x,y=self:GetPoint();local ay=string.find(p,'BOTTOM',1,true) and 0 or (string.find(p,'TOP',1,true) and 1 or .5);return y*r:GetEffectiveScale()/self:GetEffectiveScale()-ay*self:GetHeight() end
+function f:GetLeft() local p,r,rp,x,y=self:GetPoint();local ax=string.find(p,'LEFT',1,true) and 0 or (string.find(p,'RIGHT',1,true) and 1 or .5);return x-ax*self:GetWidth() end
+function f:GetBottom() local p,r,rp,x,y=self:GetPoint();local ay=string.find(p,'BOTTOM',1,true) and 0 or (string.find(p,'TOP',1,true) and 1 or .5);return y-ay*self:GetHeight() end
 local opposites={TOPLEFT='BOTTOMRIGHT',TOPRIGHT='BOTTOMLEFT',BOTTOMLEFT='TOPRIGHT',BOTTOMRIGHT='TOPLEFT'}
 local count=0
 for _,parentScale in ipairs({.8,1,1.25}) do
@@ -36,5 +36,5 @@ for _,parentScale in ipairs({.8,1,1.25}) do
   end
  end
 end
-assert(f.title.width>=140 and f.version.point[5]==-43 and f.route.height==30)
+assert(f.title.width>=140 and f.version.point[5]==-41 and f.route.height==25)
 print('PASS '..count..' corner/zoom/parent-scale combinations, no initial jump, cursor tracking and full title width')

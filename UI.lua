@@ -56,7 +56,7 @@ function G.BuildUI()
  for i=1,24 do local row=card(f);row.check=row:CreateTexture(nil,'ARTWORK');row.check:SetWidth(18);row.check:SetHeight(18);point(row.check,row,9,8);row.name=label(row,12,320);row.count=label(row,13,68,true);row.count:SetJustifyH('RIGHT');row.count:SetHeight(20);f.objectives[i]=row end
  f.note=label(f.currentCard,10,400);f.note:SetHeight(28)
  f.nextCard=card(f);f.nextTitle=label(f.nextCard,11,300,true);f.nextTitle:SetHeight(18);f.nextTitle:SetText('NEXT STEPS')
- f.nextRows={};for i=1,3 do local r=card(f);r.number=label(r,15,26,true);r.number:SetHeight(22);point(r.number,r,10,12);r.title=label(r,12,350);point(r.title,r,45,10);f.nextRows[i]=r end
+ f.nextRows={};for i=1,3 do local r=card(f);r.number=label(r,15,26,true);r.number:SetHeight(22);point(r.number,r,10,12);r.title=label(r,12,350,true);point(r.title,r,45,10);r.details=label(r,11,330);r.details:SetTextColor(.78,.83,.87);f.nextRows[i]=r end
  f.next=label(f,10,300);f.next:Hide();f.footer=label(f,10,300);f.footer:Hide()
  f.back=button(f,'Back',49,function() G.Back() end)
  f.skip=button(f,'Skip',49,function() G.Mark('skipped');G.Sync();G.Render() end)
@@ -158,7 +158,17 @@ function G.Render(layoutOnly)
   local upcoming=cached and cached.upcoming or {}
   if not cached and G.state and G.state.index then for i=G.state.index+1,table.getn(G.state.steps) do local n=G.state.steps[i];if not G.db.progress[G.Key(n)] and not G.Satisfied(n) then table.insert(upcoming,n);if table.getn(upcoming)==3 then break end end end end
   if f.layoutData then f.layoutData.upcoming=upcoming end
-  for i,row in ipairs(f.nextRows) do local n=upcoming[i];if n then local t,b=G.Present(n);if b~='' then t=t..'\n'..b end;point(row,f,25,y);row:SetWidth(width-50);row.number:SetText(i);local h=math.max(43,height(row.title,t,width-109,12)+18);row:SetHeight(h);row:Show();y=y+h+6 else row:Hide() end end
+  for i,row in ipairs(f.nextRows) do local n=upcoming[i]
+   if n then
+    local t,b=G.Present(n);point(row,f,25,y);row:SetWidth(width-50);row.number:SetText(i)
+    local titleHeight=height(row.title,t,width-109,12);local h=titleHeight+20
+    if b~='' then
+     point(row.details,row,63,10+titleHeight+6)
+     h=h+6+height(row.details,b,width-127,11);row.details:Show()
+    else row.details:SetText('');row.details:Hide() end
+    h=math.max(43,h);row:SetHeight(h);row:Show();y=y+h+6
+   else row:Hide() end
+  end
   f.nextCard:SetHeight(y-top+8);y=y+20
  else f.nextCard:Hide();f.nextTitle:Hide();for _,row in ipairs(f.nextRows) do row:Hide() end end
  local buttons={f.back,f.skip,f.done,f.menu,f.mode,f.settingsButton,f.close}

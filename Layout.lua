@@ -44,8 +44,8 @@ function G.LayoutHeader(f,w)
  local titleWidth=f.title.GetStringWidth and math.ceil(f.title:GetStringWidth()+8) or 140
  titleWidth=math.max(140,titleWidth)
  f.title:ClearAllPoints();f.title:SetPoint('TOPLEFT',f,'TOPLEFT',108,-17);f.title:SetWidth(titleWidth)
- f.version:ClearAllPoints();f.version:SetPoint('TOPLEFT',f,'TOPLEFT',108,-43);f.version:SetWidth(60)
- f.route:ClearAllPoints();f.route:SetPoint('TOPLEFT',f,'TOPLEFT',108,-62);f.route:SetWidth(w-134);f.route:SetHeight(30)
+ f.version:ClearAllPoints();f.version:SetPoint('TOPLEFT',f,'TOPLEFT',108,-41);f.version:SetWidth(60);f.version:SetHeight(12);if f.version.SetJustifyV then f.version:SetJustifyV('TOP') end
+ f.route:ClearAllPoints();f.route:SetPoint('TOPLEFT',f,'TOPLEFT',108,-55);f.route:SetWidth(w-134);f.route:SetHeight(25);if f.route.SetJustifyV then f.route:SetJustifyV('TOP') end
  if f.route.SetWordWrap then f.route:SetWordWrap(true) end
 end
 function G.ApplyZoom()
@@ -88,7 +88,6 @@ function G.BuildResizeHandles(f)
  f.resizeHandles={}
  for _,corner in ipairs({'TOPLEFT','TOPRIGHT','BOTTOMLEFT','BOTTOMRIGHT'}) do
   local h=CreateFrame('Frame',nil,f);h:SetWidth(24);h:SetHeight(24);h:SetPoint(corner,f,corner,0,0);h:EnableMouse(true);h.corner=corner;f.resizeHandles[corner]=h
-  local marker=h:CreateTexture(nil,'OVERLAY');marker:SetTexture('Interface\\Buttons\\WHITE8X8');marker:SetWidth(7);marker:SetHeight(7);marker:SetPoint(corner,h,corner,0,0);if marker.SetVertexColor then marker:SetVertexColor(.85,.65,.25,.7) end
   if h.SetFrameLevel and f.GetFrameLevel then h:SetFrameLevel(f:GetFrameLevel()+20) end
   h:SetScript('OnMouseDown',function()
    if arg1 and arg1~='LeftButton' then return end
@@ -99,7 +98,7 @@ function G.BuildResizeHandles(f)
    local parentScale=UIParent:GetEffectiveScale()
    local left,bottom=f:GetLeft(),f:GetBottom()
    if type(left)~='number' or type(bottom)~='number' or scale<=0 or parentScale<=0 then return end
-   G.resizeDrag={handle=h,corner=h.corner,x=cx/scale,y=cy/scale,width=f:GetWidth(),height=f:GetHeight(),scale=scale,point='BOTTOMLEFT',relative=UIParent,relativePoint='BOTTOMLEFT',offsetX=left*scale/parentScale,offsetY=bottom*scale/parentScale,ax=0,ay=0,relativeScale=parentScale}
+   G.resizeDrag={handle=h,corner=h.corner,x=cx/scale,y=cy/scale,width=f:GetWidth(),height=f:GetHeight(),scale=scale,point='BOTTOMLEFT',relative=UIParent,relativePoint='BOTTOMLEFT',offsetX=left,offsetY=bottom,ax=0,ay=0,relativeScale=parentScale}
    G.resizing=true
   end)
   h:SetScript('OnUpdate',function() if G.resizeDrag and G.resizeDrag.handle==h then G.UpdateResize() end end)
@@ -119,7 +118,7 @@ function G.UpdateResize()
  local dw=width-d.width;local dh=f:GetHeight()-d.height
  local x=(left and -(1-d.ax) or d.ax)*dw
  local y=(bottom and -(1-d.ay) or d.ay)*dh
- local ratio=d.scale/d.relativeScale
+ local ratio=1 -- Vanilla SetPoint offsets use the positioned frame's own logical units.
  G.resizeDragFinalX=d.offsetX+x*ratio;G.resizeDragFinalY=d.offsetY+y*ratio
  f:ClearAllPoints();f:SetPoint('BOTTOMLEFT',UIParent,'BOTTOMLEFT',G.resizeDragFinalX,G.resizeDragFinalY)
 end
