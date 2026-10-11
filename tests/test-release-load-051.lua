@@ -8,4 +8,4 @@ G.Init();assert(G.ready and G.frame.controlsToggle and G.options.scripts.OnDragS
 G.db.view='minimal';G.db.controlsCollapsed=nil;G.Render();assert(not G.frame.title:IsShown() and not G.frame.done:IsShown())
 G.db.view='full';G.Render();assert(G.frame.title:IsShown())
 G.ShowReport();assert(G.reportWindow:IsShown())
-print('PASS actual 0.5.1 release TOC load, initial route, both views and report form')
+print('PASS actual 0.5.2 release TOC load, initial route, both views and report form')

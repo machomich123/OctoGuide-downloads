@@ -1,4 +1,5 @@
 dofile('tests/test-runtime.lua')
+UIParent:SetHeight(2400) -- Exercise cursor tracking away from the viewport clamp.
 local G=OctoGuide;local f=G.frame;local cx,cy=500,600
 function GetCursorPosition() return cx,cy end
 function f:GetEffectiveScale() return self.scale*UIParent:GetEffectiveScale() end

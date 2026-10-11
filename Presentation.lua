@@ -1,5 +1,5 @@
 local G=OctoGuide
-function G.Present(s)
+function G.Present(s,preview)
   if not s then return 'Level range complete','Choose Next to continue to the next level range.','note' end
   local value=s.text or ''
   value=string.gsub(value,'^Group quest %(use a suitable party%): ','')
@@ -17,6 +17,11 @@ function G.Present(s)
     if quest then title='Turn in '..quest;body='Speak to '..place end
   end
   title=title or value;body=body or ''
+  if s.action=='use' and string.find(title,'^Perform use ') then
+   local notes=G.SourceNotes and G.SourceNotes(s) or {};local item=s.itemID and GetItemInfo and GetItemInfo(s.itemID)
+   title=item and ('Use '..item) or 'Use the quest item'
+   if notes[1] and notes[1]~='' then title=notes[1] end
+  end
   if title==value and (s.action=='objective' or s.action=='complete') and s.questID and G.QuestIndex and GetQuestLogTitle then
     local qi=G.QuestIndex(s.questID)
     if qi then local questTitle=GetQuestLogTitle(qi);if type(questTitle)=='string' and questTitle~='' then title=questTitle;body=value end end
@@ -30,7 +35,7 @@ function G.Present(s)
   if s.personalClass then body='Personal '..s.personalClass..' task: each player of this class must complete their own unlock.\n'..body end
   if s.optionalSupply then title='Optional: food and drinks';body=body..'\nBuy only what you need. Skip this visit if you already have supplies.' end
   if G.PartyMode and G.PartyMode()=='group' and s.questID and (s.action=='complete' or s.action=='objective' or s.action=='collect') then body=body..'\nGroup: check each player\'s own quest progress. Item drops and class unlocks may be individual.' end
-  if G.Concurrent then
+  if not preview and G.Concurrent then
     local list=G.Concurrent(s);local seen={}
     for _,a in ipairs(list) do if a.questID and not seen[a.questID] then body=body..'\nDo alongside this step: '..a.text;seen[a.questID]=true end end
   end

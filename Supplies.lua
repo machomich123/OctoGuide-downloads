@@ -10,6 +10,15 @@ end
 function G.RegisterGuide(meta,steps)
  if meta.routeFamily=='rxp' then
   for _,s in ipairs(steps) do
+   if s.action=='use' and s.sourceBlock then
+    for _,v in ipairs(steps) do
+     if v.sourceBlock==s.sourceBlock and v.questID and (v.action=='complete' or v.action=='objective') and sameProfiles(s,v) then
+      s.mergedUse=v.id;break
+     end
+    end
+   end
+  end
+  for _,s in ipairs(steps) do
    if s.action=='collect' and not s.questID and not s.goalQuestID then
     local buy=false
     for _,n in ipairs((meta.blockNotes or {})[s.sourceBlock] or {}) do if string.find(string.lower(n.text or ''),'buy',1,true) then buy=true end end
@@ -32,7 +41,7 @@ function G.RegisterGuide(meta,steps)
 end
 local allowed=G.Allowed
 function G.Allowed(s)
- if s.mergedVendor then return false end
+ if s.mergedVendor or s.mergedUse then return false end
  return allowed(s)
 end
 local present=G.Present

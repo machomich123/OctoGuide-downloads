@@ -10,7 +10,7 @@ local function height(t,v,w,size)
  t:SetWidth(w);t:SetText(v);t:SetHeight(600)
  local lines=0
  for line in string.gfind(v..'\n','(.-)\n') do lines=lines+math.max(1,math.ceil(string.len(line)/math.max(8,w/(size*.65)))) end
- local h=math.max(lines*(size+4)+4,t.GetStringHeight and t:GetStringHeight()+4 or 0)
+ local h=lines*(size+4)+4
  h=math.max(size+4,h+4);t:SetHeight(h);return h
 end
 local function card(p)
@@ -97,6 +97,7 @@ function G.ResizeWidth(delta)
  G.db.widths=G.db.widths or {};local view=G.db.view or 'full';G.db.widths[view]=math.max(380,math.min(800,(G.db.widths[view] or G.frame:GetWidth())+delta));G.Render()
 end
 function G.RenderSettings()
+ if G.options.modeButton then G.options.modeButton:SetText('Mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Survival')) end
  G.options.partyButton:SetText('Party: '..(G.db.partyMode or 'auto')..' ('..G.PartyMode()..')')
  if G.UpdateAppearanceSettings then G.UpdateAppearanceSettings() end
  local o=G.MapOptions and G.MapOptions() or G.db.mapOptions or {}
@@ -118,8 +119,8 @@ function G.Render(layoutOnly)
  -- f.bg:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\'..((full and 'GuideFull' or 'GuideMinimal')..OG_BG))
  G.LayoutHeader(f,width)
  for _,t in ipairs(f.header) do if full then t:Show() else t:Hide() end end
- for _,t in ipairs({f.title,f.version,f.route,f.routeMode}) do if full then t:Show() else t:Hide() end end
- f.routeMode:SetText(G.Mode()=='hardcore' and 'Hardcore' or 'Normal');point(f.routeMode,f,width-102,24);f.mode:SetText(full and 'Minimal' or 'Expand')
+ for _,t in ipairs({f.title,f.version,f.route}) do if full then t:Show() else t:Hide() end end
+ f.routeMode:Hide();f.routeMode:SetText(G.Mode()=='hardcore' and 'Hardcore' or 'Normal');point(f.routeMode,f,width-102,24);f.mode:SetText(full and 'Minimal' or 'Expand')
  local cached=layoutOnly and f.layoutData
  local s=cached and cached.step or G.Current();local guide=G.state and G.state.guide
  local title,body,action=G.Present(s)
@@ -144,7 +145,8 @@ function G.Render(layoutOnly)
   if f.detailsScroll.lastBody~=body then f.detailsScroll:SetVerticalScroll(0);f.detailsScroll.lastBody=body end
   y=y+visible+9;f.details:Show();f.detailsScroll:Show()
  else f.details:SetText('');f.details:Hide();f.detailsScroll:Hide() end
- y=math.max(y,titleTop+100,G.db.secondaryArrow and titleTop+195 or 0)
+ local secondary=G.db.secondaryArrow and G.SecondaryTarget and G.SecondaryTarget(s)
+ y=math.max(y,titleTop+100,secondary and titleTop+195 or 0)
  for i,row in ipairs(f.objectives) do local o=objectives[i]
   if o then
    point(row,f,25,y);row:SetWidth(width-50)
@@ -166,17 +168,26 @@ function G.Render(layoutOnly)
  if full then
   local top=y;point(f.nextCard,f,15,y);f.nextCard:SetWidth(width-30);point(f.nextTitle,f,28,y+10);f.nextTitle:Show();f.nextCard:Show();y=y+36
   local upcoming=cached and cached.upcoming or {}
-  if not cached and G.state and G.state.index then for i=G.state.index+1,table.getn(G.state.steps) do local n=G.state.steps[i];if not G.db.progress[G.Key(n)] and not G.Satisfied(n) then table.insert(upcoming,n);if table.getn(upcoming)==3 then break end end end end
+  if not cached and G.state and G.state.index then
+   local seen={};if s and s.questID then seen[s.questID]=true end
+   for _,n in ipairs(G.Concurrent and G.Concurrent(s) or {}) do if n.questID then seen[n.questID]=true end end
+   for i=G.state.index+1,table.getn(G.state.steps) do
+    local n=G.state.steps[i]
+    if not G.db.progress[G.Key(n)] and not G.Satisfied(n) and not (n.questID and seen[n.questID] and (n.action=='complete' or n.action=='objective' or n.action=='use')) then
+     table.insert(upcoming,n);if n.questID then seen[n.questID]=true end;if table.getn(upcoming)==3 then break end
+    end
+   end
+  end
   if f.layoutData then f.layoutData.upcoming=upcoming end
   for i,row in ipairs(f.nextRows) do local n=upcoming[i]
    if n then
-    local t,b=G.Present(n);point(row,f,25,y);row:SetWidth(width-50);row.number:SetText(i)
+    local t,b=G.Present(n,true);point(row,f,25,y);row:SetWidth(width-50);row.number:SetText(i)
     local titleHeight=height(row.title,t,width-109,12);local h=titleHeight+20
     if b~='' then
      point(row.details,row,63,10+titleHeight+6)
-     h=h+6+height(row.details,b,width-127,11);row.details:Show()
+     local detailHeight=height(row.details,b,width-127,11);detailHeight=math.min(detailHeight,60);row.details:SetHeight(detailHeight);h=h+6+detailHeight;row.details:Show()
     else row.details:SetText('');row.details:Hide() end
-    h=math.max(43,h);row:SetHeight(h);row:Show();y=y+h+6
+    h=math.max(43,h);local viewport=UIParent:GetHeight()*UIParent:GetEffectiveScale()/f:GetEffectiveScale();if y+h+95<=viewport then row:SetHeight(h);row:Show();y=y+h+6 else row:Hide() end
    else row:Hide() end
   end
   f.nextCard:SetHeight(y-top+8);y=y+20
@@ -188,18 +199,22 @@ function G.Render(layoutOnly)
  local x=24;local buttonY=y
  for _,b in ipairs(buttons) do
   if collapsed then b:Hide() else
-   if x+b.width>width-55 then x=24;buttonY=buttonY+32 end
-   b:SetWidth(b.width);b.label:SetWidth(b.width-4);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);b:Show();if b.restyled then b.restyled('ButtonNormal') end;x=x+b.width+6
+   if x+b.width>width-24 then x=24;buttonY=buttonY+32 end
+   b:SetWidth(b.width);b.label:SetWidth(b.width-8);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);b:Show();if b.restyled then b.restyled('ButtonNormal') end;x=x+b.width+6
   end
  end
  f.done:SetText(primary)
- if f.controlsToggle then point(f.controlsToggle,f,width-43,buttonY);f.controlsToggle:SetText(collapsed and 'v' or '^');f.controlsToggle:Show() end
- point(f.close,f,8,6);f.close:Show()
- local contentHeight=buttonY+38;f.contentHeight=contentHeight
- local finalHeight=math.max(contentHeight,(G.db.heights or {})[G.db.view] or 0);f:SetHeight(finalHeight)
+ local toggleY=collapsed and y or buttonY+34
+ if f.controlsToggle then point(f.controlsToggle,f,(width-44)/2,toggleY);f.controlsToggle:SetText(collapsed and 'v' or '^');f.controlsToggle:Show() end
+ point(f.close,f,width-58,8);f.close:Show()
+ if f.close.SetFrameLevel and f.GetFrameLevel then f.close:SetFrameLevel(f:GetFrameLevel()+25);f.controlsToggle:SetFrameLevel(f:GetFrameLevel()+25) end
+ local contentHeight=toggleY+38;f.contentHeight=contentHeight
+ local viewport=UIParent:GetHeight()*UIParent:GetEffectiveScale()/f:GetEffectiveScale()
+ local saved=(G.db.heights or {})[G.db.view] or 0
+ local finalHeight=math.max(contentHeight,math.min(saved,viewport-12));f:SetHeight(finalHeight)
  if finalHeight>contentHeight then
   for _,b in ipairs(buttons) do point(b,f,b.layoutX or 24,(b.layoutY or y)+finalHeight-contentHeight) end
-  if f.controlsToggle then point(f.controlsToggle,f,width-43,buttonY+finalHeight-contentHeight) end
+  if f.controlsToggle then point(f.controlsToggle,f,(width-44)/2,toggleY+finalHeight-contentHeight) end
  end
  G.LayoutPanelSkin(f.skin,width,f:GetHeight());G.ApplyZoom();if G.ApplyOpacity then G.ApplyOpacity() end
  G.tooltipText=nil

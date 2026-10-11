@@ -6,13 +6,18 @@ function G.StyleButton(b)
  b.surface:Hide();b.parts={}
  for i=1,3 do b.parts[i]=b:CreateTexture(nil,'ARTWORK') end
  local function state(name)
-  local w=b:GetWidth();local h=b:GetHeight();local ratio=512*.145/76;local cap=math.min(h*ratio,w/2)
-  local visualHeight=cap/ratio
+  local w,h=b:GetWidth(),b:GetHeight()
+  local compact=w<180
+  local cap=compact and 2 or math.min(h*512*.145/76,w/2)
   for i,t in ipairs(b.parts) do
-   t:SetTexture(art..name);t:ClearAllPoints()
-   local x=i==1 and 0 or i==2 and cap or w-cap
-   t:SetPoint('LEFT',b,'LEFT',x,0);t:SetWidth(i==2 and math.max(.1,w-2*cap) or cap);t:SetHeight(visualHeight)
-   t:SetTexCoord(i==1 and 0 or i==2 and .49 or .855,i==1 and .145 or i==2 and .51 or 1,.203125,.796875)
+   t:ClearAllPoints();local x=i==1 and 0 or i==2 and cap or w-cap
+   t:SetPoint('LEFT',b,'LEFT',x,0);t:SetWidth(i==2 and math.max(.1,w-2*cap) or cap);t:SetHeight(h)
+   if compact then
+    t:SetTexture('Interface\\Buttons\\WHITE8X8')
+    if t.SetVertexColor then local active=name=='ButtonHover';t:SetVertexColor(i==2 and .025 or .65,i==2 and (active and .14 or .07) or .48,i==2 and .12 or .22,1) end
+   else
+    t:SetTexture(art..name);t:SetHeight(cap/(512*.145/76));t:SetTexCoord(i==1 and 0 or i==2 and .49 or .855,i==1 and .145 or i==2 and .51 or 1,.203125,.796875)
+   end
   end
  end
  b.restyled=state
@@ -35,16 +40,17 @@ function G.MakeMovable(p,key)
 end
 local build=G.BuildUI
 function G.BuildUI()
- if G.db.compactLayoutVersion~=1 then if G.db.heights then G.db.heights.minimal=nil end;G.db.compactLayoutVersion=1 end
+ if G.db.compactLayoutVersion~=2 then G.db.heights={};G.db.compactLayoutVersion=2 end
  build()
  local f=G.frame;G.MakeMovable(G.menu,'guides');G.MakeMovable(G.options,'settings')
- f.controlsToggle=G.MakeButton(f,'v',26,function() G.db.controlsCollapsed=not G.ControlsCollapsed();G.Render() end)
+ f.controlsToggle=G.MakeButton(f,'v',44,function() G.db.controlsCollapsed=not G.ControlsCollapsed();if G.db.heights then G.db.heights[G.db.view]=nil end;G.Render() end)
  local skip=G.MakeButton(G.menu,'Skip current step',150,function() G.Mark('skipped');G.Sync();G.Render();G.menu:Hide() end)
  G.menu.skipCurrent=skip;G.Place(skip,G.menu,25,465);G.menu:SetHeight(555)
  -- Move pagination down to keep the separate recovery action out of the main guide.
  for _,b in ipairs(G.menu.pageButtons or {}) do G.Place(b,G.menu,b.pageX,515) end
  G.LayoutPanelSkin(G.menu.panelSkin,G.menu:GetWidth(),G.menu:GetHeight(),G.menu)
- f.close:ClearAllPoints();f.close:SetPoint('TOPLEFT',f,'TOPLEFT',8,-8)
+ f.close:ClearAllPoints();f.close:SetPoint('TOPRIGHT',f,'TOPRIGHT',-24,-8);f.close:SetWidth(34);f.close.width=34;f.close:SetHeight(30);f.controlsToggle:SetHeight(30)
+ G.options.modeButton=G.MakeButton(G.options,'',135,function() G.SetMode(G.Mode()=='hardcore' and 'normal' or 'hardcore');G.RenderSettings() end);G.Place(G.options.modeButton,G.options,245,522)
  f.arrow:SetWidth(55);f.arrow:SetHeight(55);f.secondaryArrow:SetWidth(25);f.secondaryArrow:SetHeight(25)
  for _,p in ipairs({G.menu,G.options}) do for _,b in ipairs(p.rows or {}) do G.StyleButton(b) end end
  for _,b in ipairs({f.back,f.skip,f.done,f.menu,f.mode,f.settingsButton,f.close,f.controlsToggle,f.routeMode,G.menu.levelButton,G.options.partyButton,G.options.secondaryButton,G.options.transparentButton,G.options.bugButton,G.options.smaller,G.options.wider,G.options.close}) do G.StyleButton(b) end
