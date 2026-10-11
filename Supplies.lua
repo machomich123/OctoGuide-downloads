@@ -37,11 +37,31 @@ function G.RegisterGuide(meta,steps)
    end
   end
  end
+ -- General route hygiene, including existing externally installed packs.
+ for i,s in ipairs(steps) do
+  local notes=(meta.blockNotes or {})[s.sourceBlock] or {}
+  local auction=s.action=='auction' or s.action=='auctionhouse'
+  for _,n in ipairs(notes) do if string.find(string.lower(n.text or ''),'auction house',1,true) then auction=true end end
+  if string.find(string.lower(s.text or ''),'auction house',1,true) then auction=true end
+  if auction and not s.questID and not s.goalQuestID then s.hardcoreAuction=true end
+  if s.optionalSupply or (s.action=='vendor' and not s.questID and not s.goalQuestID and not s.personalClass) then
+   s.informational=true;s.routeUtility=true
+   local anchor
+   for distance=1,25 do
+    for _,j in ipairs({i-distance,i+distance}) do
+     local a=steps[j]
+     if a and (a.action=='accept' or a.action=='turnin' or a.action=='train' or a.action=='fp' or a.action=='home') and a.zone==s.zone and a.x and s.x and a.y and s.y and (a.x-s.x)^2+(a.y-s.y)^2<=.08*.08 then anchor=a;break end
+    end
+    if anchor then break end
+   end
+   if anchor then anchor.optionalStop=true end
+  end
+ end
  return register(meta,steps)
 end
 local allowed=G.Allowed
 function G.Allowed(s)
- if s.mergedVendor or s.mergedUse then return false end
+ if s.mergedVendor or s.mergedUse or (s.hardcoreAuction and G.Mode and G.Mode()=='hardcore') then return false end
  return allowed(s)
 end
 local present=G.Present

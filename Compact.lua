@@ -6,18 +6,17 @@ function G.StyleButton(b)
  b.surface:Hide();b.parts={}
  for i=1,3 do b.parts[i]=b:CreateTexture(nil,'ARTWORK') end
  local function state(name)
-  local w,h=b:GetWidth(),b:GetHeight()
-  local compact=w<180
-  local cap=compact and 2 or math.min(h*512*.145/76,w/2)
+  local w,h=b:GetWidth(),b:GetHeight();local control=w<80
+  local cap=control and 4 or math.min(h*4*.15,w*.18)
   for i,t in ipairs(b.parts) do
    t:ClearAllPoints();local x=i==1 and 0 or i==2 and cap or w-cap
    t:SetPoint('LEFT',b,'LEFT',x,0);t:SetWidth(i==2 and math.max(.1,w-2*cap) or cap);t:SetHeight(h)
-   if compact then
-    t:SetTexture('Interface\\Buttons\\WHITE8X8')
-    if t.SetVertexColor then local active=name=='ButtonHover';t:SetVertexColor(i==2 and .025 or .65,i==2 and (active and .14 or .07) or .48,i==2 and .12 or .22,1) end
-   else
-    t:SetTexture(art..name);t:SetHeight(cap/(512*.145/76));t:SetTexCoord(i==1 and 0 or i==2 and .49 or .855,i==1 and .145 or i==2 and .51 or 1,.203125,.796875)
-   end
+   local suffix=name=='ButtonHover' and 'Hover' or name=='ButtonPressed' and 'Pressed' or 'Normal'
+   t:SetTexture(art..'Button053'..suffix)
+   if control then
+    -- Crop the fine border without squeezing the wide decorative endcaps.
+    t:SetTexCoord(i==1 and .20 or i==2 and .49 or .79,i==1 and .21 or i==2 and .51 or .80,0,1)
+   else t:SetTexCoord(i==1 and 0 or i==2 and .49 or .85,i==1 and .15 or i==2 and .51 or 1,0,1) end
   end
  end
  b.restyled=state
@@ -58,7 +57,7 @@ function G.BuildUI()
 end
 local button=G.MakeButton
 function G.MakeButton(...)
- local b=button(unpack(arg));G.StyleButton(b);return b
+ local b=button(unpack(arg));if b.width and b.width>=49 and b.width<104 then b.width=104;b:SetWidth(104);b.label:SetWidth(88) end;G.StyleButton(b);return b
 end
 function G.ControlsCollapsed()
  if G.db.controlsCollapsed~=nil then return G.db.controlsCollapsed end

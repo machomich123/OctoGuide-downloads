@@ -173,7 +173,7 @@ function G.Render(layoutOnly)
    for _,n in ipairs(G.Concurrent and G.Concurrent(s) or {}) do if n.questID then seen[n.questID]=true end end
    for i=G.state.index+1,table.getn(G.state.steps) do
     local n=G.state.steps[i]
-    if not G.db.progress[G.Key(n)] and not G.Satisfied(n) and not (n.questID and seen[n.questID] and (n.action=='complete' or n.action=='objective' or n.action=='use')) then
+    if (not G.PreviewStep or G.PreviewStep(n)) and not G.db.progress[G.Key(n)] and not G.Satisfied(n) and G.Allowed(n) and not (n.questID and seen[n.questID] and (n.action=='complete' or n.action=='objective' or n.action=='use')) then
      table.insert(upcoming,n);if n.questID then seen[n.questID]=true end;if table.getn(upcoming)==3 then break end
     end
    end
@@ -199,8 +199,8 @@ function G.Render(layoutOnly)
  local x=24;local buttonY=y
  for _,b in ipairs(buttons) do
   if collapsed then b:Hide() else
-   if x+b.width>width-24 then x=24;buttonY=buttonY+32 end
-   b:SetWidth(b.width);b.label:SetWidth(b.width-8);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);b:Show();if b.restyled then b.restyled('ButtonNormal') end;x=x+b.width+6
+   b.width=math.max(104,b.width);if x+b.width>width-24 then x=24;buttonY=buttonY+32 end
+   b.width=math.max(104,b.width);b:SetWidth(b.width);b.label:SetWidth(b.width-8);b.layoutX=x;b.layoutY=buttonY;point(b,f,x,buttonY);b:Show();if b.restyled then b.restyled('ButtonNormal') end;x=x+b.width+6
   end
  end
  f.done:SetText(primary)
@@ -223,7 +223,7 @@ function G.Render(layoutOnly)
 end
 function G.UpdateArrow(elapsed)
  local f=G.frame;if not f or not f.arrow or not f.distance or not f:IsShown() then return end
- local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow() end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
+ local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow(elapsed) end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
  local result,why;if G.NavigationRead and not G.gatherTarget then result,why=G.NavigationRead(G.Current()) else result,why=OctoGuideNavigation.ReadWaypoint(s) end
  if not result then f.arrow:Hide();f.distance:SetText(why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
  local angle=result.angle

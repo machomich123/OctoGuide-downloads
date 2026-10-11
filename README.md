@@ -1,4 +1,4 @@
-# OctoGuide 0.5.2
+# OctoGuide 0.5.3
 
 Horde leveling guidance for OctoWoW / WoW 1.12.1. Normal and Hardcore remain separate choices. The original Vanilla Questing baseline is retained with its MIT notices and saved progress.
 
@@ -13,9 +13,9 @@ Horde leveling guidance for OctoWoW / WoW 1.12.1. Normal and Hardcore remain sep
 
 ## Installation
 
-Install ClassicAPI using the documented VanillaFixes / dlls.txt method, then start through the OctoWoW launcher. pfQuest / pfMap remain recommended for map integration. Enable only one runtime: OctoGuide or OctoGuide-downloads.
+This update uses the ClassicAPI capabilities already installed with your client. Update OctoGuide through the existing GitHub link in the launcher or mod tab; no EXE, manual DLL update or separate setup is required. pfQuest / pfMap remain recommended for map integration. Enable only one runtime: OctoGuide or OctoGuide-downloads.
 
-Launcher users update OctoGuide-downloads. Manual users extract the runtime ZIP to Interface/AddOns. `/octoguide check` reports detected quest support and whether the family route pack is loaded. There is one main guide source: RestedXP when installed, otherwise the bundled fallback. See [0.5.2 changes and limits](UPDATE-0.5.2.md).
+Launcher users update OctoGuide-downloads through the same configured GitHub link. `/octoguide check` reports detected quest support and whether the family route pack is loaded. There is one main guide source: RestedXP when installed, otherwise the bundled fallback. See [0.5.3 changes and limits](UPDATE-0.5.3.md).
 
 ## Family pack
 

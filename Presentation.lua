@@ -30,11 +30,12 @@ function G.Present(s,preview)
   if s.optionalExtra then body=(s.extraHint or '')..'\nOptional OctoWoW addition. Use Skip to keep the main route.' end
   if G.SourceNotes and not s.optionalExtra then
     local seen={}
-    for _,note in ipairs(G.SourceNotes(s)) do if note~='' and not seen[note] then body=body..'\n'..note;seen[note]=true end end
+    for _,note in ipairs(G.SourceNotes(s)) do if note~='' and not seen[note] and not (G.Mode and G.Mode()=='hardcore' and string.find(string.lower(note),'auction house',1,true)) then body=body..'\n'..note;seen[note]=true end end
   end
   if s.personalClass then body='Personal '..s.personalClass..' task: each player of this class must complete their own unlock.\n'..body end
   if s.optionalSupply then title='Optional: food and drinks';body=body..'\nBuy only what you need. Skip this visit if you already have supplies.' end
   if G.PartyMode and G.PartyMode()=='group' and s.questID and (s.action=='complete' or s.action=='objective' or s.action=='collect') then body=body..'\nGroup: check each player\'s own quest progress. Item drops and class unlocks may be individual.' end
+  if s.optionalStop and not preview then body=body..'\nOptional at this stop: sell junk and restock supplies if needed.' end
   if not preview and G.Concurrent then
     local list=G.Concurrent(s);local seen={}
     for _,a in ipairs(list) do if a.questID and not seen[a.questID] then body=body..'\nDo alongside this step: '..a.text;seen[a.questID]=true end end
@@ -64,4 +65,10 @@ function G.NavTarget()
   local s=G.RawNavTarget()
   local plan=G.Travel and G.Travel.Plan(s)
   return plan and plan.target or s
+end
+
+function G.PreviewStep(s)
+ if not s or s.informational or s.background or s.optionalSupply or s.optionalExtra then return false end
+ local tasks={accept=true,turnin=true,complete=true,objective=true,travel=true,fly=true,hearth=true,fp=true,home=true}
+ return tasks[s.action] or ((s.action=='collect' or s.action=='use') and (s.questID or s.goalQuestID)) or (s.action=='train' and s.personalClass) or false
 end

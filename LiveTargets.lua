@@ -28,13 +28,22 @@ function G.ReadObservedTarget(step)
    local posOK,w,n,d,guid=pcall(OctoGuideClosestLivingUnit,entry.id,step.questID==5441 and 3 or 0)
    if posOK and type(w)=='number' and type(n)=='number' and guid then
     local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},GetPlayerFacing())
-    if r and (not best or r.yards<best.yards) then best=r;best.entry=entry.id;best.guid=guid;best.label=step.questID==5441 and 'Observed sleeping peon' or 'Live quest target' end
+    if r and (not best or r.yards<best.yards) then r.worldWest=w;r.worldNorth=n;r.worldMap=map;best=r;best.entry=entry.id;best.guid=guid;best.label=step.questID==5441 and 'Observed sleeping peon' or 'Live quest target' end
    end
   end
   -- ClosestUnitPosition does not expose a corpse filter or identity. Only
   -- units whose current life state can be checked are eligible here.
   if entry.kind=='monster' and UnitCreatureID and UnitIsDeadOrGhost and UnitHealth then
-   local tokens={'target','mouseover','pettarget','party1target','party2target','party3target','party4target'}
+   local tokens={'target','mouseover','pettarget','party1target','party2target','party3target','party4target','focus'}
+   if C_NamePlate and C_NamePlate.GetNamePlates then
+    local ok,plates=pcall(C_NamePlate.GetNamePlates)
+    if ok and type(plates)=='table' then for i=1,math.min(40,table.getn(plates)) do table.insert(tokens,'nameplate'..i) end end
+   end
+   if UnitTokenFromName then
+    local name=pfDB and pfDB.units and pfDB.units.loc and pfDB.units.loc[entry.id]
+    if type(name)=='table' then name=name[1] end
+    if type(name)=='string' then local found,token=pcall(UnitTokenFromName,name,true);if found and token then table.insert(tokens,token) end end
+   end
    for _,token in ipairs(tokens) do
     local good,id=pcall(UnitCreatureID,token)
     if good and id==entry.id then
@@ -44,7 +53,7 @@ function G.ReadObservedTarget(step)
      if usable and deadOK and not dead and healthOK and type(health)=='number' and health>0 and posOK and w and n and m==map then
       local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=m},GetPlayerFacing())
       if r then
-       r.entry=entry.id;r.token=token;r.label='Live quest target'
+       r.worldWest=w;r.worldNorth=n;r.worldMap=m;r.entry=entry.id;r.token=token;r.label='Live quest target'
        if prior and prior.token==token and prior.entry==entry.id then previous=r end
        if not best or r.yards<best.yards then best=r end
       end
@@ -52,14 +61,13 @@ function G.ReadObservedTarget(step)
     end
    end
   elseif entry.kind=='object' and ClosestGameObjectPosition then
-   local posOK,w,n,d=pcall(ClosestGameObjectPosition,entry.id)
+   local posOK,n,w,d=pcall(ClosestGameObjectPosition,entry.id)
    if posOK and type(w)=='number' and type(n)=='number' then
     local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},GetPlayerFacing())
-    if r and (not best or r.yards<best.yards) then best=r;best.entry=entry.id;best.label='Observed quest object' end
+    if r and type(d)=='number' and d>=0 and r.yards<=d+2 and (not best or r.yards<best.yards) then r.worldWest=w;r.worldNorth=n;r.worldMap=map;best=r;best.entry=entry.id;best.label='Observed quest object' end
    end
   end
  end
- if previous and best and previous.yards<=best.yards*1.15+2 then return previous end
  return best
 end
 function G.NavigationRead(step)
@@ -68,17 +76,17 @@ function G.NavigationRead(step)
  end
  local now=GetTime and GetTime() or 0
  local key=step and G.Key(step)
- if not G.livePoll or G.livePoll.key~=key or now-G.livePoll.time>=.25 then
+ if not G.livePoll or G.livePoll.key~=key or now-G.livePoll.time>=.12 then
   G.livePoll={key=key,time=now,result=G.ReadObservedTarget(step)}
  end
  local live=G.livePoll.result
- if live then G.navigationEvidence=live.label;return live end
+ if live then G.navigationEvidence=live.label;return G.RefreshObserved(live) end
  local target=G.NavTarget();G.navigationEvidence=step and work[step.action] and 'Quest area' or 'Route waypoint'
  -- Database coordinates are possible spawns, never evidence of life.
  -- Stay within the author's local quest area and respect travel/path targets.
  if target==step and step and work[step.action] and step.x and step.y then
   local nearest,distance
-  if G.areaPoll and G.areaPoll.key==key and G.areaPoll.db==pfDB and now-G.areaPoll.time<.25 then nearest=G.areaPoll.target else
+  if G.areaPoll and G.areaPoll.key==key and G.areaPoll.db==pfDB and now-G.areaPoll.time<.12 then nearest=G.areaPoll.target else
    for _,entry in ipairs(G.TargetEntries(step)) do
    local db=pfDB and pfDB[entry.kind=='monster' and 'units' or 'objects']
    local data=db and db.data and db.data[entry.id]
@@ -97,6 +105,8 @@ function G.NavigationRead(step)
 end
 function G.SecondaryTarget(step)
  if not G.db.secondaryArrow or not step or not work[step.action] then return nil end
+ local now=GetTime and GetTime() or 0;local key=G.Key(step)
+ if G.secondaryChoice and G.secondaryChoice.key==key and now-G.secondaryChoice.time<.12 then return G.secondaryChoice.step end
  local best,distance
  for _,other in ipairs(G.Concurrent(step)) do
   local r=G.SecondaryRead(other)
@@ -104,16 +114,16 @@ function G.SecondaryTarget(step)
   local current=best and G.SecondaryRead(best);local currentObserved=current and (current.guid or current.token or current.label=='Observed quest object')
   if r and (not best or (observed and not currentObserved) or ((not not observed)==(not not currentObserved) and r.yards<distance)) then best=other;distance=r.yards end
  end
- return best
+ G.secondaryChoice={key=key,time=now,step=best};return best
 end
 function G.SecondaryRead(step)
  local key=G.Key(step);local now=GetTime and GetTime() or 0
  G.secondaryPoll=G.secondaryPoll or {};local cached=G.secondaryPoll[key]
- if cached and now-cached.time<.25 then return cached.result end
+ if cached and now-cached.time<.12 then return G.RefreshObserved(cached.result) end
  local result=G.ResolveSecondary(step);G.secondaryPoll[key]={time=now,result=result}
  -- Bound caches across long sessions and route changes.
  G.secondaryPollCount=(G.secondaryPollCount or 0)+1;if G.secondaryPollCount>100 then G.secondaryPoll={};G.secondaryPollCount=0 end
- return result
+ return G.RefreshObserved(result)
 end
 function G.ResolveSecondary(step)
  local r=G.ReadObservedTarget(step);if r then return r end
@@ -129,4 +139,14 @@ function G.ResolveSecondary(step)
  end
  if best then return best end
  r=N.ReadWaypoint(step);if r then r.label='Quest area' end;return r
+end
+
+function G.RefreshObserved(r)
+ if not r or not r.worldNorth then return r end
+ local ok,w,n,z,map=pcall(UnitPosition,'player');local facingOK,facing=pcall(GetPlayerFacing)
+ if not ok or not facingOK then return nil end
+ local fresh=N.Calculate({north=n,west=w,map=map},{north=r.worldNorth,west=r.worldWest,map=r.worldMap},facing)
+ if not fresh then return nil end
+ for k,v in pairs(r) do if k~='angle' and k~='yards' and k~='arrived' then fresh[k]=v end end
+ return fresh
 end

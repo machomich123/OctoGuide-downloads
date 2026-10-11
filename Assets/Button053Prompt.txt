@@ -1,0 +1,1 @@
+Built-in imagegen: six navy enamel / antique gold blank button sprites, 4:1 proportions, quiet 80 percent center, restrained edge filigree, transparent background, readable at 104x26. Original retained; uniform reduction for TGA assets and fixed endcaps for variable widths.

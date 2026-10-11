@@ -20,7 +20,7 @@ local current=G.Current();G.Concurrent=function() return {{questID=777,text='Com
 local _,body=G.Present(current,true);assert(not string.find(body,'Do alongside',1,true),'Preview omits concurrent repetition')
 for _,w in ipairs({49,56,65,150}) do
  local b=G.MakeButton(G.frame,'Readable',w,function() end)
- assert(b.parts[1].width==2 and b.parts[2].width==w-4,'Compact button keeps a clear text surface')
+ assert(b.parts[1].width<=b:GetWidth()*.18 and b.parts[2].width>=b:GetWidth()*.64,'Compact button keeps a clear text surface')
 end
 G.db.view='full';G.db.heights={};UIParent:SetHeight(768)
 G.db.progress={};G.db.completedQuests={}
