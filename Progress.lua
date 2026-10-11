@@ -14,6 +14,12 @@ end
 
 local function currentTurnIn()
   if not G.ready then return nil end
+  if type(GetQuestID)=='function' and G.state then
+    local ok,id=pcall(GetQuestID)
+    if ok and validQuestID(id) then
+      for _,s in ipairs(G.state.steps) do if s.action=='turnin' and s.questID==id then return id end end
+    end
+  end
   local step=G.Current()
   if step and step.action=='turnin' and validQuestID(step.questID) then return step.questID end
 end

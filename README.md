@@ -1,26 +1,26 @@
-# OctoGuide — launcher distribution
+# OctoGuide 0.4.0
 
-Install through OctoLauncher using this Git repository URL:
+Horde leveling guidance for OctoWoW / WoW 1.12.1. Normal and Hardcore remain separate choices. The original Vanilla Questing baseline is retained with its MIT notices and saved progress.
 
-https://github.com/machomich123/OctoGuide-downloads
+## New behavior
 
-The launcher installs the folder **OctoGuide-downloads** and loads
-**OctoGuide-downloads.toc**. This contains the same OctoGuide 0.3.6 runtime,
-with asset paths adapted to the launcher's folder name. Updates are detected
-from new commits on main. ZIP release downloads remain available separately.
+- Concurrent quest objectives appear together, each with its own observed progress.
+- Personal class unlocks remain individual when playing in a party.
+- Settings offers Auto / Solo / Group. Auto follows the current party.
+- Guides are sorted by level; use Current level / All, or `/octoguide level 10` for a chosen level.
+- Long written instructions remain available in a bounded, scrollable area.
+- Pinch of Salt, Trader's Misfortune and Zalazane's Fall are optional OctoWoW additions attached to existing visits. Skip an absent target rather than wait indefinitely. Confirmed quest history gates the Zalazane prerequisite.
 
-Requires the OctoWoW client with ClassicAPI. pfQuest is recommended.
-Enable only one OctoGuide installation: disable an older manually installed
-OctoGuide before enabling this launcher distribution. Both use /octoguide.
-Saved character state is stored under the installed addon's folder name;
-switching from the manual edition does not automatically transfer that state.
+## Installation
 
-This is a testing release. Lua tests and native rendering have been checked;
-actual travel recommendations require gameplay testing. Open a flight map
-to record learned destinations and bind at an inn to record its location.
-Travel times are estimates, not a measured fastest-route guarantee.
+Install ClassicAPI using the documented VanillaFixes / dlls.txt method, then start through the OctoWoW launcher. pfQuest / pfMap remain recommended for map integration. Enable only one runtime: OctoGuide or OctoGuide-downloads.
 
-The private development repository and its history are not published here.
-This public distribution necessarily includes the Lua files the game runs.
-No credentials, login helper, launcher patch, character saves or local logs
-are included. See the bundled content attribution and license notices.
+Launcher users update OctoGuide-downloads. Manual users extract the runtime ZIP to Interface/AddOns. `/octoguide check` reports detected quest support and whether the family route pack is loaded. `/octoguide baseline` selects the original route. `/octoguide rxp` selects the family route when installed.
+
+## Family pack
+
+The private family package adds the user's supplied RestedXP Classic / Survival routes as the primary source. The public launcher repository does not distribute the paid guide prose. The standalone OctoGuideFamily addon can be installed alongside either runtime and survives runtime updates. Extract its folder into Interface/AddOns, enable it, and restart the client. It uses optional dependency ordering for both runtime names.
+
+## Verification boundary
+
+Automated checks run under Lua 5.0.3 with mocked client APIs. They are evidence of source behavior and packaging, not an in-game performance measurement. Native OctoWoW loading, server interactions, XP rates, combat risk and UI rendering still need a short gameplay check. No leveling run to 60 was performed or required for this source comparison.

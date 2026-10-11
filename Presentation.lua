@@ -1,6 +1,6 @@
 local G=OctoGuide
 function G.Present(s)
-  if not s then return 'Stage complete','Choose Next to continue your route.','note' end
+  if not s then return 'Level range complete','Choose Next to continue to the next level range.','note' end
   local value=s.text or ''
   value=string.gsub(value,'^Group quest %(use a suitable party%): ','')
   value=string.gsub(value,'^Escort quest: ','')
@@ -22,10 +22,22 @@ function G.Present(s)
     if qi then local questTitle=GetQuestLogTitle(qi);if type(questTitle)=='string' and questTitle~='' then title=questTitle;body=value end end
   end
   if s.requiresGroup then body=body..' A suitable group is required.' end
+  if s.optionalExtra then body=(s.extraHint or '')..'\nOptional OctoWoW addition. Use Skip to keep the main route.' end
+  if G.SourceNotes and not s.optionalExtra then
+    local seen={}
+    for _,note in ipairs(G.SourceNotes(s)) do if note~='' and not seen[note] then body=body..'\n'..note;seen[note]=true end end
+  end
+  if s.personalClass then body='Personal '..s.personalClass..' task: each player of this class must complete their own unlock.\n'..body end
+  if G.PartyMode and G.PartyMode()=='group' and s.questID and (s.action=='complete' or s.action=='objective' or s.action=='collect') then body=body..'\nGroup: check each player\'s own quest progress. Item drops and class unlocks may be individual.' end
+  if G.Concurrent then
+    local list=G.Concurrent(s);local seen={}
+    for _,a in ipairs(list) do if a.questID and not seen[a.questID] then body=body..'\nDo alongside this step: '..a.text;seen[a.questID]=true end end
+  end
   return title,body,s.action
 end
 function G.RawNavTarget()
   local s=G.gatherTarget or G.Current()
+  if s and not G.gatherTarget and G.PathTarget then local p=G.PathTarget(s);if p then return p end end
   if s and s.targets and not G.gatherTarget then
     local objectives=G.Objectives(s)
     for _,p in ipairs(s.targets) do

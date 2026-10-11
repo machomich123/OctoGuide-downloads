@@ -24,6 +24,14 @@ function G.HandleSlash(msg)
   local cmd=string.lower(msg or '')
   if not G.ready then G.Chat('Wait for character login.');return end
   if cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
+  elseif cmd=='solo' or cmd=='group' or cmd=='auto' then G.SetPartyMode(cmd);G.Chat('Party setting: '..cmd..'.')
+  elseif cmd=='rxp' or cmd=='baseline' then G.SetRouteSource(cmd)
+  elseif cmd=='check' then
+    local lookup=(C_QuestLog and (type(C_QuestLog.GetLogIndexForQuestID)=='function' or type(C_QuestLog.GetQuestIDForLogIndex)=='function')) or type(GetQuestIDFromLogIndex)=='function'
+    local history=(C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted)=='function') or (type(QueryQuestsCompleted)=='function' and type(GetQuestsCompleted)=='function')
+    local navigation=type(UnitPosition)=='function' and type(GetPlayerFacing)=='function' and C_Map and type(C_Map.GetWorldPosFromMapPos)=='function'
+    G.Chat('Version '..G.version..'. Quest lookup: '..(lookup and 'ready' or 'missing')..'. Completion history: '..(history and 'ready' or 'missing')..'. Position: '..(navigation and 'ready' or 'missing')..'. '..(G.hasFamilyRoutes and 'Family routes loaded.' or 'Family routes not installed.'))
+  elseif string.find(cmd,'^level %d+$') then local _,_,n=string.find(cmd,'^level (%d+)$');G.menu.level=tonumber(n);G.menu.page=1;G.RenderMenu();G.menu:Show()
   elseif cmd=='full' or cmd=='minimal' then G.db.view=cmd;G.Render()
   elseif cmd=='guides' then G.ToggleMenu()
   elseif cmd=='done' then G.Advance()
@@ -33,7 +41,7 @@ function G.HandleSlash(msg)
   elseif cmd=='sync' then G.AutoPlace(false)
   elseif cmd=='route' then G.gatherTarget=nil;G.Render()
   elseif cmd=='mining' or cmd=='herbalism' then local ok,why=G.Gather(cmd=='mining' and 'ore' or 'herb');if not ok then G.Chat(why) end
-  elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
+  elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | solo | group | auto | rxp | baseline | level N | check | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
   else G.db.hidden=false;G.frame:Show();G.Render() end
 end
 
@@ -62,7 +70,7 @@ end
 
 SLASH_OCTOGUIDE1='/octoguide';SLASH_OCTOGUIDE2='/oguide';SlashCmdList['OCTOGUIDE']=G.Slash
 local events=CreateFrame('Frame');G.events=events
-for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE'}) do pcall(function() events:RegisterEvent(ev) end) end
+for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE','PARTY_MEMBERS_CHANGED'}) do pcall(function() events:RegisterEvent(ev) end) end
 if G.InitProgress then G.InitProgress() end
 events:SetScript('OnEvent',function() G.Event(event,arg1,arg2) end)
 events:SetScript('OnUpdate',function()

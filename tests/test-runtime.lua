@@ -31,6 +31,10 @@ function methods:GetText() return self.value end
 function methods:ClearFocus() self.focused=false end
 function methods:SetValue(n) self.sliderValue=n end
 function methods:GetValue() return self.sliderValue end
+function methods:SetScrollChild(child) self.scrollChild=child end
+function methods:EnableMouseWheel(value) self.mouseWheel=value end
+function methods:SetVerticalScroll(value) self.scrollOffset=value end
+function methods:GetVerticalScroll() return self.scrollOffset or 0 end
 function CreateFrame(kind,name,parent,template) local f=setmetatable({name=name,parent=parent,scripts={},events={}}, {__index=methods});table.insert(frames,f);return f end
 UIParent=CreateFrame('Frame');SlashCmdList={};DEFAULT_CHAT_FRAME={AddMessage=function() end}
 local playerLevel=1;local class='HUNTER';local faction='Horde'
@@ -49,7 +53,7 @@ function GetPlayerFacing() return facing end
 C_Map={GetWorldPosFromMapPos=function(zone,p) return zone,{x=p.x*1000,y=p.y*1000} end}
 function GetNumSkillLines() return 1 end
 function GetSkillLineInfo() return 'Mining',false,false,50 end
-dofile('Core.lua');dofile('Progress.lua');dofile('Navigation.lua');dofile('Presentation.lua');dofile('Layout.lua');dofile('UI.lua');dofile('Integration.lua')
+dofile('Core.lua');dofile('Route.lua');dofile('Progress.lua');dofile('Navigation.lua');dofile('Presentation.lua');dofile('Layout.lua');dofile('UI.lua');dofile('Integration.lua')
 local G=OctoGuide
 local route={
  {id='a',action='accept',text='Take quest',questID=10,zone=1,x=.1,y=0},
@@ -85,7 +89,7 @@ check('gathering skips hidden and skill-ineligible nodes',function()
 end)
 check('expired hidden gathering goal is removed',function() G.Gather('ore');OctoGather.MapVisible=function() return false end;arg1=.25;G.events.scripts.OnUpdate();assert(not G.gatherTarget) end)
 check('faction restriction is explicit',function() G.player.faction='Alliance';local ok=G.Select('starter');assert(not ok);G.player.faction='Horde' end)
-check('finished route has no current step',function() G.Mark();assert(not G.Current());G.Render();assert(string.find(G.frame.step.value,'Stage complete')) end)
+check('finished route has no current step',function() G.Mark();assert(not G.Current());G.Render();assert(string.find(G.frame.step.value,'Level range complete')) end)
 check('explicit next-stage transition keeps old progress',function()
   G.RegisterGuide({id='stage2',title='Next stage',faction='Horde',startLevel=5,endLevel=10},{{id='one',action='travel',text='Next region'}})
   G.Advance();assert(G.state.guide.id=='stage2' and G.Current().id=='one' and G.db.progress['starter:h']=='manual')

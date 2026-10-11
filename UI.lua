@@ -46,11 +46,13 @@ function G.BuildUI()
  f.currentCard=card(f);point(f.currentCard,f,15,78)
  f.section=label(f.currentCard,11,290,true);point(f.section,f,28,87);f.section:SetHeight(18)
  f.icon=f.currentCard:CreateTexture(nil,'ARTWORK');f.icon:SetWidth(29);f.icon:SetHeight(29)
- f.step=label(f.currentCard,17,300,true);f.details=label(f.currentCard,12,300)
+ f.step=label(f.currentCard,17,300,true)
+ f.detailsScroll=CreateFrame('ScrollFrame',nil,f.currentCard);f.detailsHost=CreateFrame('Frame',nil,f.detailsScroll);f.detailsScroll:SetScrollChild(f.detailsHost);f.details=label(f.detailsHost,12,300);point(f.details,f.detailsHost,0,0)
+ if f.detailsScroll.EnableMouseWheel then f.detailsScroll:EnableMouseWheel(true);f.detailsScroll:SetScript('OnMouseWheel',function() local offset=this.GetVerticalScroll and this:GetVerticalScroll() or 0;this:SetVerticalScroll(math.max(0,math.min(this.maxScroll or 0,offset-(arg1 or 0)*36))) end) end
  f.arrow=f.currentCard:CreateTexture(nil,'ARTWORK');f.arrow:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\Arrow');f.arrow:SetWidth(44);f.arrow:SetHeight(44)
  f.distance=label(f.currentCard,12,88,true);f.distance:SetJustifyH('CENTER');f.distance:SetHeight(20)
  f.objectives={}
- for i=1,12 do local row=card(f);row.check=row:CreateTexture(nil,'ARTWORK');row.check:SetWidth(18);row.check:SetHeight(18);point(row.check,row,9,8);row.name=label(row,12,320);row.count=label(row,13,68,true);row.count:SetJustifyH('RIGHT');row.count:SetHeight(20);f.objectives[i]=row end
+ for i=1,24 do local row=card(f);row.check=row:CreateTexture(nil,'ARTWORK');row.check:SetWidth(18);row.check:SetHeight(18);point(row.check,row,9,8);row.name=label(row,12,320);row.count=label(row,13,68,true);row.count:SetJustifyH('RIGHT');row.count:SetHeight(20);f.objectives[i]=row end
  f.note=label(f.currentCard,10,400);f.note:SetHeight(28)
  f.nextCard=card(f);f.nextTitle=label(f.nextCard,11,300,true);f.nextTitle:SetHeight(18);f.nextTitle:SetText('NEXT STEPS')
  f.nextRows={};for i=1,3 do local r=card(f);r.number=label(r,15,26,true);r.number:SetHeight(22);point(r.number,r,10,12);r.title=label(r,12,350);point(r.title,r,45,10);f.nextRows[i]=r end
@@ -64,11 +66,12 @@ function G.BuildUI()
  f.close=button(f,'X',26,function() G.db.hidden=true;G.frame:Hide() end)
  local menu=card(UIParent);G.menu=menu;menu:SetWidth(460);menu:SetHeight(520);menu:SetPoint('CENTER',UIParent,'CENTER',0,0);menu:SetFrameStrata('DIALOG');if menu.SetFrameLevel and f.GetFrameLevel then menu:SetFrameLevel(f:GetFrameLevel()+30) end;menu:EnableMouse(true)
  menu.title=label(menu,19,400,true);point(menu.title,menu,20,16);menu.title:SetHeight(26);menu.title:SetText('Horde routes')
- menu.info=label(menu,11,420);point(menu.info,menu,20,45);menu.info:SetHeight(25)
+ menu.info=label(menu,11,420);point(menu.info,menu,180,48);menu.info:SetWidth(260);menu.info:SetHeight(25)
  menu.rows={};for i=1,14 do local row=button(menu,'',420,function() if this.guideID then local ok,why=G.Select(this.guideID);if ok then G.frame:Show();G.db.hidden=false;G.menu:Hide() else G.Chat(why) end end end);point(row,menu,20,78+(i-1)*28);menu.rows[i]=row end
  menu.page=1
  local x=20
  for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
+ menu.levelButton=button(menu,'Current level / All',150,function() menu.level=menu.level and nil or UnitLevel('player');menu.page=1;G.RenderMenu() end);point(menu.levelButton,menu,20,48)
  menu:Hide()
  local options=card(UIParent);G.options=options;options:SetWidth(350);options:SetHeight(450);options:SetPoint('CENTER',UIParent,'CENTER',0,0);options:SetFrameStrata('DIALOG');if options.SetFrameLevel and f.GetFrameLevel then options:SetFrameLevel(f:GetFrameLevel()+30) end;options:EnableMouse(true)
  options.title=label(options,18,310,true);point(options.title,options,20,18);options.title:SetHeight(24);options.title:SetText('OctoGuide settings')
@@ -76,7 +79,8 @@ function G.BuildUI()
  for i,spec in ipairs({{'targets','Quest targets on maps'},{'routes','Waypoint route lines'},{'checkpoints','Numbered checkpoints'},{'minimap','Minimap guidance'}}) do
   local b=button(options,spec[2],310,function() local o=G.MapOptions and G.MapOptions() or G.db.mapOptions;if not o then return end;o[this.optionKey]=not o[this.optionKey];G.RenderSettings();if G.UpdateMaps then G.UpdateMaps(true) end end);b.optionKey=spec[1];b.optionLabel=spec[2];point(b,options,20,65+(i-1)*40);options.rows[i]=b
  end
- options.info=label(options,11,300);point(options.info,options,23,234);options.info:SetHeight(58);options.info:SetText('Lines connect route checkpoints. Follow the written instructions for roads, obstacles and transport.')
+ options.partyButton=button(options,'',310,function() local setting=G.db.partyMode or 'auto';G.SetPartyMode(setting=='auto' and 'solo' or setting=='solo' and 'group' or 'auto');G.RenderSettings() end);point(options.partyButton,options,20,225)
+ options.info=label(options,11,300);point(options.info,options,23,262);options.info:SetHeight(58);options.info:SetText('Lines connect route checkpoints. Follow the written instructions for roads, obstacles and transport.')
  G.BuildZoomControls(options,label,point)
  local smaller=button(options,'Narrower',95,function() G.ResizeWidth(-40) end);point(smaller,options,20,394)
  local wider=button(options,'Wider',95,function() G.ResizeWidth(40) end);point(wider,options,125,394)
@@ -86,15 +90,16 @@ function G.ResizeWidth(delta)
  G.db.widths=G.db.widths or {};local view=G.db.view or 'full';G.db.widths[view]=math.max(380,math.min(800,(G.db.widths[view] or G.frame:GetWidth())+delta));G.Render()
 end
 function G.RenderSettings()
+ G.options.partyButton:SetText('Party: '..(G.db.partyMode or 'auto')..' ('..G.PartyMode()..')')
  local o=G.MapOptions and G.MapOptions() or G.db.mapOptions or {}
  for _,b in ipairs(G.options.rows) do b:SetText((o[b.optionKey]~=false and '[ON] ' or '[OFF] ')..b.optionLabel) end
 end
 function G.ToggleSettings() if G.options:IsShown() then G.options:Hide() else G.RenderSettings();G.options:Show() end end
 function G.RenderMenu()
- local list={};for _,id in ipairs(G.order) do if G.Playable(G.guides[id]) then table.insert(list,id) end end
+ local list=G.LevelGuides(G.menu.level)
  local pages=math.max(1,math.ceil(table.getn(list)/14));G.menu.page=math.min(G.menu.page,pages)
- G.menu.info:SetText((G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..' routes | Page '..G.menu.page..' / '..pages)
- for i,row in ipairs(G.menu.rows) do local id=list[(G.menu.page-1)*14+i];row.guideID=id;if id then row:SetText(G.guides[id].title);row:Show() else row:Hide() end end
+ G.menu.info:SetText((G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..' | '..(G.menu.level and ('Level '..G.menu.level) or 'All levels')..' | Page '..G.menu.page..' / '..pages)
+ for i,row in ipairs(G.menu.rows) do local id=list[(G.menu.page-1)*14+i];row.guideID=id;if id then row:SetText(G.RouteLabel(G.guides[id]));row:Show() else row:Hide() end end
 end
 function G.ToggleMenu() if G.menu:IsShown() then G.menu:Hide() else G.RenderMenu();G.menu:Show() end end
 function G.Render(layoutOnly)
@@ -109,19 +114,24 @@ function G.Render(layoutOnly)
  local title,body,action=G.Present(s)
  local journey=not layoutOnly and G.Travel and G.Travel.Plan(G.RawNavTarget())
  if journey then body=journey.hint..(body~='' and ('\n'..body) or '') end
- local objectives=cached and cached.objectives or (s and G.Objectives(s) or {})
+ local objectives=cached and cached.objectives or (s and G.DisplayObjectives(s) or {})
  if not layoutOnly then f.layoutData={step=s,objectives=objectives} end
  if s and table.getn(objectives)==0 and s.sourceObjective and (action=='objective' or action=='complete' or action=='use') then body=body..'\n'..s.sourceObjective end
  if G.gatherTarget then title='GATHER: '..G.gatherTarget.text;body='Possible resource spawn. Use /octoguide route to resume quests.';action='collect' end
  local index=G.state and (G.state.index or table.getn(G.state.steps)) or 0
- f.route:SetText((guide and guide.title or 'Horde guide')..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
+ f.route:SetText(G.RouteLabel(guide)..'  |  Step '..index..' / '..(G.state and table.getn(G.state.steps) or 0))
  local names={accept='ACCEPT QUEST',turnin='TURN IN QUEST',objective='CURRENT OBJECTIVES',complete='CURRENT OBJECTIVES',travel='TRAVEL',collect='GATHER',death='NORMAL SHORTCUT'}
  f.section:SetText(names[action] or string.upper(action or 'CURRENT STEP'));if full then f.section:Show() else f.section:Hide() end
  local cardTop=96;local titleTop=full and 130 or 112;point(f.currentCard,f,15,cardTop);point(f.section,f,28,106)
  f.icon:SetTexture(action=='turnin' and 'Interface\\GossipFrame\\ActiveQuestIcon' or 'Interface\\GossipFrame\\AvailableQuestIcon');point(f.icon,f,27,titleTop)
  point(f.step,f,65,titleTop);local y=titleTop+height(f.step,title,width-188,17)+8
  point(f.arrow,f,width-86,titleTop-2);point(f.distance,f,width-109,titleTop+54)
- if body~='' then point(f.details,f,28,y);y=y+height(f.details,body,width-150,12)+9;f.details:Show() else f.details:SetText('');f.details:Hide() end
+ if body~='' then
+  point(f.detailsScroll,f,28,y);f.detailsScroll:SetWidth(width-150);f.detailsHost:SetWidth(width-150)
+  local h=height(f.details,body,width-150,12);local visible=math.min(h,220);f.detailsHost:SetHeight(h);f.detailsScroll:SetHeight(visible);f.detailsScroll.maxScroll=math.max(0,h-visible)
+  if f.detailsScroll.lastBody~=body then f.detailsScroll:SetVerticalScroll(0);f.detailsScroll.lastBody=body end
+  y=y+visible+9;f.details:Show();f.detailsScroll:Show()
+ else f.details:SetText('');f.details:Hide();f.detailsScroll:Hide() end
  y=math.max(y,titleTop+80)
  for i,row in ipairs(f.objectives) do local o=objectives[i]
   if o then

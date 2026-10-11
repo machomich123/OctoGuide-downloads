@@ -1,3 +1,10 @@
+# 0.4.0
+
+- Concurrent quest goals, personal class tasks, Auto/Solo/Group settings and level navigation.
+- Optional verified OctoWoW quest additions.
+- Support a separate private family route pack without shipping paid prose publicly.
+- Preserve the 0.3.6 exact-ID quest-progress fix.
+
 # 0.3.6
 
 - Support older ClassicAPI quest-log ID lookup.
