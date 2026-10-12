@@ -94,6 +94,42 @@ local function catchup(candidate,seen,depth)
   end
   return candidate
 end
+-- A good later waypoint is not permission to discard independent unfinished work.
+local function requiredRemaining(s,guide)
+  if not G.Allowed(s) or not G.SourceEligible(s) then return false end
+  if s.minlevel and (UnitLevel('player') or 1)<s.minlevel then return false end
+  local starter=(guide.startLevel or 1)<6
+  local required=s.action=='train' or starter and s.questID and (s.action=='accept' or s.action=='objective' or s.action=='complete' or s.action=='turnin')
+  if not required then return false end
+  local key=guide.id..':'..tostring(s.id)
+  if s.mode or s.branch or s.requiresDeath or s.modes and not (s.modes.normal and s.modes.hardcore) then key=key..':mode:'..G.Mode() end
+  local marked=G.db.progress[key]
+  if marked=='manual' or marked=='skipped' then return false end
+  return not G.Satisfied(s)
+end
+local function preserveRequired(candidate,level)
+  -- Starter chapters can be split into several short guides. Check the whole
+  -- applicable starter sequence before a later chapter wins on level or XP.
+  if level<6 then
+    local earlier
+    for _,guideID in ipairs(G.order) do local guide=G.guides[guideID]
+      if G.Playable(guide) and (guide.startLevel or 1)<6 and (guide.startLevel or 1)<=level then
+        local steps=filtered(guide)
+        for i,s in ipairs(steps) do if requiredRemaining(s,guide) then
+          if not earlier or (guide.startLevel or 1)<(earlier.guide.startLevel or 1) then earlier={guide=guide,steps=steps,index=i,reason='unfinished starter quest or training'} end
+          break
+        end end
+      end
+    end
+    if earlier then candidate=earlier end
+  end
+  for i=1,candidate.index-1 do
+    if requiredRemaining(candidate.steps[i],candidate.guide) then
+      candidate.index=i;candidate.reason='earlier unfinished quest or training';break
+    end
+  end
+  return candidate
+end
 function G.FindPlacement()
   local level=atLevel();local best,bestScore
   G.placementIndexes={};G.placementIndexesComplete=false
@@ -140,6 +176,7 @@ function G.FindPlacement()
     end
   end
   if best then
+    best=preserveRequired(best,level)
     best=catchup(best,{},0)
     while best.index<table.getn(best.steps) and (not unfinished(best.steps[best.index]) or G.StepEvidence and G.StepEvidence(best.steps[best.index])) do best.index=best.index+1 end
   end

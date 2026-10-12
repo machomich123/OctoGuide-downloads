@@ -103,4 +103,22 @@ check('inventory loss is refreshed and text-based bind / known flight steps work
  assert(not G.StepEvidence({action='flightpath',text='Get the Ratchet flight path'}))
  GetContainerItemLink=function() return nil end;G.Event('BAG_UPDATE');assert(not G.StepEvidence(steps[8]))
 end)
+check('starter placement preserves boars, unlearned training and scorpions across chapters',function()
+ reset();G.guides={};G.order={};function UnitLevel() return 4 end;function UnitXP() return 95 end
+ G.RegisterGuide({id='starter-first',faction='Horde',startLevel=1,endLevel=3}, {
+  {id='boar-pickup',questID=90001,action='accept',text='Boar quest',expectedLevel=1},
+  {id='boar-work',questID=90001,action='complete',text='Boars',expectedLevel=1},
+  {id='training',action='train',spellID=90010,text='Learn a skill',expectedLevel=2},
+  {id='scorpion-pickup',questID=90002,action='accept',text='Scorpion quest',expectedLevel=2},
+  {id='scorpion-work',questID=90002,action='complete',text='Scorpions',expectedLevel=2}})
+ G.RegisterGuide({id='starter-later',faction='Horde',startLevel=3,endLevel=6}, {{id='later',questID=90003,action='complete',text='Later quest',expectedLevel=4}})
+ C_QuestLog={GetLogIndexForQuestID=function(q) return q==90003 and 1 or 0 end}
+ function GetQuestLogTitle() return 'Later quest',4,nil,false,false,false end
+ local known=false;IsSpellKnown=function() return known end
+ assert(G.FindPlacement().steps[G.FindPlacement().index].id=='boar-pickup')
+ G.db.completedQuests[90001]=true;local p=G.FindPlacement();assert(p.steps[p.index].id=='training')
+ known=true;p=G.FindPlacement();assert(p.steps[p.index].id=='scorpion-pickup')
+ G.db.completedQuests[90002]=true;p=G.FindPlacement();assert(p.steps[p.index].id=='later')
+ IsSpellKnown=nil
+end)
 print('ALL '..passed..' CHARACTER SCAN AND STEP BROWSER CHECKS PASSED')
