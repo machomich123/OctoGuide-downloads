@@ -128,4 +128,16 @@ check('unsupported history is distinguished from failed request and default chat
  QueryQuestsCompleted=function() error('failed') end;GetQuestsCompleted=function() return {} end
  G.FindStep(false);assert(string.find(G.ScanSummary(),'request failed',1,true))
 end)
+check('direct step selection follows completed killing objectives to turn-in waypoint',function()
+ reset();G.guides={};G.order={};local complete=false
+ GetQuestLogTitle=function() return 'Kill quest',15,nil,false,false,complete end
+ GetQuestLogLeaderBoard=function() return 'Kills','monster',complete end
+ G.RegisterGuide({id='kills',faction='Horde',startLevel=15,endLevel=19}, {
+  {id='take',action='accept',questID=104,text='Accept'},
+  {id='kill',action='complete',questID=104,text='Kill mobs',zone=1,x=.2,y=.2},
+  {id='deliver',action='turnin',questID=104,text='Turn in',zone=1,x=.8,y=.8}})
+ assert(G.JumpToStep('kills',2));G.Event('QUEST_LOG_UPDATE');assert(G.Current().id=='kill')
+ complete=true;G.Event('QUEST_LOG_UPDATE');assert(G.Current().id=='deliver' and G.Current().x==.8)
+ assert(not G.db.completedQuests[104]);G.Back();G.Event('QUEST_LOG_UPDATE');assert(G.Current().id=='kill')
+end)
 print('ALL '..passed..' CHARACTER SCAN AND STEP BROWSER CHECKS PASSED')

@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.5.10',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.5.11',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -100,8 +100,10 @@ function G.Select(id,reason)
     end
   end
   G.state={guide=guide,steps=steps,startIndex=startIndex};G.db.guide=id;G.gatherTarget=nil
+  G.state.manualStart=placement and placement.reason=='manual step selection'
   G.pauseAuto=reason=='restore' and G.db.reviewGuide==id or false
   if G.pauseAuto and G.db.reviewStep then for i,s in ipairs(steps) do if s.id==G.db.reviewStep then G.state.reviewIndex=i;break end end end
+  G.state.reviewReason=G.db.reviewReason
   if reason~='restore' then G.db.reviewGuide=nil end
   if reason~='automatic' and reason~='restore' then G.autoplacePending=false;G.placementMessage=nil end
   G.Current();G.Sync();if G.Render then G.Render() end;return true
@@ -130,6 +132,9 @@ function G.Mark(reason)
   local s=G.Current();if not s then return end
   if G.CancelFindStep then G.CancelFindStep() end
   G.autoplacePending=false;G.placementMessage=nil
+  if G.state.reviewIndex then
+    if G.state.reviewReason=='jump' then G.ResumeJump() end
+  end
   if G.state.reviewIndex then
     G.db.progress[G.Key(s)]=reason or 'manual';G.state.reviewIndex=G.state.reviewIndex+1
     local nextStep=G.state.steps[G.state.reviewIndex];G.db.reviewStep=nextStep and nextStep.id or s.id
@@ -165,7 +170,12 @@ function G.Back()
   if i<1 then return end
   G.autoplacePending=false;G.placementMessage=nil
   if i<(G.state.startIndex or 1) then G.state.startIndex=i;G.db.placements=G.db.placements or {};G.db.placements[G.state.guide.id]={stepID=G.state.steps[i].id,reason='manual review'} end
-  G.state.reviewIndex=i;G.db.reviewStep=G.state.steps[i].id;G.pauseAuto=true;G.db.reviewGuide=G.state.guide.id;G.Current();G.Render()
+  G.state.reviewIndex=i;G.db.reviewStep=G.state.steps[i].id;G.state.reviewReason='back';G.db.reviewReason='back';G.pauseAuto=true;G.db.reviewGuide=G.state.guide.id;G.Current();G.Render()
+end
+function G.ResumeJump()
+ if not G.state or not G.state.reviewIndex or G.state.reviewReason~='jump' then return end
+ G.state.startIndex=G.state.reviewIndex;G.state.reviewIndex=nil;G.state.reviewReason=nil
+ G.pauseAuto=false;G.db.reviewGuide=nil;G.db.reviewStep=nil;G.db.reviewReason=nil
 end
 function G.QuestIndex(id)
   if type(id)~='number' or id<=0 then return nil end
@@ -318,6 +328,7 @@ end
 function G.Event(ev,a,b)
   if ev=='PLAYER_ENTERING_WORLD' then G.Init();return end
   if not G.ready then return end
+  if ev=='QUEST_LOG_UPDATE' or ev=='BAG_UPDATE' or ev=='QUEST_ACCEPTED' or ev=='QUEST_TURNED_IN' then G.ResumeJump() end
   if ev=='QUEST_TURNED_IN' and type(a)=='number' and a>0 then
     local current=G.Current()
     if current and current.questID==a and not G.state.reviewIndex then G.pauseAuto=false;G.db.reviewGuide=nil end

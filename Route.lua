@@ -77,7 +77,7 @@ function G.MissingPickup(index)
   if not G.state or G.state.guide.routeFamily~='rxp' or G.pauseAuto then return nil end
   local lookup=C_QuestLog and (type(C_QuestLog.GetLogIndexForQuestID)=='function' or type(C_QuestLog.GetQuestIDForLogIndex)=='function')
   if not lookup and type(GetQuestIDFromLogIndex)~='function' then return nil end
-  for i=1,index-1 do
+  for i=G.state.manualStart and (G.state.startIndex or 1) or 1,index-1 do
     local a=G.state.steps[i]
     if a.action=='accept' and a.questID and not G.QuestIndex(a.questID) and not G.db.completedQuests[a.questID] then
       local marked=G.db.progress[G.Key(a)]

@@ -11,7 +11,7 @@ function G.JumpToStep(id,number)
  if type(number)~='number' or number~=math.floor(number) or number<1 or number>table.getn(steps) then return false,'Enter a step number from 1 to '..tostring(table.getn(steps))..'.' end
  if G.CancelFindStep then G.CancelFindStep() end
  G.db.placements=G.db.placements or {};G.db.placements[id]={stepID=steps[number].id,reason='manual step selection'}
- G.db.reviewGuide=id;G.db.reviewStep=steps[number].id
+ G.db.reviewGuide=id;G.db.reviewStep=steps[number].id;G.db.reviewReason='jump'
  local ok,why=G.Select(id,'restore');if not ok then return false,why end
  G.db.hidden=false;G.frame:Show();G.Render();return true
 end
