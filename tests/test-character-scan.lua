@@ -121,4 +121,11 @@ check('starter placement preserves boars, unlearned training and scorpions acros
  G.db.completedQuests[90002]=true;p=G.FindPlacement();assert(p.steps[p.index].id=='later')
  IsSpellKnown=nil
 end)
+check('unsupported history is distinguished from failed request and default chat stays short',function()
+ reset();G.FindStep(false);assert(string.find(G.ScanSummary(),'not supported by this client',1,true))
+ local summary=G.PlacementSummary('active quest log');assert(string.len(summary)<220)
+ assert(string.find(summary,'unavailable',1,true) and not string.find(summary,'Bank:',1,true))
+ QueryQuestsCompleted=function() error('failed') end;GetQuestsCompleted=function() return {} end
+ G.FindStep(false);assert(string.find(G.ScanSummary(),'request failed',1,true))
+end)
 print('ALL '..passed..' CHARACTER SCAN AND STEP BROWSER CHECKS PASSED')

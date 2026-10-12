@@ -119,7 +119,14 @@ function G.ReconcileCharacter()
 end
 function G.ScanSummary()
  local s=G.characterScan;if not s then return '' end
- return tostring(s.questCount)..' active quests; '..tostring(s.completedQuestCount or 0)..' confirmed turn-ins; '..tostring(s.completedSteps or 0)..' route steps already satisfied. Inventory: '..s.inventory..'. Bank: '..s.bankStatus..'. Hearthstone: '..(s.hearth or 'unavailable')..'. Flight paths: '..s.flightStatus..'. Completion history: '..s.history..'.'
+ return tostring(s.questCount)..' active quests; '..tostring(s.completedQuestCount or 0)..' recorded turn-ins; '..tostring(s.completedSteps or 0)..' satisfied guide actions (not separate completed quests). Inventory: '..s.inventory..'. Bank: '..s.bankStatus..'. Hearthstone: '..(s.hearth or 'unavailable')..'. Flight paths: '..s.flightStatus..'. Earlier quest history: '..s.history..'.'
+end
+function G.PlacementSummary(reason)
+ local s=G.characterScan
+ if not s then return 'Starting step: '..reason..'. Earlier steps remain available with Back.' end
+ local history=G.historyReady and 'Earlier quest history checked.' or 'Full earlier quest history unavailable; using current quests and recorded turn-ins.'
+ if s.history=='available route quests checked individually' then history='Available quest completion flags checked.' end
+ return 'Found step: '..reason..'. '..history..' /octoguide scan shows details.'
 end
 function G.CancelFindStep()
  G.pendingFind=nil;G.autoplacePending=false
@@ -141,7 +148,11 @@ function G.FindStep(automatic)
   end
   G.pendingFind=nil
  end
- G.historyReady=false;G.historyFailure='server history API unavailable or request failed';G.ReconcileCharacter();return G.AutoPlace(automatic)
+ G.historyReady=false
+ if type(QueryQuestsCompleted)~='function' or type(GetQuestsCompleted)~='function' then
+  G.historyFailure='not supported by this client; using locally recorded turn-ins'
+ else G.historyFailure='history request failed; using locally recorded turn-ins' end
+ G.ReconcileCharacter();return G.AutoPlace(automatic)
 end
 function G.FinishFindStep(received)
  local pending=G.pendingFind;if not pending then return end

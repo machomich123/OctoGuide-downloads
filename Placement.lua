@@ -196,7 +196,7 @@ function G.AutoPlace(automatic)
   G.db.reviewGuide=nil;G.db.reviewStep=nil;G.db.reviewPositions={}
   local ok,why=G.Select(p.guide.id,'automatic');if not ok then G.Chat(why);return false end
   G.autoplacePending=automatic==true and G.db.historySource~='server'
-  G.placementMessage='Auto placement: '..p.reason..'. Earlier steps remain available with Back. '..(G.ScanSummary and G.ScanSummary() or '')
+  G.placementMessage=G.PlacementSummary and G.PlacementSummary(p.reason) or 'Starting step: '..p.reason..'. Earlier steps remain available with Back.'
   G.Render();if not automatic then G.Chat(G.placementMessage) end
   return true
 end
