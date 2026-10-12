@@ -45,6 +45,12 @@ check('invalid server history responses stay unknown',function()
  reset();GetQuestsCompleted=function() return 'invalid' end
  assert(not G.ReadCompletedHistory() and not G.historyReady and not G.db.completedQuests[101])
 end)
+check('closed flight-master state is never read through native taxi APIs',function()
+ reset();local old=G.Travel;G.Travel={ObserveTaxi=function() error('Unsafe closed taxi map') end}
+ C_TaxiMap={GetAllTaxiNodes=function() error('Unsafe closed taxi map') end};TaxiFrame=nil
+ local s=G.ScanCharacter();assert(s.flight[23] and s.flightStatus=='previously observed only')
+ G.Travel=old;C_TaxiMap=nil
+end)
 check('whole active log, objectives, items, bind and observed flight paths are scanned',function()
  reset();local s=G.ReconcileCharacter();assert(s.quests[104].complete and s.quests[104].objectives[1].done)
  assert(s.items[500]==3 and s.hearth=='Crossroads' and s.flight[23]);assert(s.bankStatus=='closed; not scanned')

@@ -56,10 +56,12 @@ function G.ScanCharacter()
  end
  scan.inventory=type(GetContainerItemLink)=='function' and 'scanned' or 'unavailable'
  scan.hearth=call(GetBindLocation)
- if G.Travel and G.Travel.ObserveTaxi then pcall(G.Travel.ObserveTaxi) end
+ local taxiOpen=TaxiFrame and TaxiFrame.IsShown and TaxiFrame:IsShown()
+ -- The native taxi APIs read live flight-master state. Do not call them at world load.
+ if taxiOpen and G.Travel and G.Travel.ObserveTaxi then pcall(G.Travel.ObserveTaxi) end
  local saved=G.db.travel and G.db.travel.known or {}
  for node,known in pairs(saved) do if known then scan.flight[node]=true end end
- local taxi=C_TaxiMap and call(C_TaxiMap.GetAllTaxiNodes)
+ local taxi=taxiOpen and C_TaxiMap and call(C_TaxiMap.GetAllTaxiNodes)
  if type(taxi)=='table' and table.getn(taxi)>0 then scan.flightStatus='current flight master and previous observations' end
  scan.level=call(UnitLevel,'player');scan.xp=call(UnitXP,'player');scan.xpMax=call(UnitXPMax,'player')
  scan.zone=call(GetZoneText);scan.time=call(GetTime) or 0

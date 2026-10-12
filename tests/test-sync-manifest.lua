@@ -5,7 +5,10 @@ for _,name in ipairs({'SetNumeric','SetAutoFocus','SetJustifyV'}) do methods[nam
 local toc=assert(io.open('OctoGuide-downloads.toc'))
 for line in toc:lines() do if string.find(line,'%.lua$') then dofile(line) end end;toc:close()
 local G=OctoGuide
-G.Init();assert(G.ready and G.version=='0.5.7')
+local scan=G.ScanCharacter;local scans=0
+G.ScanCharacter=function() scans=scans+1;return scan() end
+G.Init();assert(G.ready and G.version=='0.5.8')
+G.Event('BAG_UPDATE');G.Event('QUEST_LOG_UPDATE');assert(scans==0,'Full scan must not run during startup events')
 G.ToggleMenu();local row=G.menu.rows[1];assert(row.guideID)
 this=row;row.scripts.OnClick();assert(G.stepBrowser and G.stepBrowser:IsShown())
 local p=G.stepBrowser;assert(table.getn(p.steps)>1);p.input:SetText('2');p.go.scripts.OnClick()

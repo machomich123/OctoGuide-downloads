@@ -152,7 +152,7 @@ function G.AutoPlace(automatic)
   if not G.ready then return false,'The guide is not initialized. Check /octocheck before finding a step.' end
   if G.player.faction~='Horde' then return false,'Find step has no route for this faction. Only Horde routes are included.' end
   G.RefreshHistory(false)
-  if G.ReconcileCharacter then G.ReconcileCharacter() end
+  -- Full scanning belongs to an explicit Find step request, never startup placement.
   local p=G.FindPlacement();if not p then return false,'No supported route matches this character and mode. Open Guides and check the route pack; no progress has been marked complete.' end
   G.db.placements=G.db.placements or {}
   G.db.placements[p.guide.id]={stepID=p.steps[p.index].id,reason=p.reason}
