@@ -1,6 +1,14 @@
 local G=OctoGuide
 function G.Present(s,preview)
-  if not s then return 'Level range complete','Choose Next to continue to the next level range.','note' end
+  if not s then
+    if G.player and G.player.faction=='Alliance' then return 'Horde routes only','This guide has no Alliance routes. Your character progress has not been marked complete.','note' end
+    if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',true) then return 'Guide requirements unavailable','Open /octocheck. Missing data or APIs are not completed progress.','note' end
+    if not G.state or not G.state.guide or not G.state.steps or table.getn(G.state.steps)==0 then return 'No route loaded','Open Guides or use Find step. No progress has been marked complete.','note' end
+    local allDone=true
+    for _,step in ipairs(G.state.steps) do if not G.db or not G.db.progress or not G.db.progress[G.Key(step)] then allDone=false;break end end
+    if allDone then return 'Level range complete','Choose Next to continue to the next level range.','note' end
+    return 'End of selected route','Earlier steps remain available. Use Find step to re-evaluate your position; this does not mark earlier quests complete.','note'
+  end
   local value=s.text or ''
   value=string.gsub(value,'^Group quest %(use a suitable party%): ','')
   value=string.gsub(value,'^Escort quest: ','')

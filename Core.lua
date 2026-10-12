@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.5.5',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.5.7',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -65,6 +65,7 @@ function G.Playable(guide)
 end
 function G.Current()
   if not G.state then return nil end
+  if G.state.reviewIndex then G.state.index=G.state.reviewIndex;return G.state.steps[G.state.reviewIndex] end
   for i=G.state.startIndex or 1,table.getn(G.state.steps) do local s=G.state.steps[i];if not G.db.progress[G.Key(s)] then G.state.index=i;return s end end
   G.state.index=nil;return nil
 end
@@ -100,6 +101,7 @@ function G.Select(id,reason)
   end
   G.state={guide=guide,steps=steps,startIndex=startIndex};G.db.guide=id;G.gatherTarget=nil
   G.pauseAuto=reason=='restore' and G.db.reviewGuide==id or false
+  if G.pauseAuto and G.db.reviewStep then for i,s in ipairs(steps) do if s.id==G.db.reviewStep then G.state.reviewIndex=i;break end end end
   if reason~='restore' then G.db.reviewGuide=nil end
   if reason~='automatic' and reason~='restore' then G.autoplacePending=false;G.placementMessage=nil end
   G.Current();G.Sync();if G.Render then G.Render() end;return true
@@ -107,11 +109,17 @@ end
 function G.SetMode(mode)
   if mode~='normal' and mode~='hardcore' then return false,'Choose normal or hardcore' end
   if not G.db then return false,'Wait for character login' end
-  local old=G.Mode();G.db.mode=mode
+  local old=G.Mode()
+  if old~=mode and G.state and G.state.reviewIndex then
+    G.db.reviewPositions=G.db.reviewPositions or {};G.db.reviewPositions[G.state.guide.id..':'..old]=G.db.reviewStep
+  end
+  G.db.mode=mode
   if old~=mode then
     G.gatherTarget=nil;G.pauseAuto=false;G.db.reviewGuide=nil
     local id=G.state and G.state.guide.id
     if not id or not G.Playable(G.guides[id]) then id=G.DefaultGuide() end
+    local review=id and G.db.reviewPositions and G.db.reviewPositions[id..':'..mode]
+    G.db.reviewStep=review;if review then G.db.reviewGuide=id end
     if id then G.Select(id,'restore') else G.state=nil;G.db.guide=nil;if G.Render then G.Render() end end
   end
   if G.RenderMenu and G.menu then G.RenderMenu() end
@@ -120,7 +128,13 @@ function G.SetMode(mode)
 end
 function G.Mark(reason)
   local s=G.Current();if not s then return end
+  if G.CancelFindStep then G.CancelFindStep() end
   G.autoplacePending=false;G.placementMessage=nil
+  if G.state.reviewIndex then
+    G.db.progress[G.Key(s)]=reason or 'manual';G.state.reviewIndex=G.state.reviewIndex+1
+    local nextStep=G.state.steps[G.state.reviewIndex];G.db.reviewStep=nextStep and nextStep.id or s.id
+    G.Current();if G.Render then G.Render() end;return
+  end
   G.db.progress[G.Key(s)]=reason or 'manual';G.pauseAuto=false;G.db.reviewGuide=nil;G.Current()
   if G.Render then G.Render() end
 end
@@ -146,11 +160,12 @@ function G.Advance()
 end
 function G.Back()
   if not G.state then return end
+  if G.CancelFindStep then G.CancelFindStep() end
   local i=(G.state.index or table.getn(G.state.steps)+1)-1
   if i<1 then return end
   G.autoplacePending=false;G.placementMessage=nil
   if i<(G.state.startIndex or 1) then G.state.startIndex=i;G.db.placements=G.db.placements or {};G.db.placements[G.state.guide.id]={stepID=G.state.steps[i].id,reason='manual review'} end
-  G.db.progress[G.Key(G.state.steps[i])]=nil;G.pauseAuto=true;G.db.reviewGuide=G.state.guide.id;G.Current();G.Render()
+  G.state.reviewIndex=i;G.db.reviewStep=G.state.steps[i].id;G.pauseAuto=true;G.db.reviewGuide=G.state.guide.id;G.Current();G.Render()
 end
 function G.QuestIndex(id)
   if type(id)~='number' or id<=0 then return nil end
@@ -266,10 +281,10 @@ function G.BindCharacter()
   local owner=realm..':'..name
   if G.db.characterOwner and G.db.characterOwner~=owner then
     G.db.characterArchives=G.db.characterArchives or {}
-    G.db.characterArchives[G.db.characterOwner]={progress=G.db.progress,completedQuests=G.db.completedQuests,placements=G.db.placements,guide=G.db.guide}
+    G.db.characterArchives[G.db.characterOwner]={progress=G.db.progress,completedQuests=G.db.completedQuests,placements=G.db.placements,guide=G.db.guide,travel=G.db.travel,observedSteps=G.db.observedSteps}
     local saved=G.db.characterArchives[owner] or {}
     G.db.progress=saved.progress or {};G.db.completedQuests=saved.completedQuests or {}
-    G.db.placements=saved.placements;G.db.guide=saved.guide;G.db.reviewGuide=nil;G.db.historySource=nil
+    G.db.placements=saved.placements;G.db.guide=saved.guide;G.db.reviewGuide=nil;G.db.reviewStep=nil;G.db.observedSteps=saved.observedSteps or {};G.db.travel=saved.travel or {known={},reachable={}};G.db.historySource=nil
   end
   G.db.characterOwner=owner
   if G.db.placementVersion~=2 then
@@ -278,6 +293,7 @@ function G.BindCharacter()
   end
 end
 function G.Init()
+  if OctoAddonHealth and not OctoAddonHealth.Check("OctoGuide",false) then return end
   if G.ready then return end
   local cname,class=UnitClass('player');local rname,race=UnitRace('player')
   G.player={class=class or cname,race=race or rname,faction=UnitFactionGroup('player')}
@@ -304,13 +320,17 @@ function G.Event(ev,a,b)
   if not G.ready then return end
   if ev=='QUEST_TURNED_IN' and type(a)=='number' and a>0 then
     local current=G.Current()
-    if current and current.questID==a then G.pauseAuto=false;G.db.reviewGuide=nil end
+    if current and current.questID==a and not G.state.reviewIndex then G.pauseAuto=false;G.db.reviewGuide=nil end
     if G.ConfirmQuestTurnedIn then G.ConfirmQuestTurnedIn(a) else G.db.completedQuests[a]=true end
   end
-  if ev=='QUEST_QUERY_COMPLETE' and G.RefreshHistory then G.RefreshHistory(true);if G.autoplacePending and G.AutoPlace then G.AutoPlace(true) end;G.Sync();G.Render();return end
+  if ev=='QUEST_QUERY_COMPLETE' and G.RefreshHistory then
+    if G.pendingFind and G.FinishFindStep then G.FinishFindStep(true)
+    else G.RefreshHistory(true);if G.autoplacePending and not G.pauseAuto and G.AutoPlace then G.AutoPlace(true) end end
+    G.Sync();G.Render();return
+  end
   if ev=='QUEST_LOG_UPDATE' and G.initialQuestSyncPending then G.initialQuestSyncPending=false;if G.autoplacePending and G.AutoPlace then G.AutoPlace(true) end end
   -- QUEST_REMOVED and QUEST_FINISHED deliberately do not prove a turn-in.
-  if ev=='BAG_UPDATE' or ev=='QUEST_LOG_UPDATE' then G.refreshRemaining=1.2;G.refreshDelay=.08 end
+  if ev=='BAG_UPDATE' or ev=='QUEST_LOG_UPDATE' then if G.ScanCharacter then G.ScanCharacter() end;G.refreshRemaining=1.2;G.refreshDelay=.08 end
   if ev=='BAG_UPDATE' or ev=='QUEST_LOG_UPDATE' or ev=='QUEST_ACCEPTED' or ev=='QUEST_TURNED_IN' or ev=='PLAYER_LEVEL_UP' then
     G.Sync()
     if ev=='QUEST_TURNED_IN' and not G.Current() and G.state and G.state.guide.nextGuide and G.Playable(G.guides[G.state.guide.nextGuide]) then G.NextStage() end

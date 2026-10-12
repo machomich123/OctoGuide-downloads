@@ -22,7 +22,10 @@ function G.Gather(category)
 end
 function G.HandleSlash(msg)
   local cmd=string.lower(msg or '')
-  if not G.ready then G.Chat('Wait for character login.');return end
+  if not G.ready then
+    if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',false) then return end
+    G.Chat('Wait for character login.');return
+  end
   if cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
   elseif cmd=='solo' or cmd=='group' or cmd=='auto' then G.SetPartyMode(cmd);G.Chat('Party setting: '..cmd..'.')
   elseif cmd=='rxp' or cmd=='baseline' then G.SetRouteSource(cmd)
@@ -38,7 +41,8 @@ function G.HandleSlash(msg)
   elseif cmd=='next' then G.NextStage()
   elseif cmd=='skip' then G.Mark('skipped');G.Sync();G.Render()
   elseif cmd=='back' then G.Back()
-  elseif cmd=='sync' then G.AutoPlace(false)
+  elseif cmd=='sync' then if G.FindStep then G.FindStep(false) else G.AutoPlace(false) end
+  elseif cmd=='scan' then G.Chat(G.ScanSummary and G.ScanSummary() or 'Use Find step first.')
   elseif cmd=='route' then G.gatherTarget=nil;G.Render()
   elseif cmd=='mining' or cmd=='herbalism' then local ok,why=G.Gather(cmd=='mining' and 'ore' or 'herb');if not ok then G.Chat(why) end
   elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | solo | group | auto | level N | check | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
@@ -75,6 +79,7 @@ if G.InitProgress then G.InitProgress() end
 events:SetScript('OnEvent',function() if G.InstallReportErrors then G.InstallReportErrors() end;if G.ReportEvent then G.ReportEvent(event) end;G.Event(event,arg1,arg2) end)
 events:SetScript('OnUpdate',function()
   if not G.ready then return end
+  if G.UpdateFindStep then G.UpdateFindStep(arg1 or .016) end
   G.UpdateArrow(arg1 or .016)
   if G.refreshRemaining and G.refreshRemaining>0 then
     G.refreshRemaining=G.refreshRemaining-(arg1 or 0);G.refreshDelay=(G.refreshDelay or 0)-(arg1 or 0)

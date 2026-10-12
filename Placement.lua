@@ -12,6 +12,7 @@ local function activeIndex(id)
 end
 function G.RefreshHistory(serverResponse)
   G.historyHints={}
+  if serverResponse and G.ReadCompletedHistory then G.ReadCompletedHistory();return end
   -- pfQuest permits manual completion marks. Its cache is a placement hint only.
   -- External addon caches have no verified character ownership. Never use them to skip route steps.
   if serverResponse and type(GetQuestsCompleted)=='function' then
@@ -127,7 +128,7 @@ function G.FindPlacement()
         if index and diff<6 then
           local title,qlevel,tag,header,collapsed,complete=GetQuestLogTitle(index)
           local done=complete==1 or complete==true
-          if (done and s.action=='turnin') or (not done and (s.action=='complete' or s.action=='objective') and not G.LocalGoalsDone(s)) then
+          if (done and s.action=='turnin') or (not done and (s.action=='complete' or s.action=='objective') and not G.Satisfied(s)) then
             score=-120+diff*10+positionPenalty(s);reason='active quest log'
           end
         elseif s.questID and diff<3 and (questDone(s.questID) or (G.historyHints and G.historyHints[s.questID])) and s.action=='turnin' and i<table.getn(steps) then
@@ -140,20 +141,25 @@ function G.FindPlacement()
   end
   if best then
     best=catchup(best,{},0)
-    while best.index<table.getn(best.steps) and not unfinished(best.steps[best.index]) do best.index=best.index+1 end
+    while best.index<table.getn(best.steps) and (not unfinished(best.steps[best.index]) or G.StepEvidence and G.StepEvidence(best.steps[best.index])) do best.index=best.index+1 end
   end
   G.placementIndexes=nil;G.placementIndexesComplete=nil
   return best
 end
 function G.AutoPlace(automatic)
-  if not G.ready or G.player.faction~='Horde' then return false end
+  if G.player and G.player.faction=='Alliance' then return false,'Find step has no Alliance route. This guide currently includes Horde routes only.' end
+  if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',false) then return false,'Find step is unavailable: required addon components did not load. See /octocheck.' end
+  if not G.ready then return false,'The guide is not initialized. Check /octocheck before finding a step.' end
+  if G.player.faction~='Horde' then return false,'Find step has no route for this faction. Only Horde routes are included.' end
   G.RefreshHistory(false)
-  local p=G.FindPlacement();if not p then return false end
+  if G.ReconcileCharacter then G.ReconcileCharacter() end
+  local p=G.FindPlacement();if not p then return false,'No supported route matches this character and mode. Open Guides and check the route pack; no progress has been marked complete.' end
   G.db.placements=G.db.placements or {}
   G.db.placements[p.guide.id]={stepID=p.steps[p.index].id,reason=p.reason}
+  G.db.reviewGuide=nil;G.db.reviewStep=nil;G.db.reviewPositions={}
   local ok,why=G.Select(p.guide.id,'automatic');if not ok then G.Chat(why);return false end
   G.autoplacePending=automatic==true and G.db.historySource~='server'
-  G.placementMessage='Auto placement: '..p.reason..'. Earlier steps remain available with Back.'
+  G.placementMessage='Auto placement: '..p.reason..'. Earlier steps remain available with Back. '..(G.ScanSummary and G.ScanSummary() or '')
   G.Render();if not automatic then G.Chat(G.placementMessage) end
   return true
 end

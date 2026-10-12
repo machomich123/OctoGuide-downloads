@@ -72,10 +72,15 @@ function G.BuildUI()
  local menu=card(UIParent);G.menu=menu;menu:SetWidth(460);menu:SetHeight(520);menu:SetPoint('CENTER',UIParent,'CENTER',0,0);menu:SetFrameStrata('DIALOG');if menu.SetFrameLevel and f.GetFrameLevel then menu:SetFrameLevel(f:GetFrameLevel()+30) end;menu:EnableMouse(true)
  menu.title=label(menu,19,400,true);point(menu.title,menu,20,16);menu.title:SetHeight(26);menu.title:SetText('Horde routes')
  menu.info=label(menu,11,420);point(menu.info,menu,180,48);menu.info:SetWidth(260);menu.info:SetHeight(25)
- menu.rows={};for i=1,14 do local row=button(menu,'',420,function() if this.guideID then local ok,why=G.Select(this.guideID);if ok then G.frame:Show();G.db.hidden=false;G.menu:Hide() else G.Chat(why) end end end);point(row,menu,20,78+(i-1)*28);menu.rows[i]=row end
+ menu.rows={};for i=1,14 do local row=button(menu,'',420,function() if this.guideID then if G.OpenStepBrowser then G.OpenStepBrowser(this.guideID) else local ok,why=G.Select(this.guideID);if ok then G.frame:Show();G.db.hidden=false;G.menu:Hide() else G.Chat(why) end end end end);point(row,menu,20,78+(i-1)*28);menu.rows[i]=row end
  menu.page=1
  local x=20;menu.pageButtons={}
- for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function() G.AutoPlace(false);menu:Hide() end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);b.pageX=x;table.insert(menu.pageButtons,b);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
+ for _,spec in ipairs({{'Previous',85,function() menu.page=math.max(1,menu.page-1);G.RenderMenu() end},{'Next',70,function() menu.page=menu.page+1;G.RenderMenu() end},{'Find step',87,function()
+   local ok,why
+   local find=G.FindStep or G.AutoPlace
+   if OctoAddonHealth then ok,why=OctoAddonHealth.Call('OctoGuide',find,false) else ok,why=find(false) end
+   if ok then menu:Hide() else G.Chat(why or 'Find step could not select a route. Check /octocheck.');if menu.info then menu.info:SetText(why or 'Find step unavailable. See /octocheck.') end end
+ end},{'Close',85,function() menu:Hide() end}}) do local b=button(menu,spec[1],spec[2],spec[3]);point(b,menu,x,478);b.pageX=x;table.insert(menu.pageButtons,b);if spec[1]=='Find step' then menu.findStep=b end;x=x+spec[2]+12 end
  menu.levelButton=button(menu,'Show current level',150,function() if menu.level then menu.level=nil else menu.level=UnitLevel('player') end;menu.page=1;G.RenderMenu() end);point(menu.levelButton,menu,20,48)
  menu:Hide()
  if G.BuildMenus then G.BuildMenus() end
@@ -105,6 +110,7 @@ function G.RenderSettings()
 end
 function G.ToggleSettings() if G.options:IsShown() then G.options:Hide() else G.RenderSettings();G.options:Show() end end
 function G.RenderMenu()
+ if G.stepBrowser and G.stepBrowser:IsShown() then G.RefreshStepBrowser();return end
  G.menu.levelButton:SetText(G.menu.level and 'Show all levels' or 'Show current level')
  local list=G.LevelGuides(G.menu.level)
  local pages=math.max(1,math.ceil(table.getn(list)/14));G.menu.page=math.min(G.menu.page,pages)

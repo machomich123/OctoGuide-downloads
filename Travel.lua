@@ -50,9 +50,10 @@ function T.ObserveTaxi()
  end
  if from and T.nodes[from] then
   G.db.travel=G.db.travel or {known={},reachable={}}
-  local db=G.db.travel;db.known=db.known or {};db.reachable=db.reachable or {};db.known[from]=true
+  local db=G.db.travel;db.known=db.known or {};db.reachable=db.reachable or {};db.knownNames=db.knownNames or {};db.known[from]=true
   db.reachable[from]=reachable
   for id in pairs(reachable) do db.known[id]=true end
+  for _,n in ipairs(entries) do if db.known[n.nodeID] and n.name then db.knownNames[n.nodeID]=n.name end end
   T.cache=nil
  end
 end

@@ -94,6 +94,7 @@ end
 local baseCurrent=G.Current
 function G.Current()
   if not G.state then return nil end
+  if G.state.reviewIndex then G.state.index=G.state.reviewIndex;return G.state.steps[G.state.reviewIndex] end
   for i=G.state.startIndex or 1,table.getn(G.state.steps) do
     local s=G.state.steps[i]
     if not s.background and not s.informational and not G.db.progress[G.Key(s)] then
