@@ -55,34 +55,19 @@ function G.TrainingSatisfied(s)
   return false
  end
  if s.skillName then return skillKnown(s) end
- -- A generic class-training visit covers all services available at arrival.
- -- A partial purchase, changed filter, rejected purchase or open trainer is not done.
- local visit=T.visit
- if visit and visit.step==s and visit.key==G.Key(s) and table.getn(visit.targets)>0 then
-  for _,service in ipairs(visit.targets) do if not T.BookKnows(service.name,service.rank,false) then return false end end
-  return true
- end
+ -- Unspecified trainer visits are manual. Only authored skill goals count.
+ -- Never infer required skills from the trainer's available-services list.
  return false
 end
-function T.CaptureTrainer()
- T.visit=nil
- local s=G.Current();if not s or s.action~='train' or s.spellID or profession(s) or s.skillName then return end
- if not s.personalClass or s.personalClass~=G.player.class then return end
- if G.pauseAuto and G.state.reviewReason~='jump' then return end
- local filter=call(GetTrainerServiceTypeFilter,'available')
- if filter~=nil and not yes(filter) then return end
- local targets={};local count=call(GetNumTrainerServices)
- if type(count)~='number' then return end
- for i=1,count do
-  local name,wanted,category=call(GetTrainerServiceInfo,i)
-  if category=='available' and type(name)=='string' and not T.BookKnows(name,wanted,false) then table.insert(targets,{name=name,rank=wanted}) end
- end
- if table.getn(targets)>0 then T.visit={step=s,key=G.Key(s),targets=targets} end
+function G.TrainingLabel(s)
+ if not s or s.action~='train' or not s.spellID then return nil end
+ local name,wanted=call(GetSpellInfo,s.spellID)
+ if type(name)~='string' or name=='' then return nil end
+ return name..(type(wanted)=='string' and wanted~='' and (' ('..wanted..')') or '')
 end
 local events={SPELLS_CHANGED=true,LEARNED_SPELL_IN_TAB=true,SKILL_LINES_CHANGED=true,TRAINER_SHOW=true,TRAINER_UPDATE=true,TRAINER_CLOSED=true,CRAFT_UPDATE=true,PET_BAR_UPDATE=true,UNIT_PET=true}
 function G.TrainingEvent(ev,unit)
  if not events[ev] then return false end
  if ev=='UNIT_PET' and unit and unit~='player' then return false end
- if ev=='TRAINER_SHOW' then T.CaptureTrainer() elseif ev=='TRAINER_CLOSED' then T.visit=nil end
  return true
 end

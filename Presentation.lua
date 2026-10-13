@@ -25,6 +25,10 @@ function G.Present(s,preview)
     if quest then title='Turn in '..quest;body='Speak to '..place end
   end
   title=title or value;body=body or ''
+  if s.action=='train' and G.TrainingLabel then
+    local skill=G.TrainingLabel(s)
+    if skill then title='Train '..skill;body='Learn this skill; the guide continues automatically. Other available skills are your choice.' end
+  end
   if s.action=='use' and string.find(title,'^Perform use ') then
    local notes=G.SourceNotes and G.SourceNotes(s) or {};local item=s.itemID and GetItemInfo and GetItemInfo(s.itemID)
    title=item and ('Use '..item) or 'Use the quest item'

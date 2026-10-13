@@ -1,6 +1,6 @@
 local file=assert(io.open('tests/test-runtime.lua'));local source=file:read('*a');file:close()
 assert(loadstring(string.sub(source,1,assert(string.find(source,"dofile('Core.lua')",1,true))-1)))()
-dofile('Core.lua');dofile('Route.lua');dofile('Training.lua')
+dofile('Core.lua');dofile('Route.lua');dofile('Training.lua');dofile('Presentation.lua')
 local G=OctoGuide
 G.player={class='HUNTER',race='Orc',faction='Horde'};G.db={progress={},completedQuests={},mode='hardcore'};G.ready=true
 local renders=0;G.Render=function()renders=renders+1 end
@@ -39,19 +39,24 @@ book={{'Serpent Sting','Rank 3'}};G.Event('SPELLS_CHANGED');expectNext();book={}
 known[5116]=nil;select('learn-back',step);G.state.reviewIndex=1;G.state.reviewReason='back';G.pauseAuto=true
 known[5116]=true;G.Event('SPELLS_CHANGED');assert(G.Current()==step and G.pauseAuto and not G.db.progress[G.Key(step)])
 G.state.reviewReason='jump';G.Event('SPELLS_CHANGED');expectNext()
--- Generic class visits wait for all initially trainable skills, not merely one.
-local services={{'Arcane Shot','Rank 1','available'},{'Hunter Mark','Rank 1','available'}}
-function GetNumTrainerServices()return table.getn(services)end
-function GetTrainerServiceInfo(i)return unpack(services[i])end
-function GetTrainerServiceTypeFilter()return 1 end
+-- Trainer offerings are not guide goals, even if all offered spells are learned.
+function GetNumTrainerServices()error('Training must not read trainer offerings')end
+function GetTrainerServiceInfo()error('Training must not read trainer offerings')end
 local generic={id='visit',action='train',text='Train your class spells',personalClass='HUNTER',manual=true}
 select('generic-visit',generic);G.Event('TRAINER_SHOW');assert(G.Current()==generic)
-book={{'Arcane Shot','Rank 1'}};G.Event('SPELLS_CHANGED');assert(G.Current()==generic,'Partial class training stays active')
-book[2]={'Hunter Mark','Rank 1'};G.Event('SPELLS_CHANGED');expectNext();book={}
-select('generic-filter',generic);G.Event('TRAINER_SHOW');services={};G.Event('TRAINER_UPDATE');assert(G.Current()==generic,'Changed trainer list is not evidence')
+book={{'Arcane Shot','Rank 1'},{'Hunter Mark','Rank 1'},{'Track Beasts',''}}
+G.Event('SPELLS_CHANGED');assert(G.Current()==generic,'No specific guide goal means manual confirmation')
 G.Event('TRAINER_CLOSED');G.Event('SPELLS_CHANGED');assert(G.Current()==generic,'Closing trainer cannot complete visit')
+book={};known[5116]=nil
+local exact={id='exact',action='train',text='Train your class spells',personalClass='HUNTER',spellID=5116,manual=true}
+select('only-authored-skill',exact);G.Event('TRAINER_SHOW')
+known[1494]=true;book={{'Track Beasts',''}};G.Event('SPELLS_CHANGED');assert(G.Current()==exact,'Track Beasts cannot satisfy Concussive Shot')
+known[1494]=nil;book={};known[5116]=true;G.Event('SPELLS_CHANGED');expectNext()
+assert(not known[1494],'Unlearned Track Beasts must not block authored skill')
+local title,body=G.Present(exact);assert(title=='Train Concussive Shot' and string.find(body,'Other available skills are your choice',1,true),'Show the actual guide requirement')
+metadata[13549]={'Serpent Sting','Rank 2'};assert(G.TrainingLabel(rank2)=='Serpent Sting (Rank 2)')
 -- Already-known exact skills reconcile on selection; absent APIs remain manual.
 known[5116]=true;select('already-known',step);expectNext()
 IsSpellKnown=nil;IsPlayerSpell=nil;GetSpellInfo=nil;GetNumSpellTabs=nil;GetNumSkillLines=nil
 select('missing-apis',step);G.Event('SPELLS_CHANGED');assert(G.Current()==step)
-print('PASS exact learning events, recipes, professions, ranks, generic visits, failed purchases, already-known skills and Back/jump')
+print('PASS authored skills only, Track Beasts excluded, exact visible goals, manual generic visits, recipes, ranks and Back/jump')

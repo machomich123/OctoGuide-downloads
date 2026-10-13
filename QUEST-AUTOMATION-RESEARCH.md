@@ -2,6 +2,8 @@
 
 ## 0.5.13 correction
 
+**Superseded generic-training behavior in 0.5.14:** the user clarified that trainer offerings must never become required skills. Only authored spell IDs, explicit skill names and named profession goals can complete automatically. Generic class visits without such a goal remain manual. The runtime no longer reads available trainer services. Spell-ID goals now display the exact spell/rank so the requirement is visible. The tests explicitly exclude unrelated Track Beasts learning from a Concussive Shot goal and verify that not learning Track Beasts does not block that goal.
+
 The user confirmed auto accept/turn-in in-game, but reported `QuestAutomation.lua:72: Unknown link type` and failed reward choice. 0.5.12 passed bare-item-string mock tests; these did not cover colored links returned by the game. The new regression fixture reproduces the error against the released 0.5.12 module. Tooltips receive the extracted raw payload, preserving enchant/suffix/unique fields; a rejected tooltip is contained and leaves the reward manual.
 
 Training continuation listens to SPELLS_CHANGED, LEARNED_SPELL_IN_TAB, SKILL_LINES_CHANGED and trainer/crafting/pet updates. IsPlayerSpell includes learned recipes/passives absent from IsSpellKnown's strict spellbook check. Name/rank checks use actual spellbook entries, not GetSpellInfo's database metadata alone. Generic class-training visits require all originally available services to appear as learned spells. Trainer opening, closing, filtered list changes and rejected purchases are not completion evidence.

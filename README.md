@@ -1,6 +1,6 @@
-# OctoGuide 0.5.13
+# OctoGuide 0.5.14
 
-Fixes the Vanilla `Unknown link type` error during reward choice and automatically continues after the relevant skill is learned. Exact spell/recipe/profession steps and generic class-training visits use real learned-skill evidence. See [0.5.13 update notes](UPDATE-0.5.13.md). Update through the launcher and use `/reload` to load the new addon code.
+Automatically continues only after the specific skill requested by the guide is learned. Other trainer offerings are never added as requirements. Training steps with a spell ID display the actual spell and rank; generic visits without a specific goal remain manual. Keeps the reward-link fix from 0.5.13. See [0.5.14 update notes](UPDATE-0.5.14.md). Update through the launcher and use `/reload` to load the new addon code.
 
 XP grind recommendations now appear as optional advice below the next quest. In **Settings → Quest automation settings**, enable guide-only quest acceptance, turn-in or gear-aware reward selection independently. All three default OFF. Hold Shift for manual control. Reward selection compares class leveling stats against worn and bag gear, then uses total vendor value when no upgrade exists. Missing data or uncertain equipment stays manual; items are never equipped or sold. See [update notes](UPDATE-0.5.12.md) and [research/limitations](QUEST-AUTOMATION-RESEARCH.md).
 

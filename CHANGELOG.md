@@ -1,3 +1,9 @@
+# 0.5.14
+
+- Require only guide-authored skill goals for automatic training progress; remove inference from all available trainer services.
+- Display the actual spell/rank for authored spell-ID steps. Generic visits without explicit targets stay manual.
+- Verify that learning Track Beasts cannot satisfy another skill goal and leaving it unlearned cannot block that goal.
+
 # 0.5.13
 
 - Fix Vanilla reward tooltips receiving colored chat links instead of item payloads; preserve random suffixes and contain rejected tooltip data.
