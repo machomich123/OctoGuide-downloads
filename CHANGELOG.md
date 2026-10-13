@@ -1,3 +1,9 @@
+# 0.5.15
+
+- Recheck earlier active quest work and ready turn-ins before following a later saved cursor or treating a route as finished.
+- Recover from stale automatic progress marks while respecting explicit Done/Skip, Back and manual starting points.
+- Verify Sen'jin plans -> Sen'jin turn-in -> Razor Hill with both a regression fixture and the locally installed private family route.
+
 # 0.5.14
 
 - Require only guide-authored skill goals for automatic training progress; remove inference from all available trainer services.

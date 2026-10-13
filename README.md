@@ -1,4 +1,6 @@
-# OctoGuide 0.5.14
+# OctoGuide 0.5.15
+
+Recover earlier active unfinished quests before following a later saved cursor. Old automatic marks cannot hide the quest's unfinished work or ready turn-in; explicit Done/Skip and manual starting points remain user choices. See [0.5.15 update notes](UPDATE-0.5.15.md).
 
 Automatically continues only after the specific skill requested by the guide is learned. Other trainer offerings are never added as requirements. Training steps with a spell ID display the actual spell and rank; generic visits without a specific goal remain manual. Keeps the reward-link fix from 0.5.13. See [0.5.14 update notes](UPDATE-0.5.14.md). Update through the launcher and use `/reload` to load the new addon code.
 

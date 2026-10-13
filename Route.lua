@@ -92,6 +92,25 @@ function G.MissingPickup(index)
   end
 end
 local baseCurrent=G.Current
+-- A saved cursor or old observed flag cannot discard an active unfinished quest.
+-- Re-evaluate earlier authored work using live quest evidence before moving on.
+function G.PendingQuestStep(index)
+ if not G.state or G.pauseAuto or type(GetQuestLogTitle)~='function' then return nil end
+ local first=G.state.manualStart and (G.state.startIndex or 1) or 1
+ local live={}
+ for i=first,index-1 do
+  local s=G.state.steps[i]
+  local mark=G.db.progress[G.Key(s)]
+  if s.questID and (s.action=='objective' or s.action=='complete' or s.action=='turnin') and not s.background and not s.informational and mark~='manual' and mark~='skipped' and not G.db.completedQuests[s.questID] then
+   if live[s.questID]==nil then
+    local qi=G.QuestIndex(s.questID);live[s.questID]=false
+    if qi then local _,_,_,_,_,done=GetQuestLogTitle(qi);live[s.questID]={ready=done==true or done==1} end
+   end
+   local q=live[s.questID]
+   if q and G.SourceEligible(s) and (q.ready and s.action=='turnin' or not q.ready and (s.action=='objective' or s.action=='complete')) and not G.Satisfied(s) then return i end
+  end
+ end
+end
 function G.Current()
   if not G.state then return nil end
   if G.state.reviewIndex then G.state.index=G.state.reviewIndex;return G.state.steps[G.state.reviewIndex] end
@@ -99,11 +118,13 @@ function G.Current()
     local s=G.state.steps[i]
     if not s.background and not s.informational and not (G.IsOptionalGrind and G.IsOptionalGrind(s)) and not G.db.progress[G.Key(s)] then
       local pickup=G.MissingPickup and G.MissingPickup(i)
+      local pending=G.PendingQuestStep(i)
+      if pending and (not pickup or pending<pickup) then pickup=pending end
       if pickup then
         G.state.startIndex=math.min(G.state.startIndex or 1,pickup)
         G.state.index=pickup
         G.db.placements=G.db.placements or {}
-        G.db.placements[G.state.guide.id]={stepID=G.state.steps[pickup].id,reason='missing quest pickup'}
+        G.db.placements[G.state.guide.id]={stepID=G.state.steps[pickup].id,reason=pending==pickup and 'unfinished active quest' or 'missing quest pickup'}
         G.db.progress[G.Key(G.state.steps[pickup])]=nil
         return G.state.steps[pickup]
       end
@@ -121,6 +142,13 @@ function G.Current()
       end
       G.state.index=i;return s
     end
+  end
+  local pending=G.PendingQuestStep(table.getn(G.state.steps)+1)
+  if pending then
+    G.state.startIndex=math.min(G.state.startIndex or 1,pending);G.state.index=pending
+    G.db.progress[G.Key(G.state.steps[pending])]=nil
+    G.db.placements=G.db.placements or {};G.db.placements[G.state.guide.id]={stepID=G.state.steps[pending].id,reason='unfinished active quest'}
+    return G.state.steps[pending]
   end
   G.state.index=nil;return nil
 end
