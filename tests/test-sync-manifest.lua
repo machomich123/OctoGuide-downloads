@@ -7,7 +7,14 @@ for line in toc:lines() do if string.find(line,'%.lua$') then dofile(line) end e
 local G=OctoGuide
 local scan=G.ScanCharacter;local scans=0
 G.ScanCharacter=function() scans=scans+1;return scan() end
-G.Init();assert(G.ready and G.version=='0.5.11')
+G.Init();assert(G.ready and G.version=='0.5.12')
+local settings=G.options;local automation=settings.automationPanel
+assert(automation and not automation:IsShown() and settings.height==650)
+settings.automationButton.scripts.OnClick();assert(automation:IsShown())
+for _,b in ipairs(automation.automationRows) do
+ assert(string.find(b.value,'[OFF]',1,true));this=b;b.scripts.OnClick();assert(G.db[b.optionKey]==true and string.find(b.value,'[ON]',1,true));b.scripts.OnClick();assert(G.db[b.optionKey]==false)
+ assert(b.point[4]+b.width<automation.width and -b.point[5]+b.height<automation.height)
+end
 G.Event('BAG_UPDATE');G.Event('QUEST_LOG_UPDATE');assert(scans==0,'Full scan must not run during startup events')
 G.ToggleMenu();local row=G.menu.rows[1];assert(row.guideID)
 this=row;row.scripts.OnClick();assert(G.stepBrowser and G.stepBrowser:IsShown())

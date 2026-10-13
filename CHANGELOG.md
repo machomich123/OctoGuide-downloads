@@ -1,3 +1,10 @@
+# 0.5.12
+
+- Move recommended XP grinds beneath the next quest as optional advice; preserve actual quest minimum levels.
+- Add separate, default-OFF guide quest auto accept, auto turn-in and gear/bag-aware reward choice settings.
+- Dispatch quest actions directly from events; keep unknown items and ambiguous quests manual.
+- Validate original Vanilla tuples, installed family route behavior and the complete release manifest with Lua 5.0.3.
+
 ## 0.4.10
 
 - Fix resize coordinates: Vanilla SetPoint uses the positioned region scale, not the relative parent scale. Native position regression reproduces the old jump and checks no jump plus fixed opposite corner.

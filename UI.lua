@@ -97,6 +97,7 @@ function G.BuildUI()
  local wider=button(options,'Wider',95,function() G.ResizeWidth(40) end);point(wider,options,125,394)
  local b=button(options,'Close',80,function() options:Hide() end);point(b,options,245,394);options.close=b;options.smaller=smaller;options.wider=wider;options:Hide()
  if G.UpgradeSettings then G.UpgradeSettings() end
+ if G.BuildAutomationSettings then G.BuildAutomationSettings() end
 end
 function G.ResizeWidth(delta)
  G.db.widths=G.db.widths or {};local view=G.db.view or 'full';G.db.widths[view]=math.max(380,math.min(800,(G.db.widths[view] or G.frame:GetWidth())+delta));G.Render()
@@ -105,6 +106,7 @@ function G.RenderSettings()
  if G.options.modeButton then G.options.modeButton:SetText('Mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Survival')) end
  G.options.partyButton:SetText('Party: '..(G.db.partyMode or 'auto')..' ('..G.PartyMode()..')')
  if G.UpdateAppearanceSettings then G.UpdateAppearanceSettings() end
+ if G.UpdateAutomationSettings then G.UpdateAutomationSettings() end
  local o=G.MapOptions and G.MapOptions() or G.db.mapOptions or {}
  for _,b in ipairs(G.options.rows) do b:SetText((o[b.optionKey]~=false and '[ON] ' or '[OFF] ')..b.optionLabel) end
 end

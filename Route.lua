@@ -97,7 +97,7 @@ function G.Current()
   if G.state.reviewIndex then G.state.index=G.state.reviewIndex;return G.state.steps[G.state.reviewIndex] end
   for i=G.state.startIndex or 1,table.getn(G.state.steps) do
     local s=G.state.steps[i]
-    if not s.background and not s.informational and not G.db.progress[G.Key(s)] then
+    if not s.background and not s.informational and not (G.IsOptionalGrind and G.IsOptionalGrind(s)) and not G.db.progress[G.Key(s)] then
       local pickup=G.MissingPickup and G.MissingPickup(i)
       if pickup then
         G.state.startIndex=math.min(G.state.startIndex or 1,pickup)

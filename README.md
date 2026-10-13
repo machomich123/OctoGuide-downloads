@@ -1,4 +1,6 @@
-# OctoGuide 0.5.11
+# OctoGuide 0.5.12
+
+XP grind recommendations now appear as optional advice below the next quest. In **Settings → Quest automation settings**, enable guide-only quest acceptance, turn-in or gear-aware reward selection independently. All three default OFF. Hold Shift for manual control. Reward selection compares class leveling stats against worn and bag gear, then uses total vendor value when no upgrade exists. Missing data or uncertain equipment stays manual; items are never equipped or sold. See [update notes](UPDATE-0.5.12.md) and [research/limitations](QUEST-AUTOMATION-RESEARCH.md).
 
 Horde leveling guidance for OctoWoW / WoW 1.12.1. Normal and Hardcore remain separate choices. The original Vanilla Questing baseline is retained with its MIT notices and saved progress.
 
