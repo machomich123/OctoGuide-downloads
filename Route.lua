@@ -230,8 +230,9 @@ function G.Satisfied(s)
   if s.action=='collect' and s.itemID and s.itemCount and GetItemCount then
     local ok,count=pcall(GetItemCount,s.itemID);if ok and type(count)=='number' and count>=s.itemCount then return true end
   end
-  if s.action=='train' and s.spellID and IsSpellKnown then
-    local ok,known=pcall(IsSpellKnown,s.spellID);if ok and known then return true end
+  if s.action=='train' then
+    if G.TrainingSatisfied then return G.TrainingSatisfied(s) end
+    if s.spellID and IsSpellKnown then local ok,known=pcall(IsSpellKnown,s.spellID);if ok and (known==true or known==1) then return true end end
   end
   return baseSatisfied(s)
 end

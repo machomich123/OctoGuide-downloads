@@ -1,3 +1,10 @@
+# 0.5.13
+
+- Fix Vanilla reward tooltips receiving colored chat links instead of item payloads; preserve random suffixes and contain rejected tooltip data.
+- Advance training from actual learned spells/skills, including recipes and higher ranks; subscribe to spell, skill and trainer events.
+- Complete generic class visits only after all originally available services are learned. Preserve Back review and default-OFF reward selection.
+- Reproduce the 0.5.12 link failure and verify the fix plus training with 18 Lua 5.0.3 test suites.
+
 # 0.5.12
 
 - Move recommended XP grinds beneath the next quest as optional advice; preserve actual quest minimum levels.

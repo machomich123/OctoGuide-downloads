@@ -7,7 +7,7 @@ for line in toc:lines() do if string.find(line,'%.lua$') then dofile(line) end e
 local G=OctoGuide
 local scan=G.ScanCharacter;local scans=0
 G.ScanCharacter=function() scans=scans+1;return scan() end
-G.Init();assert(G.ready and G.version=='0.5.12')
+G.Init();assert(G.ready and G.version=='0.5.13')
 local settings=G.options;local automation=settings.automationPanel
 assert(automation and not automation:IsShown() and settings.height==650)
 settings.automationButton.scripts.OnClick();assert(automation:IsShown())
@@ -20,4 +20,10 @@ G.ToggleMenu();local row=G.menu.rows[1];assert(row.guideID)
 this=row;row.scripts.OnClick();assert(G.stepBrowser and G.stepBrowser:IsShown())
 local p=G.stepBrowser;assert(table.getn(p.steps)>1);p.input:SetText('2');p.go.scripts.OnClick()
 assert(G.Current().id==p.steps[2].id);G.Back();assert(G.Current().id==p.steps[1].id)
+for _,ev in ipairs({'SPELLS_CHANGED','SKILL_LINES_CHANGED','LEARNED_SPELL_IN_TAB','TRAINER_SHOW','TRAINER_UPDATE'}) do assert(G.events.events[ev],'Actual integration must subscribe to '..ev) end
+local trained=false
+function IsSpellKnown(id) return trained and id==5116 end
+G.RegisterGuide({id='manifest-training',title='Training events',faction='Horde'},{{id='learn',action='train',text='Train Concussive Shot',spellID=5116,manual=true},{id='after',action='note',text='Continue',manual=true}})
+G.Select('manifest-training');assert(G.Current().id=='learn');trained=true
+event='SPELLS_CHANGED';G.events.scripts.OnEvent();assert(G.Current().id=='after','Actual release callback must continue after learning')
 print('PASS complete release TOC, new modules, actual guide row / Go / Back callbacks')

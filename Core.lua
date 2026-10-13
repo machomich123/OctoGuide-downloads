@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.5.12',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.5.13',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -328,6 +328,10 @@ end
 function G.Event(ev,a,b)
   if ev=='PLAYER_ENTERING_WORLD' then G.Init();return end
   if not G.ready then return end
+  if G.TrainingEvent and G.TrainingEvent(ev,a) then
+    if ev~='TRAINER_SHOW' and ev~='TRAINER_CLOSED' then G.ResumeJump();G.Sync();G.Render() end
+    return
+  end
   if ev=='QUEST_LOG_UPDATE' or ev=='BAG_UPDATE' or ev=='QUEST_ACCEPTED' or ev=='QUEST_TURNED_IN' then G.ResumeJump() end
   if ev=='QUEST_TURNED_IN' and type(a)=='number' and a>0 then
     local current=G.Current()

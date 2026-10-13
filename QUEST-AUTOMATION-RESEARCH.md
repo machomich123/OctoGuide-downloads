@@ -1,5 +1,13 @@
 # Quest automation research, 2026-10-13
 
+## 0.5.13 correction
+
+The user confirmed auto accept/turn-in in-game, but reported `QuestAutomation.lua:72: Unknown link type` and failed reward choice. 0.5.12 passed bare-item-string mock tests; these did not cover colored links returned by the game. The new regression fixture reproduces the error against the released 0.5.12 module. Tooltips receive the extracted raw payload, preserving enchant/suffix/unique fields; a rejected tooltip is contained and leaves the reward manual.
+
+Training continuation listens to SPELLS_CHANGED, LEARNED_SPELL_IN_TAB, SKILL_LINES_CHANGED and trainer/crafting/pet updates. IsPlayerSpell includes learned recipes/passives absent from IsSpellKnown's strict spellbook check. Name/rank checks use actual spellbook entries, not GetSpellInfo's database metadata alone. Generic class-training visits require all originally available services to appear as learned spells. Trainer opening, closing, filtered list changes and rejected purchases are not completion evidence.
+
+Primary references: local ClassicAPI docs/API.md (`IsPlayerSpell`, `IsSpellKnown`, `GetSpellInfo`) and https://github.com/satan666/WOW-UI-SOURCE/blob/master/AddOns/Blizzard_TrainerUI/Blizzard_TrainerUI.lua (`GetTrainerServiceInfo`, trainer updates). Installed pfQuest also uses raw `item:ID:0:0:0` strings for Vanilla SetHyperlink. This release makes no DLL changes.
+
 Sources inspected:
 
 - https://github.com/MickeyPickey/AutoQuest — Vanilla event-based acceptance, completion and highest-vendor-value selection. Its usability check does not compare against equipped/bag gear. No source code copied.

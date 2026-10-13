@@ -49,7 +49,10 @@ C_Item={GetItemInfo=function(l)local a=items[l];if a then return a.name,l,1,1,1,
 local methods=getmetatable(UIParent).__index
 function getglobal(name) return _G[name] end
 function methods:SetOwner()end;function methods:ClearLines()end
-function methods:SetHyperlink(l) self.link=l end
+function methods:SetHyperlink(l)
+ assert(string.find(l,'^item:'),'Unknown link type')
+ self.link=l
+end
 function methods:NumLines()return items[self.link] and 1 or 0 end
 OctoGuideRewardScanTextLeft1={GetText=function()return 'Item'end,GetTextColor=function()local a=items[A.tooltip.link];if a.usable then return 1,1,1 else return 1,0,0 end end}
 choices={item(100,'INVTYPE_CHEST',4,10),item(101,'INVTYPE_CHEST',2,100)}
