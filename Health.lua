@@ -39,7 +39,7 @@ function H.Show(id)
   p:EnableMouse(true);p:SetMovable(true);p:RegisterForDrag('LeftButton')
   p:SetScript('OnDragStart',function() p:StartMoving() end);p:SetScript('OnDragStop',function() p:StopMovingOrSizing() end)
   local title=p:CreateFontString(nil,'OVERLAY','GameFontNormalLarge');title:SetPoint('TOPLEFT',p,'TOPLEFT',20,-18);title:SetText('Octo addon requirements')
-  local scroll=CreateFrame('ScrollFrame',nil,p,'UIPanelScrollFrameTemplate');scroll:SetPoint('TOPLEFT',p,'TOPLEFT',20,-48);scroll:SetWidth(480);scroll:SetHeight(235)
+  local scroll=CreateFrame('ScrollFrame','OctoAddonHealthScrollFrame',p,'UIPanelScrollFrameTemplate');scroll:SetPoint('TOPLEFT',p,'TOPLEFT',20,-48);scroll:SetWidth(480);scroll:SetHeight(235)
   local child=CreateFrame('Frame',nil,scroll);child:SetWidth(470);child:SetHeight(235);scroll:SetScrollChild(child)
   p.text=child:CreateFontString(nil,'OVERLAY','GameFontHighlight');p.text:SetPoint('TOPLEFT',child,'TOPLEFT',0,0);p.text:SetWidth(465);p.text:SetJustifyH('LEFT');p.text:SetJustifyV('TOP');p.child=child
   local again=CreateFrame('Button',nil,p,'UIPanelButtonTemplate');again:SetWidth(140);again:SetHeight(25);again:SetPoint('BOTTOMLEFT',p,'BOTTOMLEFT',20,18);again:SetText('Check again')
@@ -94,6 +94,7 @@ function H.InstallErrorCapture()
 end
 H.Register('OctoGuide',function(missing,warnings)
  local G=OctoGuide
+ if G and G.failed then local failure=G.lastFailure or G.db and G.db.lastFailure;append(missing,'Guide runtime stopped: '..tostring(failure and failure.message or 'Startup or refresh failed. Use /octoguide for details.')) end
  module(missing,G,'BuildUI','UI.lua');module(missing,G,'AutoPlace','Placement.lua');module(missing,G,'Render','UI.lua');module(missing,G,'LocalGoalsDone','Goals.lua')
  if not G or not G.guides or not next(G.guides) then append(missing,'Guide data is missing or did not load. Update OctoGuide and its installed route pack; this is not completed progress.') end
  local q=C_QuestLog
