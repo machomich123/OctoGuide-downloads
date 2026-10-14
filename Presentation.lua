@@ -1174,6 +1174,12 @@ function G.Present(s,preview)
     local qi=G.QuestIndex(s.questID)
     if qi then local questTitle=GetQuestLogTitle(qi);if type(questTitle)=='string' and questTitle~='' then title=questTitle;body=value end end
   end
+  if s.lootGoal and s.goalQuestID then
+    local qi=G.QuestIndex and G.QuestIndex(s.goalQuestID)
+    title=(qi and '' or 'Prepare: ')..(s.goalQuestName or 'Quest materials')
+    body=value..'\nCollect '..tostring(s.itemCount or 1)..' required items for '..(s.goalQuestName or 'the quest')..'.'
+    if not qi then body=body..' These materials can be collected before accepting the quest.' end
+  end
   if s.requiresGroup then body=body..' A suitable group is required.' end
   if G.TravelInstructions then for _,instruction in ipairs(G.TravelInstructions(s)) do body=body..'\n'..instruction end end
   if G.IsOptionalGrind and G.IsOptionalGrind(s) then title='Optional: '..title;body=body..'\nRecommended XP buffer. You can continue to the next quest. Quest minimum levels still apply.' end

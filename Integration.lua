@@ -39,15 +39,16 @@ function G.HandleSlash(msg)
   elseif string.find(cmd,'^level %d+$') then local _,_,n=string.find(cmd,'^level (%d+)$');G.menu.level=tonumber(n);G.menu.page=1;G.RenderMenu();G.menu:Show()
   elseif cmd=='full' or cmd=='minimal' then G.db.view=cmd;G.Render()
   elseif cmd=='guides' then G.ToggleMenu()
+  elseif cmd=='professions' or cmd=='profession' then G.Professions.Toggle()
   elseif cmd=='done' then G.Advance()
   elseif cmd=='next' then G.NextStage()
   elseif cmd=='skip' then G.Mark('skipped');G.Sync();G.Render()
   elseif cmd=='back' then G.Back()
   elseif cmd=='sync' then if G.FindStep then G.FindStep(false) else G.AutoPlace(false) end
   elseif cmd=='scan' then G.Chat(G.ScanSummary and G.ScanSummary() or 'Use Find step first.')
-  elseif cmd=='route' then G.gatherTarget=nil;G.Render()
+  elseif cmd=='route' then if G.Professions then G.Professions.ClearMarker();G.Professions.ReturnToQuests() end;G.gatherTarget=nil;G.Render()
   elseif cmd=='mining' or cmd=='herbalism' then local ok,why=G.Gather(cmd=='mining' and 'ore' or 'herb');if not ok then G.Chat(why) end
-  elseif cmd=='help' then G.Chat('/octoguide [normal | hardcore | solo | group | auto | level N | check | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Sync finds a starting point from your character state. The title button changes route mode. Drag the window to move it.')
+  elseif cmd=='help' then G.Chat('/octoguide [professions | normal | hardcore | solo | group | auto | level N | check | sync | guides | minimal | full | done | next | skip | back | mining | herbalism | route]. Professions opens all 14 profession guides. Sync finds a starting point from your character state.')
   else G.db.hidden=false;G.frame:Show();G.Render() end
 end
 
@@ -76,7 +77,7 @@ end
 
 SLASH_OCTOGUIDE1='/octoguide';SLASH_OCTOGUIDE2='/oguide';SlashCmdList['OCTOGUIDE']=G.Slash
 local events=CreateFrame('Frame');G.events=events
-for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE','PARTY_MEMBERS_CHANGED','SPELLS_CHANGED','LEARNED_SPELL_IN_TAB','SKILL_LINES_CHANGED','TRAINER_SHOW','TRAINER_UPDATE','TRAINER_CLOSED','CRAFT_UPDATE','PET_BAR_UPDATE','UNIT_PET'}) do pcall(function() events:RegisterEvent(ev) end) end
+for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE','PARTY_MEMBERS_CHANGED','SPELLS_CHANGED','LEARNED_SPELL_IN_TAB','SKILL_LINES_CHANGED','TRAINER_SHOW','TRAINER_UPDATE','TRAINER_CLOSED','TRADE_SKILL_SHOW','TRADE_SKILL_UPDATE','CRAFT_SHOW','CRAFT_UPDATE','SPELLCAST_START','MERCHANT_SHOW','MERCHANT_UPDATE','PET_BAR_UPDATE','UNIT_PET'}) do pcall(function() events:RegisterEvent(ev) end) end
 if G.InitProgress then G.InitProgress() end
 events:SetScript('OnEvent',function() if G.InstallReportErrors then G.InstallReportErrors() end;if G.ReportEvent then G.ReportEvent(event) end;G.RunProtected(G.Event,'event '..tostring(event),event,arg1,arg2) end)
 local function update()

@@ -16,10 +16,11 @@ function G.TargetEntries(step)
  for _,o in ipairs(G.Objectives(step)) do
   if not o.done and (not step.objective or step.objective==o.index) then add(o.id,o.idKind or o.kind) end
  end
+ if step and step.lootGoal and step.itemID then add(step.itemID,'item') end
  return result
 end
 function G.ReadObservedTarget(step)
- if not step or not work[step.action] or not G.QuestIndex(step.questID) or G.Satisfied(step) then return nil end
+ if not step or not work[step.action] or (not step.lootGoal and not G.QuestIndex(step.questID)) or G.Satisfied(step) then return nil end
  if not UnitPosition or not GetPlayerFacing then return nil end
  local ok,pw,pn,pz,map=pcall(UnitPosition,'player');if not ok or not pw or not pn then return nil end
  local entries=G.TargetEntries(step);local best;local previous;local prior=G.livePoll and G.livePoll.key==G.Key(step) and G.livePoll.result

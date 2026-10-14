@@ -304,6 +304,22 @@ function G.LevelGuides(level)
 end
 local baseNext=G.NextStage
 function G.NextStage()
+  local authored
+  if G.state then
+    for _,id in ipairs(G.state.guide.nextGuides or {}) do if G.Playable(G.guides[id]) then authored=G.guides[id];break end end
+    local id=G.state.guide.nextGuide;if type(id)=='table' then id=id[G.Mode()] end
+    authored=authored or id and G.Playable(G.guides[id]) and G.guides[id]
+  end
+  local level=UnitLevel('player') or 1
+  if authored and authored.endLevel and level>=authored.endLevel then
+    local best
+    for _,id in ipairs(G.order) do local guide=G.guides[id]
+      if G.Playable(guide) and id~=G.state.guide.id and (guide.startLevel or 1)<=level and level<(guide.endLevel or 60) and (guide.startLevel or 1)>=(G.state.guide.startLevel or 1) then
+        if not best or (guide.startLevel or 1)>(best.startLevel or 1) then best=guide end
+      end
+    end
+    if best then return G.Select(best.id) end
+  end
   if G.state and G.state.guide.nextGuides then
     for _,id in ipairs(G.state.guide.nextGuides) do if G.Playable(G.guides[id]) then return G.Select(id) end end
   end

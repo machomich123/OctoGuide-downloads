@@ -3,6 +3,14 @@ local G=OctoGuide
 local register=G.RegisterGuide
 function G.RegisterGuide(meta,steps)
  for i,s in ipairs(steps) do
+  -- Discolored Worg Heart has exactly one Wild Hearts item objective (429).
+  -- Some authored steps intentionally gather it before accepting the quest.
+  -- Retain that ordering, but give both pre-collection and active work identity.
+  if s.action=='collect' and s.itemID==3164 then
+   s.goalQuestID=429;s.goalQuestName='Wild Hearts';s.lootGoal=true
+   s.goalItemID=3164;s.goalItemCount=s.itemCount or 6
+   s.itemCount=s.itemCount or 6;s.manual=nil
+  end
   local nextStep=steps[i+1]
   if s.action=='vendor' and string.find(s.text or '','Hornwood Recurve Bow',1,true) and nextStep and nextStep.action=='collect' and nextStep.itemID==2506 then
    s.goalItemID=2506;s.goalItemCount=1
@@ -32,15 +40,28 @@ local function matches(link,id)
  if type(link)~='string' then return false end
  local _,_,n=string.find(link,'item:(%d+)');return tonumber(n)==id
 end
-function G.GoalItemCarried(s)
- if not s then return false end
- local id=s.goalItemID or ((s.action=='collect' or s.action=='buy') and s.itemID)
- local wanted=s.goalItemCount or s.itemCount
- if not id or not wanted then return false end
+function G.GoalItemCount(id)
+ if not id then return 0 end
  local count=call(GetItemCount,id) or 0;local slots=0
  for bag=0,4 do for index=1,call(GetContainerNumSlots,bag) or 0 do
   if matches(call(GetContainerItemLink,bag,index),id) then local _,n=call(GetContainerItemInfo,bag,index);slots=slots+(tonumber(n) or 1) end
  end end
  for index=1,19 do if matches(call(GetInventoryItemLink,'player',index),id) then slots=slots+1 end end
- return math.max(type(count)=='number' and count or 0,slots)>=wanted
+ return math.max(type(count)=='number' and count or 0,slots)
+end
+function G.GoalItemCarried(s)
+ if not s then return false end
+ local id=s.goalItemID or ((s.action=='collect' or s.action=='buy') and s.itemID)
+ local wanted=s.goalItemCount or s.itemCount
+ return id and wanted and G.GoalItemCount(id)>=wanted or false
+end
+local objectives=G.Objectives
+function G.Objectives(step)
+ if step and step.lootGoal and step.goalQuestID then
+  local live=objectives({questID=step.goalQuestID})
+  if table.getn(live)>0 then return live end
+  local have=G.GoalItemCount(step.itemID);local need=step.itemCount or 1
+  return {{text='Discolored Worg Heart: '..have..'/'..need,name='Discolored Worg Heart',current=have,required=need,done=have>=need,id=step.itemID,kind='item',idKind='item',index=1}}
+ end
+ return objectives(step)
 end

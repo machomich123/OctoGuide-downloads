@@ -138,6 +138,14 @@ local function preserveRequired(candidate,level)
 end
 function G.FindPlacement()
   local level=atLevel();local best,bestScore
+  -- Character level chooses the chapter first. An old active quest or nearby
+  -- zone may choose within that level bracket, never pull us into an old one.
+  local bestGap
+  for _,id in ipairs(G.order) do local g=G.guides[id];if G.Playable(g) then
+    local lo,hi=g.startLevel or 1,g.endLevel or 60
+    local gap=level<lo and lo-level or (level>=hi and level-hi+.01 or 0)
+    if not bestGap or gap<bestGap then bestGap=gap end
+  end end
   G.placementIndexes={};G.placementIndexesComplete=false
   if GetNumQuestLogEntries and C_QuestLog and type(C_QuestLog.GetQuestIDForLogIndex)=='function' then
     local ok=pcall(function()
@@ -151,6 +159,7 @@ function G.FindPlacement()
     if G.Playable(g) then
       local steps=filtered(g);local lo,hi=g.startLevel or 1,g.endLevel or 60
       local gap=level<lo and lo-level or (level>=hi and level-hi+.01 or 0)
+      if gap==bestGap then
       local base=gap*30+math.abs(level-lo)
       local candidate={guide=g,steps=steps,index=1,reason='level and route prerequisites'}
       -- Position may choose a source page, but preserves all actions on that page.
@@ -178,6 +187,7 @@ function G.FindPlacement()
           i=i+1
         end
         if score and (not bestScore or score<bestScore) then best,bestScore={guide=g,steps=steps,index=i,reason=reason},score end
+      end
       end
     end
   end

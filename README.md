@@ -1,4 +1,6 @@
-# OctoGuide 0.5.21
+# OctoGuide 0.6.0
+
+Adds all 14 profession guides, Fastest / Fast + cheap next-step advice, OctoGather material/skill navigation, trainer/vendor map locations and imagegen artwork. Open **Guides -> Professions** or /octoguide professions. Open the profession recipe window to read learned recipes. See [profession behavior and limitations](PROFESSIONS.md) and [release notes](UPDATE-0.6.0.md).
 
 Fixes quest-giver navigation using unambiguous quest data and corrects the Rhinag destination. See UPDATE-0.5.21.md.
 
@@ -16,7 +18,7 @@ Recover earlier active unfinished quests before following a later saved cursor. 
 
 Automatically continues only after the specific skill requested by the guide is learned. Other trainer offerings are never added as requirements. Training steps with a spell ID display the actual spell and rank; generic visits without a specific goal remain manual. Keeps the reward-link fix from 0.5.13. See [0.5.14 update notes](UPDATE-0.5.14.md). Update through the launcher and use `/reload` to load the new addon code.
 
-XP grind recommendations now appear as optional advice below the next quest. In **Settings → Quest automation settings**, enable guide-only quest acceptance, turn-in or gear-aware reward selection independently. All three default OFF. Hold Shift for manual control. Reward selection compares class leveling stats against worn and bag gear, then uses total vendor value when no upgrade exists. Missing data or uncertain equipment stays manual; items are never equipped or sold. See [update notes](UPDATE-0.5.12.md) and [research/limitations](QUEST-AUTOMATION-RESEARCH.md).
+XP grind recommendations now appear as optional advice below the next quest. In **Settings â†’ Quest automation settings**, enable guide-only quest acceptance, turn-in or gear-aware reward selection independently. All three default OFF. Hold Shift for manual control. Reward selection compares class leveling stats against worn and bag gear, then uses total vendor value when no upgrade exists. Missing data or uncertain equipment stays manual; items are never equipped or sold. See [update notes](UPDATE-0.5.12.md) and [research/limitations](QUEST-AUTOMATION-RESEARCH.md).
 
 Horde leveling guidance for OctoWoW / WoW 1.12.1. Normal and Hardcore remain separate choices. The original Vanilla Questing baseline is retained with its MIT notices and saved progress.
 

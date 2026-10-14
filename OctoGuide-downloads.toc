@@ -2,9 +2,9 @@
 ## Title: OctoGuide (Launcher)
 ## Notes: Horde guidance with selectable Normal/Hardcore routes, live navigation and two views.
 ## Author: OctoWoW family project
-## Version: 0.5.21
+## Version: 0.6.0
 ## SavedVariablesPerCharacter: OctoGuideDB
-## OptionalDeps: OctoGather, pfQuest
+## OptionalDeps: OctoGather, OctoBoard, pfQuest, pfQuest-turtle
 Health.lua
 Core.lua
 Route.lua
@@ -32,4 +32,7 @@ Compact.lua
 LiveTargets.lua
 Reports.lua
 ReportTransport.lua
+ProfessionData.lua
+Professions.lua
+ProfessionUI.lua
 Integration.lua
