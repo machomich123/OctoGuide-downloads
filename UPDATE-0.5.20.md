@@ -1,0 +1,3 @@
+Fix repeated personal Hunter-task labels on ordinary route quests. Class-only route eligibility no longer implies a class unlock. Quest notices require a matching class restriction in quest data; training and explicitly authored unlocks retain their appropriate notices. Need for a Cure (812), general travel and ordinary quests keep their instructions without the false Hunter-unlock text.
+
+Route eligibility, progress and the private family route pack are unchanged. Quest-class metadata is derived from MIT pfQuest/pfQuest-octo data. Regression coverage includes actual local family route steps and genuine Hunter class quests. Live visual confirmation remains pending.

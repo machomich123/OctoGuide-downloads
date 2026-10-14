@@ -24,7 +24,7 @@ check('personal class unlocks remain individual in a party',function()
  G.db.partyMode='group'
  assert(G.Allowed({personalClass='HUNTER',profiles={'Troll:HUNTER'}}))
  assert(not G.Allowed({profiles={'Troll:SHAMAN'}}))
- local title,body=G.Present({action='use',text='Tame your first pet',personalClass='HUNTER'});assert(string.find(body,'each player'))
+ local title,body=G.Present({action='use',text='Tame your first pet',personalClass='HUNTER',personalUnlock=true});assert(string.find(body,'each player'))
 end)
 check('automatic party detection and explicit overrides are independent',function()
  function GetNumPartyMembers() return 2 end
