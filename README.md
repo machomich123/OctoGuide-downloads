@@ -1,4 +1,6 @@
-# OctoGuide 0.6.0
+# OctoGuide 0.6.1
+
+Adds a main-panel Professions button and stable early Engineering stages; owned/intermediate materials retain ingredient value in Fast + cheap. See [0.6.1 changes](UPDATE-0.6.1.md).
 
 Adds all 14 profession guides, Fastest / Fast + cheap next-step advice, OctoGather material/skill navigation, trainer/vendor map locations and imagegen artwork. Open **Guides -> Professions** or /octoguide professions. Open the profession recipe window to read learned recipes. See [profession behavior and limitations](PROFESSIONS.md) and [release notes](UPDATE-0.6.0.md).
 

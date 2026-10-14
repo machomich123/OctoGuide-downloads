@@ -53,3 +53,11 @@ local trainers={
  ['First Aid']={Horde={'Arnok','Mary Edras','Doctor Gregory Victor','Balai Lok\'Wein'},Alliance={'Shaina Fuller','Nissa Firestone','Doctor Gustaf VanHowzen','Deneb Walker'}}
 }
 for name,rows in pairs(trainers) do D.professions[name].trainers=rows end
+-- Source-backed early Engineering stages. Counts are preparation targets, not
+-- guaranteed skill-up counts. Actual learned recipes/colors/tools still apply.
+D.engineeringStages={
+ {untilRank=30,item=4357,name='Rough Blasting Powder',reserve={[4357]=60},note='Level toward 30 with Rough Blasting Powder. Save the powder for later bombs; do not turn the first few into ammunition or dynamite.'},
+ {untilRank=50,item=4359,name='Handful of Copper Bolts',reserve={[4357]=60,[4359]=30},note='Level toward 50 with Copper Bolts. Preserve powder and bolts for Rough Copper Bombs.'},
+ {untilRank=51,item=6219,name='Arclight Spanner',reserve={[4357]=60,[4359]=30},note='Make the Arclight Spanner tool once if it is missing; keep it.'},
+ {untilRank=75,item=4360,name='Rough Copper Bomb',reserve={},note='Use saved powder and bolts for Rough Copper Bombs toward 75. Actual skill-ups determine how many are needed.'}
+}

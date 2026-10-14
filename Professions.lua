@@ -67,6 +67,7 @@ function P.Capture(kind)
   if rn and color and color~='header' and color~='subheader' then
    local r={name=rn,color=color,kind=craft and 'enchant' or 'craft',index=index,reagents={},tools={},cooldown=call(craft and GetCraftCooldown or GetTradeSkillCooldown,index) or 0}
    r.item=id(call(craft and GetCraftItemLink or GetTradeSkillItemLink,index))
+   local minimum=not craft and call(GetTradeSkillNumMade,index);r.yield=finite(minimum) and minimum>0 and minimum or 1
    local recipeLink=call(craft and GetCraftRecipeLink or GetTradeSkillRecipeLink,index);local _,_,spell=string.find(recipeLink or '','enchant:(%d+)');r.spell=tonumber(spell)
    local n=call(craft and GetCraftNumReagents or GetTradeSkillNumReagents,index)
    if not finite(n) or n<1 then complete=false else
@@ -98,7 +99,7 @@ end
 local chances={optimal=1,medium=.5,easy=.25}
 function P.Evaluate(recipe,bags,state)
  local chance=chances[recipe.color];if not chance or recipe.incomplete or not finite(recipe.cooldown) or recipe.cooldown>0 then return nil end
- local r={recipe=recipe,chance=chance,materials={},ready=true,cash=0,cashKnown=true,timeKnown=true,seconds=0,toolsReady=true}
+ local r={recipe=recipe,chance=chance,materials={},ready=true,cash=0,cashKnown=true,timeKnown=true,seconds=0,toolsReady=true,value=0,valueKnown=true}
  local craftSeconds=state.craftTimes[recipe.key];r.craftMeasured=finite(craftSeconds) and craftSeconds>0
  r.seconds=r.craftMeasured and craftSeconds or 3
  local quantities={};local names={}
@@ -107,6 +108,8 @@ function P.Evaluate(recipe,bags,state)
   local have=bags[item] or 0;local missing=math.max(0,quantity-have);local input=state.inputs[item] or {}
   local vendor=state.vendorPrices and state.vendorPrices[item];local price=finite(input.price) and input.price or vendor and vendor.price
   local m={id=item,name=names[item],quantity=quantity,have=have,missing=missing,price=price,seconds=input.seconds,priceSource=finite(input.price) and 'manual' or vendor and vendor.source};table.insert(r.materials,m)
+  local value=P.UnitValue and P.UnitValue(item,state,state.valueRecipes or {},{}) or price
+  if finite(value) then r.value=r.value+quantity*value else r.valueKnown=false end
   if missing>0 then
    r.ready=false
    if finite(price) then r.cash=r.cash+missing*price else r.cashKnown=false end
@@ -115,10 +118,25 @@ function P.Evaluate(recipe,bags,state)
  end
  table.sort(r.materials,function(a,b) return a.id<b.id end)
  for _,tool in ipairs(recipe.tools or {}) do if not tool.present then r.toolsReady=false;r.ready=false;r.timeKnown=false end end
- r.perPointSeconds=r.seconds/chance;r.perPointCash=r.cash/chance
+ r.perPointSeconds=r.seconds/chance;r.perPointCash=r.cash/chance;r.perPointValue=r.value/chance
  return r
 end
+-- Economic ingredient value includes owned materials and traces learned
+-- intermediates back to their reagents. No price is invented for missing data.
+function P.UnitValue(item,state,recipes,seen)
+ local input=state.inputs[item];if input and finite(input.price) then return input.price end
+ if seen[item] then return nil end
+ local vendor=state.vendorPrices and state.vendorPrices[item];local best=vendor and finite(vendor.price) and vendor.price or nil
+ seen[item]=true
+ for _,r in ipairs(recipes) do if r.item==item and not r.incomplete and r.kind~='enchant' then
+  local total=0;local known=true
+  for _,m in ipairs(r.reagents) do local v=P.UnitValue(m.id,state,recipes,seen);if not finite(v) then known=false;break end;total=total+v*m.quantity end
+  if known then local value=total/(r.yield or 1);if not best or value<best then best=value end end
+ end end
+ seen[item]=nil;return best
+end
 function P.Choose(recipes,bags,state)
+ state.valueRecipes=recipes
  local all={};local fastest
  for _,recipe in ipairs(recipes) do local r=P.Evaluate(recipe,bags,state);if r then
   table.insert(all,r)
@@ -126,19 +144,40 @@ function P.Choose(recipes,bags,state)
  end end
  if state.mode=='cheap' and fastest then
   local chosen
-  for _,r in ipairs(all) do if r.toolsReady and r.timeKnown and r.cashKnown and r.perPointSeconds<=fastest.perPointSeconds*(1+state.tolerance/100) then
-   if not chosen or r.perPointCash<chosen.perPointCash or r.perPointCash==chosen.perPointCash and r.perPointSeconds<chosen.perPointSeconds then chosen=r end
+  for _,r in ipairs(all) do if r.toolsReady and r.timeKnown and r.valueKnown and r.perPointSeconds<=fastest.perPointSeconds*(1+state.tolerance/100) then
+   if not chosen or r.perPointValue<chosen.perPointValue or r.perPointValue==chosen.perPointValue and r.perPointSeconds<chosen.perPointSeconds then chosen=r end
   end end
-  if chosen then chosen.compared=true;return chosen,all end
+  if chosen then chosen.compared=true;state.valueRecipes=nil;return chosen,all end
  end
- if fastest then fastest.compared=state.mode=='fast';return fastest,all end
+ if fastest then fastest.compared=state.mode=='fast';state.valueRecipes=nil;return fastest,all end
  -- Incomplete acquisition estimates: display a feasible next candidate, no optimum claim.
  table.sort(all,function(a,b)
   if a.toolsReady~=b.toolsReady then return a.toolsReady end
   if a.chance~=b.chance then return a.chance>b.chance end
   return a.recipe.key<b.recipe.key
  end)
- return all[1],all
+ state.valueRecipes=nil;return all[1],all
+end
+function P.EngineeringPlan(rank,recipes,bags,state)
+ local stage
+ for _,s in ipairs(D.engineeringStages) do if rank<s.untilRank then stage=s;break end end
+ if stage and stage.item==6219 and (bags[6219] or 0)>0 then stage=D.engineeringStages[4] end
+ if not stage then return nil end
+ local eligible={};local preferred
+ for _,r in ipairs(recipes) do
+  local reserved=false
+  for _,m in ipairs(r.reagents) do if stage.reserve[m.id] and (bags[m.id] or 0)-m.quantity<stage.reserve[m.id] then reserved=true end end
+  if r.item==stage.item and chances[r.color] then preferred=r end
+  if not reserved or r.item==stage.item then table.insert(eligible,r) end
+ end
+ if not preferred then return {stage=stage,missingRecipe=true} end
+ -- With incomplete inputs, use the sourced stage instead of a one-craft greedy
+ -- tie. Do not discard the intended component merely because a consumer is ready.
+ local choice,all=P.Choose(eligible,bags,state)
+ state.valueRecipes=recipes;local planned=P.Evaluate(preferred,bags,state);state.valueRecipes=nil
+ if not choice or not choice.compared or not choice.valueKnown or not planned or not planned.timeKnown or not planned.valueKnown then choice=planned end
+ if choice then choice.stage=stage end
+ return {choice=choice,alternatives=all,stage=stage}
 end
 function P.Advice(name)
  local state=P.State();local meta=D.professions[name or state.selected];if not meta then return {title='Select a profession.',text=''} end
@@ -155,10 +194,16 @@ function P.Advice(name)
  if meta.kind=='gather' or meta.kind=='skin' or meta.kind=='fish' then result.action=meta.kind;result.text=result.baseline..'\n'..meta.tool;return result end
  local snapshot=state.recipes[meta.name]
  if not snapshot or snapshot.rank~=rank then result.action='scan';result.text='Open '..meta.name..' to refresh learned recipes and current colors.\n'..result.baseline..'\n'..meta.tool;return result end
- local choice,all=P.Choose(snapshot.recipes,P.Bags(),state);result.choice=choice;result.alternatives=all
+ local bags=P.Bags();local plan=meta.name=='Engineering' and P.EngineeringPlan(rank,snapshot.recipes,bags,state)
+ if plan and plan.missingRecipe then result.action='learn';result.title='Learn / show: '..plan.stage.name;result.text=plan.stage.note..'\nOpen the recipe window, expand headers and visit a trainer if this recipe is not learned.';return result end
+ local choice,all
+ if plan then choice,all=plan.choice,plan.alternatives else choice,all=P.Choose(snapshot.recipes,bags,state) end
+ result.choice=choice;result.alternatives=all
  if not choice then result.action='learn';result.text='No usable skill-up recipe is visible: expand headers, clear filters, and learn an appropriate recipe.\n'..result.baseline;return result end
  result.action=choice.ready and 'make' or 'materials';result.title=(choice.ready and 'Make one: ' or 'Prepare: ')..choice.recipe.name
  local lines={result.baseline,'Read from your recipe window; compare visible learned recipes only.'}
+ if choice.stage then table.insert(lines,choice.stage.note);table.insert(lines,'Stage target: '..math.min(choice.stage.untilRank,state.goal)..'. Reserved components are not spent on unrelated recipes.') end
+ table.insert(lines,'Material value per skill point (including owned ingredients): '..P.Money(choice.valueKnown and choice.perPointValue or nil)..'. Owned materials are not automatically free.')
  table.insert(lines,choice.compared and ('Estimate per skill point: '..math.ceil(choice.perPointSeconds)..' seconds; missing-material spend '..P.Money(choice.cashKnown and choice.perPointCash or nil)..'.') or 'Cost/time comparison incomplete. Add missing prices and acquisition times; this is a candidate, not a proven fastest route.')
  table.insert(lines,'Orange/yellow/green estimates use 100%/50%/25%; Octo rates are not measured. Make one and recheck actual skill.')
  if not choice.craftMeasured then table.insert(lines,'Craft time uses a 3-second estimate; actual observed cast time replaces it.') end

@@ -68,6 +68,7 @@ function G.BuildUI()
  f.menu=button(f,'Guides',60,function() G.ToggleMenu() end)
  f.mode=button(f,'Expand',66,function() G.db.view=G.db.view=='full' and 'minimal' or 'full';G.Render() end)
  f.settingsButton=button(f,'Settings',65,function() G.ToggleSettings() end)
+ f.professionsButton=button(f,'Professions',104,function() if G.Professions then G.Professions.Toggle() end end)
  f.close=button(f,'X',26,function() if G.db then G.db.hidden=true end;f:Hide() end)
  local menu=card(UIParent);G.menu=menu;menu:SetWidth(460);menu:SetHeight(520);menu:SetPoint('CENTER',UIParent,'CENTER',0,0);menu:SetFrameStrata('DIALOG');if menu.SetFrameLevel and f.GetFrameLevel then menu:SetFrameLevel(f:GetFrameLevel()+30) end;menu:EnableMouse(true)
  menu.title=label(menu,19,400,true);point(menu.title,menu,20,16);menu.title:SetHeight(26);menu.title:SetText('Horde routes')
@@ -202,7 +203,7 @@ function G.Render(layoutOnly)
  else f.nextCard:Hide();f.nextTitle:Hide();for _,row in ipairs(f.nextRows) do row:Hide() end end
  local primary=G.StepButton and G.StepButton(s) or (s and 'Done' or 'Next')
  local collapsed=G.ControlsCollapsed and G.ControlsCollapsed()
- local buttons={f.back,f.done,f.menu,f.mode,f.settingsButton}
+ local buttons={f.back,f.done,f.menu,f.mode,f.settingsButton,f.professionsButton}
  f.skip:Hide()
  local x=24;local buttonY=y
  for _,b in ipairs(buttons) do

@@ -23,7 +23,7 @@ can be opened and tracking activated only through explicit button clicks.
 The comparison is **the next skill-up among currently visible learned recipes**,
 not a globally optimal 1-300 route. For each candidate it estimates craft time
 plus the time to obtain missing materials, divided by estimated skill-up chance.
-Fast + cheap minimizes expected missing-material spending among candidates
+Fast + cheap minimizes expected ingredient value among candidates
 within the selected extra-time percentage of the fastest comparable candidate.
 
 Use **Price / time** beside a reagent to enter copper and acquisition seconds
@@ -31,8 +31,9 @@ per item, including travel. Blank means unknown. Observed NPC buy prices supply
 an alternative unit-price estimate; manually entered prices take precedence.
 Vendor packs are divided by their quantity; extended-currency items are ignored.
 Observed quotes are not proof of present stock or today's discounts. Owned bag
-materials reduce immediate purchases; their resale/opportunity value is not
-modeled. Bank contents are deliberately excluded.
+materials reduce immediate purchases. Fast + cheap separately considers ingredient
+value, including owned materials and learned intermediates traced to raw materials.
+It does not predict auction resale revenue. Bank contents are deliberately excluded.
 
 Unmeasured cast duration defaults to 3 seconds and is labeled as an estimate.
 A matching observed SPELLCAST_START duration replaces it. Orange/yellow/green
@@ -82,6 +83,15 @@ or replace its quest target. Marker lifetime defaults to 120 seconds; the
 **Flag** button selects 1/2/5 minutes for future selections. Expiry runs even
 with the panel closed. Hidden/missing resource nodes cancel their target.
 **Back to quests** removes this profession target and retains quest progress.
+
+## Stable early Engineering stages
+
+The 1-75 baseline uses powder toward 30, bolts toward 50, a missing spanner
+for the next point, then Rough Copper Bombs toward 75. Powder/bolts needed by
+those later bombs are reserved against unrelated consumers. Incomplete estimates
+follow that stage; gray/unlearned recipes do not become invented skill-up advice.
+Known cost/time inputs may compare eligible alternatives. Preparation targets
+and skill-up quantities are estimates, not a global optimal 1-300 proof.
 
 ## Sources and provenance
 
