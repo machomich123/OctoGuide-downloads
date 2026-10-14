@@ -83,7 +83,7 @@ function G.NavigationRead(step)
  end
  local live=G.livePoll.result
  if live then G.navigationEvidence=live.label;return G.RefreshObserved(live) end
- local target=G.NavTarget();G.navigationEvidence=step and work[step.action] and 'Quest area' or 'Route waypoint'
+ local target=G.NavTarget();G.navigationEvidence=target and target.evidence or (step and work[step.action] and 'Quest area' or 'Route waypoint')
  -- Database coordinates are possible spawns, never evidence of life.
  -- Stay within the author's local quest area and respect travel/path targets.
  if target==step and step and work[step.action] and step.x and step.y then

@@ -1,8 +1,10 @@
-# OctoGuide 0.5.20
+# OctoGuide 0.5.21
 
-Fixes personal Hunter-task text appearing under ordinary quests. Class-only route eligibility is distinct from a class quest or unlock; see UPDATE-0.5.20.md.
+Fixes quest-giver navigation using unambiguous quest data and corrects the Rhinag destination. See UPDATE-0.5.21.md.
 
-Fixes the confirmed `/octocheck` error at UIPanelTemplates.lua:245 by giving its scroll frame the name required by the Vanilla template. Checks now report captured guide failures instead of only saying requirements are loaded. Includes protected startup from 0.5.18. The underlying cause of the blank 0.5.17 guide still requires the captured live failure. See [0.5.20 notes](UPDATE-0.5.20.md).
+Fixes personal Hunter-task text appearing under ordinary quests. Class-only route eligibility is distinct from a class quest or unlock; see UPDATE-0.5.21.md.
+
+Fixes the confirmed `/octocheck` error at UIPanelTemplates.lua:245 by giving its scroll frame the name required by the Vanilla template. Checks now report captured guide failures instead of only saying requirements are loaded. Includes protected startup from 0.5.18. The underlying cause of the blank 0.5.17 guide still requires the captured live failure. See [0.5.21 notes](UPDATE-0.5.21.md).
 
 Startup and refresh failures now stop safely, hide partial panels, retain bounded error history and leave `/octoguide` diagnostics and `/octoguide hide` available. Close buttons hide their own frame. This protects against blocked empty windows; the precise cause of the reported live 0.5.17 failure has not been reproduced. See [0.5.18 notes](UPDATE-0.5.18.md).
 

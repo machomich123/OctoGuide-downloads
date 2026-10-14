@@ -1216,7 +1216,8 @@ function G.RawNavTarget()
       if not complete then return p end
     end
   end
-  return G.TravelFallback and G.TravelFallback(s) or s
+  local npc=not G.gatherTarget and G.QuestNPCWaypoint and G.QuestNPCWaypoint(s)
+  return npc or G.TravelFallback and G.TravelFallback(s) or s
 end
 function G.NavTarget()
   local s=G.RawNavTarget()

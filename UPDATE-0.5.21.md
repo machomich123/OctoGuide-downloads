@@ -1,0 +1,3 @@
+OctoGuide 0.5.21 fixes quest-giver destinations as well as false Hunter-task labels. Accept/turn-in steps use a unique database quest giver in the authored zone, while ambiguous destinations retain the authored route. Explicit path checkpoints and transport planning remain in place. Need for a Cure (812) has a database-backed fallback for Rhinag at Durotar 43.1,19.3, correcting the imported 41.54,18.59. The arrow labels database evidence instead of pretending it is a live NPC observation.
+
+26 Lua 5.0.3 suites passed, including all six actual local 812 steps and unchanged private route content. Genuine class quests retain their labels. Live visual confirmation is pending. Progress/settings are preserved; the family pack is not redistributed.

@@ -39,3 +39,37 @@ function N.Update(elapsed,state)
   state.result,state.reason=N.ReadWaypoint(state.waypoint)
   return true
 end
+
+-- Static quest-giver positions, not live NPC or pathfinding evidence.
+local G=OctoGuide
+if G then
+local fallback={[812]={accept={npc=3190,name='Rhinag',zone=14,x=.431,y=.193},turnin={npc=3190,name='Rhinag',zone=14,x=.431,y=.193}}}
+local function valid(c)
+ return type(c)=='table' and type(c[1])=='number' and type(c[2])=='number' and type(c[3])=='number' and c[1]>=0 and c[1]<=100 and c[2]>=0 and c[2]<=100 and c[3]>0
+end
+function G.QuestNPCWaypoint(s)
+ if not s or not s.questID or (s.action~='accept' and s.action~='turnin') then return nil end
+ local q=pfDB and pfDB.quests and pfDB.quests.data and pfDB.quests.data[s.questID]
+ if not q then
+  local f=fallback[s.questID] and fallback[s.questID][s.action]
+  if not f or s.zone and s.zone~=f.zone then return nil end
+  return {zone=f.zone,x=f.x,y=f.y,npc=f.npc,npcName=f.name,evidence='Quest NPC (database)',questID=s.questID}
+ end
+ local phase=q[s.action=='accept' and 'start' or 'end'];local unique,kind,count=nil,nil,0
+ for _,k in ipairs({'U','O'}) do for _,id in pairs(phase and phase[k] or {}) do count=count+1;unique=id;kind=k end end
+ -- Multiple possible quest givers require an authored choice; do not guess.
+ if count~=1 then return nil end
+ local db=pfDB[kind=='U' and 'units' or 'objects'];local unit=db and db.data and db.data[unique]
+ local found,seen={},{}
+ for _,c in pairs(unit and unit.coords or {}) do
+  if valid(c) and (not s.zone or c[3]==s.zone) then
+   local key=c[3]..':'..c[1]..':'..c[2]
+   if not seen[key] then seen[key]=true;table.insert(found,c) end
+  end
+ end
+ if table.getn(found)~=1 then return nil end
+ local c=found[1];local loc=db.loc or db.enUS or {}
+ return {zone=c[3],x=c[1]/100,y=c[2]/100,npc=unique,npcName=loc[unique],evidence=kind=='U' and 'Quest NPC (pfQuest)' or 'Quest object (pfQuest)',questID=s.questID}
+end
+
+end
