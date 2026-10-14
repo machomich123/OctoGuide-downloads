@@ -1,3 +1,10 @@
+# 0.5.18
+
+- Keep the guide hidden until startup completes and capture startup/event/refresh exceptions without leaving blocking partial UI.
+- Prevent repeated failed initialization, stop repeated failing updates and save bounded failure history.
+- Keep slash diagnostics and emergency hiding available after a failure; close the clicked frame rather than a replaced global reference.
+- Validate healthy full-manifest startup plus injected constructor/refresh failures. Exact reported live cause remains unconfirmed.
+
 # 0.5.17
 
 - Show simple local walking/swimming instructions beneath the associated quest without a separate Done step.

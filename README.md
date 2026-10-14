@@ -1,4 +1,6 @@
-# OctoGuide 0.5.17
+# OctoGuide 0.5.18
+
+Startup and refresh failures now stop safely, hide partial panels, retain bounded error history and leave `/octoguide` diagnostics and `/octoguide hide` available. Close buttons hide their own frame. This protects against blocked empty windows; the precise cause of the reported live 0.5.17 failure has not been reproduced. See [0.5.18 notes](UPDATE-0.5.18.md).
 
 Simple local walking/swimming directions can appear beneath the next quest instead of requiring a separate Done click. The island-swimming instruction is included in all four family variants, with its approach waypoint retained. Explicit route paths, cross-zone travel and actual transport remain separate. See [0.5.17 update notes](UPDATE-0.5.17.md).
 

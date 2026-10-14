@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.5.17',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.5.18',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -302,7 +302,7 @@ function G.BindCharacter()
     G.db.previousPlacements=G.db.placements;G.db.placements=nil;G.db.placementVersion=2
   end
 end
-function G.Init()
+local function initialize()
   if OctoAddonHealth and not OctoAddonHealth.Check("OctoGuide",false) then return end
   if G.ready then return end
   local cname,class=UnitClass('player');local rname,race=UnitRace('player')
@@ -324,6 +324,29 @@ function G.Init()
   if G.RequestHistory then G.RequestHistory() end
   if G.db.hidden then G.frame:Hide() else G.frame:Show() end
   G.Chat('Loaded. /octoguide opens the guide; /octoguide help lists commands.')
+end
+function G.HidePanels()
+ for _,key in ipairs({'frame','menu','options','stepBrowser','reportWindow'}) do local p=G[key];if p and p.Hide then p:Hide() end end
+ local p=G.options and G.options.automationPanel;if p and p.Hide then p:Hide() end
+end
+function G.Fail(phase,why)
+ G.ready=false;G.failed=true;G.initializing=nil;G.HidePanels()
+ local failure={phase=phase,message=string.sub(tostring(why),1,1600),version=G.version}
+ G.lastFailure=failure
+ OctoGuideDB=OctoGuideDB or {};G.db=G.db or OctoGuideDB;G.db.lastFailure=failure
+ G.db.failureHistory=G.db.failureHistory or {};table.insert(G.db.failureHistory,failure)
+ if table.getn(G.db.failureHistory)>5 then table.remove(G.db.failureHistory,1) end
+ G.Chat('Stopped safely ('..phase..'): '..failure.message..' /octoguide shows this error; /reload reloads the addon.')
+end
+function G.RunProtected(fn,phase,...)
+ local ok,why=pcall(fn,unpack(arg));if not ok then G.Fail(phase,why) end;return ok,why
+end
+function G.Init()
+ if G.initializing or G.ready or G.failed then return end
+ G.initializing=true
+ local ok=G.RunProtected(initialize,'startup');G.initializing=nil
+ if ok and G.ready then G.lastFailure=nil;G.db.lastFailure=nil end
+ if ok and not G.ready then G.HidePanels() end
 end
 function G.Event(ev,a,b)
   if ev=='PLAYER_ENTERING_WORLD' then G.Init();return end

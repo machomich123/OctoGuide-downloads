@@ -22,8 +22,10 @@ function G.Gather(category)
 end
 function G.HandleSlash(msg)
   local cmd=string.lower(msg or '')
+  if cmd=='hide' then if G.db then G.db.hidden=true end;G.HidePanels();return end
+  if G.failed then local f=G.lastFailure;G.Chat('OctoGuide '..G.version..' stopped ('..f.phase..'): '..f.message..' Update the addon and /reload.');return end
   if not G.ready then
-    if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',false) then return end
+    if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',false) then G.Chat(OctoAddonHealth.Text and OctoAddonHealth.Text('OctoGuide') or 'Required addon components are unavailable. Use /octocheck.');return end
     G.Chat('Wait for character login.');return
   end
   if cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
@@ -76,8 +78,8 @@ SLASH_OCTOGUIDE1='/octoguide';SLASH_OCTOGUIDE2='/oguide';SlashCmdList['OCTOGUIDE
 local events=CreateFrame('Frame');G.events=events
 for _,ev in ipairs({'PLAYER_ENTERING_WORLD','QUEST_LOG_UPDATE','QUEST_ACCEPTED','QUEST_TURNED_IN','PLAYER_LEVEL_UP','BAG_UPDATE','PARTY_MEMBERS_CHANGED','SPELLS_CHANGED','LEARNED_SPELL_IN_TAB','SKILL_LINES_CHANGED','TRAINER_SHOW','TRAINER_UPDATE','TRAINER_CLOSED','CRAFT_UPDATE','PET_BAR_UPDATE','UNIT_PET'}) do pcall(function() events:RegisterEvent(ev) end) end
 if G.InitProgress then G.InitProgress() end
-events:SetScript('OnEvent',function() if G.InstallReportErrors then G.InstallReportErrors() end;if G.ReportEvent then G.ReportEvent(event) end;G.Event(event,arg1,arg2) end)
-events:SetScript('OnUpdate',function()
+events:SetScript('OnEvent',function() if G.InstallReportErrors then G.InstallReportErrors() end;if G.ReportEvent then G.ReportEvent(event) end;G.RunProtected(G.Event,'event '..tostring(event),event,arg1,arg2) end)
+local function update()
   if not G.ready then return end
   if G.UpdateFindStep then G.UpdateFindStep(arg1 or .016) end
   G.UpdateArrow(arg1 or .016)
@@ -87,4 +89,5 @@ events:SetScript('OnUpdate',function()
   end
   G.elapsed=G.elapsed+(arg1 or 0);if G.elapsed<.25 then return end;G.elapsed=0
   if G.gatherTarget and OctoGather then local n=OctoGather.byKey[G.gatherTarget.key];if not n or not OctoGather.MapVisible(n) then G.gatherTarget=nil;G.Render() end end
-end)
+end
+events:SetScript('OnUpdate',function() G.RunProtected(update,'refresh') end)
