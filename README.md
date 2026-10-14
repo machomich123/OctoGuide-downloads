@@ -1,4 +1,6 @@
-# OctoGuide 0.5.15
+# OctoGuide 0.5.16
+
+Hornwood Recurve Bow vendor instructions now recognize the bow in bags or equipped, including repeated visits. Find step respects prior Done/Skip. Family Wild Hearts routes now include Lost Deathstalkers pickup and turn-in, matching OctoWoW's quest chain. See [0.5.16 update notes](UPDATE-0.5.16.md).
 
 Recover earlier active unfinished quests before following a later saved cursor. Old automatic marks cannot hide the quest's unfinished work or ready turn-in; explicit Done/Skip and manual starting points remain user choices. See [0.5.15 update notes](UPDATE-0.5.15.md).
 

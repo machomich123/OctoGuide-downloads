@@ -54,6 +54,12 @@ local function filtered(g)
   local steps={};for _,s in ipairs(g.steps) do if G.Allowed(s) then table.insert(steps,s) end end;return steps
 end
 local function unfinished(s)
+  if s.sourceGuide and G.db.progress then
+    local key=s.sourceGuide..':'..tostring(s.id)
+    if s.mode or s.branch or s.requiresDeath or s.action=='death' or s.modes and not (s.modes.normal and s.modes.hardcore) then key=key..':mode:'..G.Mode() end
+    local marked=G.db.progress[key]
+    if marked=='manual' or marked=='skipped' then return false end
+  end
   if s.questID and recordedDone(s.questID) then return false end
   return true
 end

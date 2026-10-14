@@ -107,7 +107,7 @@ function G.PendingQuestStep(index)
     if qi then local _,_,_,_,_,done=GetQuestLogTitle(qi);live[s.questID]={ready=done==true or done==1} end
    end
    local q=live[s.questID]
-   if q and G.SourceEligible(s) and (q.ready and s.action=='turnin' or not q.ready and (s.action=='objective' or s.action=='complete')) and not G.Satisfied(s) then return i end
+   if q and G.SourceEligible(s) and ((q.ready or s.requiredForQuest) and s.action=='turnin' or not q.ready and (s.action=='objective' or s.action=='complete')) and not G.Satisfied(s) then return i end
   end
  end
 end
@@ -214,6 +214,7 @@ end
 -- Unknown comparison checks stay visible as instructions; they never manufacture
 -- completion of an actual quest.
 function G.SourceEligible(s)
+  if s.requiredForQuest and (G.QuestIndex(s.requiredForQuest) or history(s.requiredForQuest)) then return false end
   for _,c in ipairs(G.SourceChecks(s)) do
     if not c.profiles or G.Allowed(c) then
       local any=false
@@ -249,6 +250,7 @@ function G.SourceEligible(s)
 end
 local baseSatisfied=G.Satisfied
 function G.Satisfied(s)
+  if G.GoalItemCarried and (s.goalItemID or (s.action=='collect' or s.action=='buy') and s.itemID and s.itemCount) and G.GoalItemCarried(s) then return true end
   if s.sourceBlock and not G.SourceEligible(s) then return true end
   if s.goalQuestID and questComplete(s.goalQuestID) then return true end
   if s.action=='level' and s.levelXP then

@@ -80,6 +80,7 @@ function G.StepEvidence(s,scan)
  end
  -- Never use inventory to manufacture an actual quest turn-in or manual action.
  if (s.action=='collect' or s.action=='buy') and s.itemID and s.itemCount and (scan.items[s.itemID] or 0)>=s.itemCount then return 'items already carried' end
+ if s.goalItemID and (scan.items[s.goalItemID] or 0)>=(s.goalItemCount or 1) then return 'required item already carried or equipped' end
  local inn=s.inn or s.bindName
  if not inn and s.action=='bind' then local _,_,name=string.find(s.text or '','^Set your Hearthstone to (.+)$');inn=name and string.gsub(name,'%.$','') end
  if s.action=='bind' and inn and scan.hearth==inn then return 'hearthstone already bound here' end

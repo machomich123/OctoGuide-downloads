@@ -1,3 +1,10 @@
+# 0.5.16
+
+- Link repeated Hornwood Recurve Bow vendor instructions to the actual item goal; count equipped items when reconciling collection/buy goals.
+- Preserve explicit Done/Skip when Find step advances past satisfied steps.
+- Add missing Lost Deathstalkers pickup/turn-in to family Wild Hearts routes; escort completion alone does not unlock Wild Hearts.
+- Validate all six repeated bow stops, both family Silverpine routes and existing progress/automation with 22 Lua 5.0.3 suites.
+
 # 0.5.15
 
 - Recheck earlier active quest work and ready turn-ins before following a later saved cursor or treating a route as finished.
