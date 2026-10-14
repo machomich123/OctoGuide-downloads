@@ -1,3 +1,9 @@
+# 0.5.17
+
+- Show simple local walking/swimming instructions beneath the associated quest without a separate Done step.
+- Preserve approach waypoints and original saved step IDs; arrival never completes the quest itself.
+- Verify all four family island-swimming variants and retain explicit path/cross-zone/transport steps.
+
 # 0.5.16
 
 - Link repeated Hornwood Recurve Bow vendor instructions to the actual item goal; count equipped items when reconciling collection/buy goals.

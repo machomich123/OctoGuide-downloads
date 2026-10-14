@@ -5,7 +5,7 @@ function G.Present(s,preview)
     if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',true) then return 'Guide requirements unavailable','Open /octocheck. Missing data or APIs are not completed progress.','note' end
     if not G.state or not G.state.guide or not G.state.steps or table.getn(G.state.steps)==0 then return 'No route loaded','Open Guides or use Find step. No progress has been marked complete.','note' end
     local allDone=true
-    for _,step in ipairs(G.state.steps) do if not (G.IsOptionalGrind and G.IsOptionalGrind(step)) and (not G.db or not G.db.progress or not G.db.progress[G.Key(step)]) then allDone=false;break end end
+    for _,step in ipairs(G.state.steps) do if not (G.FoldedTravel and G.FoldedTravel(step)) and not (G.IsOptionalGrind and G.IsOptionalGrind(step)) and (not G.db or not G.db.progress or not G.db.progress[G.Key(step)]) then allDone=false;break end end
     if allDone then return 'Level range complete','Choose Next to continue to the next level range.','note' end
     return 'End of selected route','Earlier steps remain available. Use Find step to re-evaluate your position; this does not mark earlier quests complete.','note'
   end
@@ -39,6 +39,7 @@ function G.Present(s,preview)
     if qi then local questTitle=GetQuestLogTitle(qi);if type(questTitle)=='string' and questTitle~='' then title=questTitle;body=value end end
   end
   if s.requiresGroup then body=body..' A suitable group is required.' end
+  if G.TravelInstructions then for _,instruction in ipairs(G.TravelInstructions(s)) do body=body..'\n'..instruction end end
   if G.IsOptionalGrind and G.IsOptionalGrind(s) then title='Optional: '..title;body=body..'\nRecommended XP buffer. You can continue to the next quest. Quest minimum levels still apply.' end
   if not preview and G.OptionalGrinds then
     for _,a in ipairs(G.OptionalGrinds(s)) do body=body..'\nOptional: '..a.text..'. Extra XP before this quest; continue if you prefer.' end
@@ -64,6 +65,7 @@ function G.Present(s,preview)
 end
 function G.RawNavTarget()
   local s=G.gatherTarget or G.Current()
+  if s and not G.gatherTarget and G.TravelLeadTarget then local target=G.TravelLeadTarget(s);if target then return target end end
   if s and not G.gatherTarget and G.PathTarget then local p=G.PathTarget(s);if p then return p end end
   if s and s.targets and not G.gatherTarget then
     local objectives=G.Objectives(s)
@@ -75,7 +77,7 @@ function G.RawNavTarget()
       if not complete then return p end
     end
   end
-  return s
+  return G.TravelFallback and G.TravelFallback(s) or s
 end
 function G.NavTarget()
   local s=G.RawNavTarget()
@@ -84,6 +86,7 @@ function G.NavTarget()
 end
 
 function G.PreviewStep(s)
+ if G.FoldedTravel and G.FoldedTravel(s) then return false end
  if not s or s.informational or s.background or s.optionalSupply or s.optionalExtra then return false end
  local tasks={accept=true,turnin=true,complete=true,objective=true,travel=true,fly=true,hearth=true,fp=true,home=true}
  return tasks[s.action] or ((s.action=='collect' or s.action=='use') and (s.questID or s.goalQuestID)) or (s.action=='train' and s.personalClass) or false

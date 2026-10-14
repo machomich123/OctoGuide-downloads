@@ -116,7 +116,7 @@ function G.Current()
   if G.state.reviewIndex then G.state.index=G.state.reviewIndex;return G.state.steps[G.state.reviewIndex] end
   for i=G.state.startIndex or 1,table.getn(G.state.steps) do
     local s=G.state.steps[i]
-    if not s.background and not s.informational and not (G.IsOptionalGrind and G.IsOptionalGrind(s)) and not G.db.progress[G.Key(s)] then
+    if not s.background and not s.informational and not (G.FoldedTravel and G.FoldedTravel(s)) and not (G.IsOptionalGrind and G.IsOptionalGrind(s)) and not G.db.progress[G.Key(s)] then
       local pickup=G.MissingPickup and G.MissingPickup(i)
       local pending=G.PendingQuestStep(i)
       if pending and (not pickup or pending<pickup) then pickup=pending end

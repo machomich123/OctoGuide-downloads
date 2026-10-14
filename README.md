@@ -1,4 +1,6 @@
-# OctoGuide 0.5.16
+# OctoGuide 0.5.17
+
+Simple local walking/swimming directions can appear beneath the next quest instead of requiring a separate Done click. The island-swimming instruction is included in all four family variants, with its approach waypoint retained. Explicit route paths, cross-zone travel and actual transport remain separate. See [0.5.17 update notes](UPDATE-0.5.17.md).
 
 Hornwood Recurve Bow vendor instructions now recognize the bow in bags or equipped, including repeated visits. Find step respects prior Done/Skip. Family Wild Hearts routes now include Lost Deathstalkers pickup and turn-in, matching OctoWoW's quest chain. See [0.5.16 update notes](UPDATE-0.5.16.md).
 
