@@ -5,6 +5,12 @@ function G.HeightText(delta)
  if math.abs(delta)<3 then return 'Same height' end
  return (delta>0 and 'Up ' or 'Down ')..math.floor(math.abs(delta)+.5)..' yd'
 end
+function G.HeightCaption(delta,step)
+ if delta~=nil then return G.HeightText(delta) end
+ local title,body=G.Present(step)
+ if string.find(body or '', 'The Apothecarium is on the lower level',1,true) then return 'Lower level' end
+ return G.HeightText(nil)
+end
 function G.WaypointHeight(s)
  if not s or not UnitPosition or not C_Map or not C_Map.GetWorldPosFromMapPos then return nil end
  local ok,pw,pn,pz,pm=pcall(UnitPosition,'player')
@@ -41,7 +47,14 @@ function G.NavigationRead(step)
   if result.worldHeight and UnitPosition then
    local ok,w,n,z,map=pcall(UnitPosition,'player')
    if ok and map==result.worldMap and type(z)=='number' then result.heightDelta=result.worldHeight-z end
-  elseif G.NavTarget()==step then result.heightDelta=G.WaypointHeight(step) end
+  else
+   local target=G.NavTarget()
+   if target==step then result.heightDelta=G.WaypointHeight(step)
+   elseif target and step and target.questID==step.questID and not target.flightFallback then
+    local point={questID=step.questID,action=step.action,zone=target.zone,x=target.x,y=target.y}
+    result.heightDelta=G.WaypointHeight(point)
+   end
+  end
  end
  return result,reason
 end

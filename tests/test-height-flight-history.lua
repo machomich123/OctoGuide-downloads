@@ -25,4 +25,15 @@ local other=G.FlightFallback({action='fly',text='Fly to Orgrimmar',zone=130,x=.4
 pfQuest_history={[447]={12345,15},[999]={0,0},bad={0,0},[888]=false}
 G.db.completedQuests={};assert(G.ReadPFQuestHistory()==2)
 assert(G.db.pfQuestHistory[447].timestamp==12345 and not G.db.completedQuests[447],'pfQuest manual history is separate from server proof')
+-- NPC-corrected waypoint is a separate table, as in the real client.
+function UnitCreatureID() return 2055 end
+local baseNav=G.NavTarget
+G.NavTarget=function() return {questID=447,zone=1497,x=.5,y=.5} end
+G.ReadObservedTarget=function() return nil end
+G.livePoll=nil;G.Travel.Plan=function() return nil end
+local r=G.NavigationRead(quest)
+assert(r and r.heightDelta==20,'Corrected NPC waypoint must retain quest height')
+G.NavTarget=baseNav
+assert(G.HeightCaption(nil,{action='turnin',text='Turn in A Recipe For Death.',notes={'Apothecarium'}})=='Height unknown')
+assert(G.db.loadedVersion==G.version,'Successful startup records loaded update version')
 print('PASS height signs, unknown and mismatched NPC, flight fallback both directions, no departure arrow, pfQuest provenance')

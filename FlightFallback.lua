@@ -38,7 +38,7 @@ function G.Present(s,preview)
  local fallback=G.FlightFallback(s)
  if fallback then return fallback.title,fallback.body,'travel' end
  local title,body,action=present(s,preview)
- if s and s.zone==1497 and (string.find(body or '','Apothecarium',1,true) or string.find(body or '','Faranell',1,true) or string.find(body or '','Zinge',1,true)) then
+ if s and (string.find(body or '','Apothecarium',1,true) or string.find(body or '','Faranell',1,true) or string.find(body or '','Zinge',1,true)) then
   body=body..'\nThe Apothecarium is on the lower level of Undercity. Follow the ramps down to the outer canal and the Apothecarium entrance; the arrow points to the destination, not the ramps.'
  end
  return title,body,action

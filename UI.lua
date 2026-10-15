@@ -249,7 +249,7 @@ function G.UpdateArrow(elapsed)
  end
  if rotated then f.arrow:Show() else f.arrow:Hide() end
  f.distance:SetText(math.floor(result.yards+.5)..' yd')
- if f.heightLabel then f.heightLabel:SetText(G.HeightText and G.HeightText(result.heightDelta) or 'Height unknown') end
+ if f.heightLabel then f.heightLabel:SetText(G.HeightCaption and G.HeightCaption(result.heightDelta,G.Current()) or 'Height unknown') end
  if f.targetEvidence then f.targetEvidence:SetText(G.navigationEvidence or 'Route waypoint') end
 end
 
