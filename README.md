@@ -1,4 +1,6 @@
-# OctoGuide 0.6.1
+# OctoGuide 0.6.7
+
+Reduces repeated panel rebuilds, pfQuest map resizing, NPC identity searches and stationary arrow-label writes. Live inventory/objective evidence, quest automation, delayed client-state checks and per-frame arrow rotation remain active. See [performance update and verification limits](UPDATE-0.6.7.md).
 
 Adds a main-panel Professions button and stable early Engineering stages; owned/intermediate materials retain ingredient value in Fast + cheap. See [0.6.1 changes](UPDATE-0.6.1.md).
 

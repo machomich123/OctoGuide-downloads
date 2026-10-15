@@ -84,6 +84,7 @@ if G.InitProgress then G.InitProgress() end
 events:SetScript('OnEvent',function() if G.InstallReportErrors then G.InstallReportErrors() end;if G.ReportEvent then G.ReportEvent(event) end;G.RunProtected(G.Event,'event '..tostring(event),event,arg1,arg2) end)
 local function update()
   if not G.ready then return end
+  if G.renderPending and not G.resizing then G.renderPending=nil;G.Sync();G.Render() end
   G.PollLoadedNotice(arg1 or .016)
   if G.UpdateFindStep then G.UpdateFindStep(arg1 or .016) end
   G.UpdateArrow(arg1 or .016)

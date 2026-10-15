@@ -56,7 +56,7 @@ function G.BuildUI()
  if f.detailsScroll.EnableMouseWheel then f.detailsScroll:EnableMouseWheel(true);f.detailsScroll:SetScript('OnMouseWheel',function() local offset=this.GetVerticalScroll and this:GetVerticalScroll() or 0;this:SetVerticalScroll(math.max(0,math.min(this.maxScroll or 0,offset-(arg1 or 0)*36))) end) end
  f.arrow=f.currentCard:CreateTexture(nil,'ARTWORK');f.arrow:SetTexture('Interface\\AddOns\\OctoGuide-downloads\\Assets\\Arrow');f.arrow:SetWidth(44);f.arrow:SetHeight(44)
  f.distance=label(f.currentCard,12,88,true);f.distance:SetJustifyH('CENTER');f.distance:SetHeight(20)
- f.heightLabel=label(f.currentCard,11,100,true);f.heightLabel:SetJustifyH('CENTER');f.heightLabel:SetHeight(18)
+ f.heightLabel=label(f.currentCard,11,100,true);f.heightLabel:SetJustifyH('CENTER');f.heightLabel:SetHeight(18);f.heightLabel:SetPoint('TOP',f.distance,'BOTTOM',0,0)
  f.objectives={}
  for i=1,24 do local row=card(f);row.check=row:CreateTexture(nil,'ARTWORK');row.check:SetWidth(18);row.check:SetHeight(18);point(row.check,row,9,8);row.name=label(row,12,320);row.count=label(row,13,68,true);row.count:SetJustifyH('RIGHT');row.count:SetHeight(20);f.objectives[i]=row end
  f.note=label(f.currentCard,10,400);f.note:SetHeight(28)
@@ -231,12 +231,14 @@ function G.Render(layoutOnly)
  if not layoutOnly then G.navigationTarget=G.NavTarget();G.UpdateArrow() end
  if not layoutOnly and G.UpdateMaps then G.UpdateMaps(true) end
 end
+local function arrowText(label,value)
+ if label and (not label.GetText or label:GetText()~=value) then label:SetText(value) end
+end
 function G.UpdateArrow(elapsed)
  local f=G.frame;if not f or not f.arrow or not f.distance or not f:IsShown() then return end
- if f.heightLabel then f.heightLabel:ClearAllPoints();f.heightLabel:SetPoint('TOP',f.distance,'BOTTOM',0,0);f.heightLabel:SetText('') end
- local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow(elapsed) end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText(s and s.blockedReason and 'Check pickup' or 'No waypoint');if f.targetEvidence then f.targetEvidence:SetText(s and s.blockedReason and 'Availability check required' or '') end;return end
+ local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow(elapsed) end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();arrowText(f.heightLabel,'');arrowText(f.distance,s and s.blockedReason and 'Check pickup' or 'No waypoint');arrowText(f.targetEvidence,s and s.blockedReason and 'Availability check required' or '');return end
  local result,why;if G.NavigationRead and not G.gatherTarget then result,why=G.NavigationRead(G.Current()) else result,why=OctoGuideNavigation.ReadWaypoint(s) end
- if not result then f.arrow:Hide();f.distance:SetText(why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
+ if not result then f.arrow:Hide();arrowText(f.heightLabel,'');arrowText(f.distance,why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
  local angle=result.angle
  if angle and elapsed and f.arrowAngle then local d=math.mod(angle-f.arrowAngle+3*math.pi,2*math.pi)-math.pi;angle=f.arrowAngle+d*(1-math.exp(-18*math.min(elapsed,.1))) end
  f.arrowAngle=angle
@@ -248,8 +250,8 @@ function G.UpdateArrow(elapsed)
   local a,b=uv(-.5,-.5);local c1,d=uv(-.5,.5);local e,h=uv(.5,-.5);local j,k=uv(.5,.5);f.arrow:SetTexCoord(a,b,c1,d,e,h,j,k);rotated=true
  end
  if rotated then f.arrow:Show() else f.arrow:Hide() end
- f.distance:SetText(math.floor(result.yards+.5)..' yd')
- if f.heightLabel then f.heightLabel:SetText(G.HeightCaption and G.HeightCaption(result.heightDelta,G.Current()) or 'Height unknown') end
- if f.targetEvidence then f.targetEvidence:SetText(G.navigationEvidence or 'Route waypoint') end
+ arrowText(f.distance,math.floor(result.yards+.5)..' yd')
+ if f.heightLabel then arrowText(f.heightLabel,G.HeightCaption and G.HeightCaption(result.heightDelta,G.Current()) or 'Height unknown') end
+ arrowText(f.targetEvidence,G.navigationEvidence or 'Route waypoint')
 end
 

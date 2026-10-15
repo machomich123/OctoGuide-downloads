@@ -190,8 +190,8 @@ function G.ShowAreaQuests(zone)
 end
 
 local scan=G.ScanCharacter
-function G.ScanCharacter()
- local result=scan()
+function G.ScanCharacter(reason)
+ local result=scan(reason)
  if G.db.pfServerHistory then result.history='Saved direct pfQuest server snapshot ('..G.db.pfServerHistory.count..' explicit IDs); refresh with Find step' end
  return result
 end

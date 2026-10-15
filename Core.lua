@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.6.6',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.6.7',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -379,10 +379,15 @@ function G.Event(ev,a,b)
   end
   if ev=='QUEST_LOG_UPDATE' and G.initialQuestSyncPending then G.initialQuestSyncPending=false;if G.autoplacePending and G.AutoPlace then G.AutoPlace(true) end end
   -- QUEST_REMOVED and QUEST_FINISHED deliberately do not prove a turn-in.
-  if ev=='BAG_UPDATE' or ev=='QUEST_LOG_UPDATE' then if G.characterScan and G.ScanCharacter then G.ScanCharacter() end;G.refreshRemaining=1.2;G.refreshDelay=.08 end
+  if ev=='BAG_UPDATE' or ev=='QUEST_LOG_UPDATE' then
+    -- Keep character evidence and progression current inside the event.
+    -- Only the visible panel rebuild is combined before the next drawing.
+    if G.characterScan and G.ScanCharacter then G.ScanCharacter(ev) end
+    G.renderPending=true;G.refreshRemaining=1.2;G.refreshDelay=.08
+  end
   if ev=='BAG_UPDATE' or ev=='QUEST_LOG_UPDATE' or ev=='QUEST_ACCEPTED' or ev=='QUEST_TURNED_IN' or ev=='PLAYER_LEVEL_UP' then
     G.Sync()
     if ev=='QUEST_TURNED_IN' and not G.Current() and G.state and G.state.guide.nextGuide and G.Playable(G.guides[G.state.guide.nextGuide]) then G.NextStage() end
-    G.Render()
+    if ev~='BAG_UPDATE' and ev~='QUEST_LOG_UPDATE' then G.Render() end
   end
 end

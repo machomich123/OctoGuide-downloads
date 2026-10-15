@@ -1,3 +1,12 @@
+# 0.6.7
+
+- Combine bag/quest-log panel rebuilds before the next drawing; keep immediate evidence/progression and all delayed client-state checks.
+- Stop recopying unrelated pfQuest history for bag events; keep inventory and quest objectives live.
+- Visit each pfQuest pin once per refresh and only change dimensions when needed; preserve hover, recycling and native updates.
+- Cache quest-giver identity searches for 0.12 seconds, including misses; still validate identity and read moving positions/heights each frame.
+- Stop clearing/reanchoring and rewriting unchanged primary arrow labels every frame; keep smooth rotation.
+- Add operation-count and behavior tests. No in-game FPS/stutter improvement is claimed from mock tests.
+
 # 0.5.18
 
 - Keep the guide hidden until startup completes and capture startup/event/refresh exceptions without leaving blocking partial UI.

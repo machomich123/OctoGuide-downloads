@@ -34,8 +34,11 @@ function G.ReadPFQuestHistory()
  G.db.pfQuestHistory=rows
  return count
 end
-function G.ScanCharacter()
- local pfCount=G.ReadPFQuestHistory()
+function G.ScanCharacter(reason)
+ -- Do not recopy an unchanged completion-history table for every bag event.
+ -- Inventory AND quest objectives remain live (collect goals may regress).
+ local previous=reason=='BAG_UPDATE' and G.characterScan
+ local pfCount=previous and previous.pfQuestCount or G.ReadPFQuestHistory()
  local scan={pfQuestCount=pfCount,quests={},items={},equipped={},flight={},questCount=0,itemSlots=0,history=G.historyReady and 'server response' or G.historyFailure or 'not available',flightStatus='previously observed only',bankStatus='closed; not scanned'}
  local count=call(GetNumQuestLogEntries)
  if type(count)=='number' then

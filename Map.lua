@@ -29,21 +29,27 @@ function M.Matches(step,node)
  end
  return false
 end
-function M.Apply(frame,originalUpdated)
+local function size(frame,value)
+ -- Read actual dimensions so native hover/resizing remains authoritative.
+ if not frame.GetWidth or frame:GetWidth()~=value then frame:SetWidth(value) end
+ if not frame.GetHeight or frame:GetHeight()~=value then frame:SetHeight(value) end
+end
+function M.Apply(frame,originalUpdated,context)
  if not frame then return end
  -- pfQuest resets defsize inside UpdateNode, including recycled frames.
- if originalUpdated then frame.octoBaseSize=frame.defsize end
+ if originalUpdated or frame.octoBaseSize==nil then frame.octoBaseSize=frame.defsize end
  local base=frame.octoBaseSize or frame.defsize
  if type(base)~='number' then return end
- local o=G.MapOptions();local current=G.ready and G.Current and G.Current()
+ local o=context and context.options or G.MapOptions()
+ local current;if context then current=context.current else current=G.ready and G.Current and G.Current() end
  local enabled=o.targets and (not frame.minimap or o.minimap)
  local highlighted=enabled and M.Matches(current,frame.node)
  local hovering=pfMap and pfMap.highlight and pfMap.highlightdb and pfMap.highlightdb[frame] and pfMap.highlightdb[frame][pfMap.highlight]
  if highlighted then
-  frame.defsize=base*M.factor;if not hovering then frame:SetWidth(frame.defsize);frame:SetHeight(frame.defsize) end
+  frame.defsize=base*M.factor;if not hovering then size(frame,frame.defsize) end
   M.highlighted[frame]=true
  elseif M.highlighted[frame] then
-  frame.defsize=base;if not hovering then frame:SetWidth(base);frame:SetHeight(base) end;M.highlighted[frame]=nil
+  frame.defsize=base;if not hovering then size(frame,base) end;M.highlighted[frame]=nil
  end
 end
 function M.Install()
@@ -59,11 +65,16 @@ function M.Install()
 end
 function G.UpdateMaps(force)
  M.Install()
+ local context={options=G.MapOptions(),current=G.ready and G.Current and G.Current()}
+ M.epoch=(M.epoch or 0)+1
+ local function apply(frame)
+  if frame and frame.octoMapEpoch~=M.epoch then frame.octoMapEpoch=M.epoch;M.Apply(frame,false,context) end
+ end
  -- pfQuest controls visibility, position, rotation, textures, hover and clicks.
- for frame in pairs(M.highlighted) do M.Apply(frame,false) end
+ for frame in pairs(M.highlighted) do apply(frame) end
  if pfMap then
   for _,list in ipairs({pfMap.pins or {},pfMap.mpins or {}}) do
-   for _,frame in pairs(list) do M.Apply(frame,false) end
+   for _,frame in pairs(list) do apply(frame) end
   end
  end
 end

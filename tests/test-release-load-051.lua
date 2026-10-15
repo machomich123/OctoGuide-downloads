@@ -1,6 +1,9 @@
 -- Load the actual release manifest, not a manually selected module subset.
 local file=assert(io.open('tests/test-runtime.lua','r'));local source=file:read('*a');file:close()
 local first=assert(string.find(source,"dofile('Core.lua')",1,true));assert(loadstring(string.sub(source,1,first-1)))()
+-- Later release modules use these real client methods during construction.
+local methods=getmetatable(UIParent).__index
+for _,name in ipairs({'SetNumeric','SetAutoFocus','SetJustifyV'}) do methods[name]=function()end end
 local manifest=assert(io.open('OctoGuide-downloads.toc','r'))
 for line in manifest:lines() do if string.find(line,'%.lua$') then dofile(line) end end;manifest:close()
 local G=OctoGuide

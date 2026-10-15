@@ -1,5 +1,21 @@
 -- Read-only height evidence. Map coordinates alone do not contain altitude.
 local G,N=OctoGuide,OctoGuideNavigation
+local tokenCache
+local function tokenFor(s,id,name,map)
+ local now=GetTime and GetTime()
+ -- Cache identity searches, never moving NPC/player positions or height.
+ if not now then return UnitTokenFromName(name,true) end
+ local c=tokenCache
+ if not c or c.quest~=s.questID or c.action~=s.action or c.zone~=s.zone or c.x~=s.x or c.y~=s.y or c.map~=map or c.db~=pfDB or c.lookup~=UnitTokenFromName or c.revision~=(G.knowledge and G.knowledge.revision) then
+  c={quest=s.questID,action=s.action,zone=s.zone,x=s.x,y=s.y,map=map,db=pfDB,lookup=UnitTokenFromName,revision=G.knowledge and G.knowledge.revision,entries={}};tokenCache=c
+ end
+ local e=c.entries[id]
+ if not e or now<e.time or now-e.time>=.12 then
+  local ok,token=pcall(UnitTokenFromName,name,true)
+  e={time=now,token=ok and token or nil};c.entries[id]=e
+ end
+ return e.token
+end
 function G.HeightText(delta)
  if type(delta)~='number' or delta~=delta then return 'Height unknown' end
  if math.abs(delta)<3 then return 'Same height' end
@@ -25,7 +41,7 @@ function G.WaypointHeight(s)
   local name=pfDB.units and pfDB.units.loc and pfDB.units.loc[id]
   if type(name)=='table' then name=name[1] end
   if type(name)=='string' then
-   local found,token=pcall(UnitTokenFromName,name,true)
+   local found,token=pcall(tokenFor,s,id,name,pm)
    if found and token then
     local valid,entry=pcall(UnitCreatureID,token)
     local pos,w,n,z,m=pcall(UnitPosition,token)
