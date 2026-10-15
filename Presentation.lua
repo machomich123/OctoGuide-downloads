@@ -1210,6 +1210,8 @@ function G.Present(s,preview)
 end
 function G.RawNavTarget()
   local s=G.gatherTarget or G.Current()
+  local pickup=not G.gatherTarget and G.PickupCircuitWaypoint and G.PickupCircuitWaypoint(s)
+  if pickup then return pickup end
   if s and not G.gatherTarget and G.TravelLeadTarget then local target=G.TravelLeadTarget(s);if target then return target end end
   if s and not G.gatherTarget and G.PathTarget then local p=G.PathTarget(s);if p then return p end end
   if s and s.targets and not G.gatherTarget then

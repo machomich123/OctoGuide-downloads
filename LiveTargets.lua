@@ -74,7 +74,8 @@ function G.ReadObservedTarget(step)
  return best
 end
 function G.NavigationRead(step)
- if step and ((G.PathTarget and G.PathTarget(step)) or (G.Travel and G.Travel.Plan(G.RawNavTarget()))) then
+ local pickup=G.PickupCircuitWaypoint and G.PickupCircuitWaypoint(step)
+ if step and ((not pickup and G.PathTarget and G.PathTarget(step)) or (G.Travel and G.Travel.Plan(G.RawNavTarget()))) then
   G.navigationEvidence='Route waypoint';G.livePoll=nil;return N.ReadWaypoint(G.NavTarget())
  end
  local now=GetTime and GetTime() or 0

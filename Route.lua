@@ -250,6 +250,7 @@ function G.SourceEligible(s)
 end
 local baseSatisfied=G.Satisfied
 function G.Satisfied(s)
+  if s.startsQuestID and (G.QuestIndex(s.startsQuestID) or history(s.startsQuestID)) then return true end
   if G.GoalItemCarried and (s.goalItemID or (s.action=='collect' or s.action=='buy') and s.itemID and s.itemCount) and G.GoalItemCarried(s) then return true end
   if s.sourceBlock and not G.SourceEligible(s) then return true end
   if s.goalQuestID and questComplete(s.goalQuestID) then return true end

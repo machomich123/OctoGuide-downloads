@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.6.3',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.6.4',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -332,7 +332,7 @@ function G.PollLoadedNotice(elapsed)
  G.loadedNoticeRemaining=G.loadedNoticeRemaining-(elapsed or 0)
  if G.loadedNoticeRemaining<=0 then
   G.loadedNoticeRemaining=nil
-  G.Chat('Update loaded: '..G.version..'. Height below arrow, character flight checks and pfQuest history. /octoguide history shows history help.')
+  G.Chat('Update loaded: '..G.version..'. Guide update is active. /octoguide check shows the loaded version.')
   G.db.notifiedVersion=G.version
  end
 end

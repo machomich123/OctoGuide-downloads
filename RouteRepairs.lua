@@ -3,6 +3,9 @@ local G=OctoGuide
 local register=G.RegisterGuide
 function G.RegisterGuide(meta,steps)
  for i,s in ipairs(steps) do
+  -- The starter disappears when used; inventory absence is not evidence that
+  -- the player still needs it. Quest 819 is started by item 4926 in pfQuest.
+  if (s.action=='use' or s.action=='collect') and s.itemID==4926 then s.startsQuestID=819 end
   -- Discolored Worg Heart has exactly one Wild Hearts item objective (429).
   -- Some authored steps intentionally gather it before accepting the quest.
   -- Retain that ordering, but give both pre-collection and active work identity.

@@ -13,7 +13,7 @@ end
 local function title(s)
  local locale=GetLocale and GetLocale() or 'enUS'
  local quests=pfDB and pfDB.quests and pfDB.quests[locale]
- local q=quests and quests[s.questID]
+ local q=quests and quests[s.questID or s.startsQuestID]
  if q and q.T then return q.T end
  local _,_,name=string.find(s.text or '',s.action=='accept' and '^Accept (.-) from ' or '^Turn in (.-) to ')
  return name
@@ -21,10 +21,10 @@ end
 function A.Step(id,action)
  if not G.state or type(id)~='number' then return nil end
  for _,s in ipairs(G.state.steps) do
-  if s.questID==id and s.action==action and G.Allowed(s) and (not G.SourceEligible or G.SourceEligible(s)) and not (s.minlevel and UnitLevel('player')<s.minlevel) then
+  if (s.questID==id and s.action==action or action=='accept' and s.startsQuestID==id) and G.Allowed(s) and (not G.SourceEligible or G.SourceEligible(s)) and not (s.minlevel and UnitLevel('player')<s.minlevel) then
    local mark=G.db.progress[G.Key(s)]
    if mark~='manual' and mark~='skipped' and not G.db.completedQuests[id] then
-    if action=='accept' and not mark and not G.QuestIndex(id) then return s end
+    if action=='accept' and not G.QuestIndex(id) then return s end
     if action=='turnin' and G.QuestIndex(id) then return s end
    end
   end
@@ -33,8 +33,9 @@ end
 local function resolve(name,action)
  local found
  for _,s in ipairs(G.state.steps) do
-  if s.action==action and title(s)==name and A.Step(s.questID,action) then
-   if found and found~=s.questID then return nil end;found=s.questID
+  local id=s.questID or action=='accept' and s.startsQuestID
+  if (s.action==action or action=='accept' and s.startsQuestID) and title(s)==name and A.Step(id,action) then
+   if found and found~=id then return nil end;found=id
   end
  end
  -- Same-title chains require an ID from the gossip API or the dialog.
@@ -48,7 +49,7 @@ function A.DialogID(action)
  local name=call(GetTitleText)
  if A.selected and A.selected.action==action then
   local s=A.Step(A.selected.id,action)
-  if s and title(s)==name then return s.questID end
+  if s and title(s)==name then return A.selected.id end
  end
  return name and resolve(name,action)
 end
@@ -257,6 +258,7 @@ local function selectQuest(action,id,fn,index)
  send('select:'..action..':'..id,fn,index)
 end
 function A.Greeting(gossip)
+ A.detailOpen=nil;A.acceptAttempts=nil
  A.selected=nil;A.sent={};A.pending=nil
  if C_GossipInfo and C_GossipInfo.GetAvailableQuests and C_GossipInfo.GetActiveQuests then
   local active=call(C_GossipInfo.GetActiveQuests) or {};local available=call(C_GossipInfo.GetAvailableQuests) or {}
@@ -283,14 +285,64 @@ function A.Greeting(gossip)
   end
  end
 end
+function A.AcceptStatus(status,id)
+ if G.db then G.db.lastAutoAccept={status=status,questID=id,attempts=A.acceptAttempts or 0} end
+end
+function A.TryAccept()
+ if not A.detailOpen or paused() or not enabled('autoAccept') then return end
+ local panel=QuestFrameDetailPanel
+ if panel and panel.IsShown and not panel:IsShown() then A.detailOpen=nil;return end
+ local id=A.DialogID('accept')
+ if not id then A.AcceptStatus('Quest identity unavailable; waiting for dialog data');return end
+ local _,count=call(GetNumQuestLogEntries)
+ if type(count)=='number' and count>=25 then
+  A.AcceptStatus('Quest log full (25 quests); free a slot before accepting',id)
+  if not A.fullNotified then G.Chat('Quest log full (25 quests). Free a slot before automatic acceptance.');A.fullNotified=true end
+  return
+ end
+ local key='accept:'..id
+ if send(key,AcceptQuest) then
+  A.acceptAttempts=(A.acceptAttempts or 0)+1;A.acceptID=id
+  A.AcceptStatus('Acceptance requested; waiting for quest log confirmation',id)
+ end
+end
+function A.UpdateAccept(elapsed)
+ if not A.detailOpen then return end
+ if A.acceptID and G.QuestIndex(A.acceptID) then
+  A.AcceptStatus('Confirmed in quest log',A.acceptID);A.detailOpen=nil;return
+ end
+ A.acceptElapsed=(A.acceptElapsed or 0)+(elapsed or 0)
+ if A.acceptElapsed<.5 then return end;A.acceptElapsed=0
+ A.detailRemaining=(A.detailRemaining or 4)-.5
+ if A.detailRemaining<0 or (A.acceptAttempts or 0)>=3 then
+  A.AcceptStatus('Not confirmed; accept manually or reopen the quest dialog',A.acceptID);A.detailOpen=nil;return
+ end
+ -- Retry only while the same detail panel and exact quest are still present.
+ -- Never repeat reward/turn-in requests and never infer successful acceptance.
+ if paused() then return end
+ local panel=QuestFrameDetailPanel
+ if not panel or not panel.IsShown or not panel:IsShown() then A.detailOpen=nil;return end
+ local id=A.DialogID('accept')
+ if A.acceptID and id~=A.acceptID then A.detailOpen=nil;return end
+ if id then A.sent['accept:'..id]=nil end
+ A.TryAccept()
+end
 function A.Event(ev)
- if ev=='QUEST_FINISHED' or ev=='PLAYER_ENTERING_WORLD' then A.pending=nil;A.selected=nil;A.sent={};return end
+ if ev=='QUEST_FINISHED' or ev=='PLAYER_ENTERING_WORLD' then A.pending=nil;A.selected=nil;A.sent={};A.detailOpen=nil;A.acceptID=nil;return end
  if ev=='GOSSIP_CLOSED' then A.pending=nil;return end
  if ev=='BAG_UPDATE' or ev=='PLAYER_EQUIPMENT_CHANGED' or ev=='PLAYER_LEVEL_UP' then A.cache={} end
+ if ev=='QUEST_LOG_UPDATE' or ev=='QUEST_ACCEPTED' then
+  if A.acceptID and G.QuestIndex(A.acceptID) then A.AcceptStatus('Confirmed in quest log',A.acceptID);A.detailOpen=nil end
+  return
+ end
+ if ev=='QUEST_DETAIL' then
+  if not enabled('autoAccept') then A.detailOpen=nil;return end
+  A.detailOpen=true;A.detailRemaining=4;A.acceptElapsed=0
+  if not A.acceptID then A.acceptAttempts=0 end
+  A.fullNotified=nil;A.TryAccept();return
+ end
  if paused() then return end
  if ev=='QUEST_GREETING' or ev=='GOSSIP_SHOW' then A.Greeting(ev=='GOSSIP_SHOW')
- elseif ev=='QUEST_DETAIL' and enabled('autoAccept') then
-  local id=A.DialogID('accept');if id then send('accept:'..id,AcceptQuest) end
  elseif ev=='QUEST_PROGRESS' and enabled('autoTurnIn') then
   local id=A.DialogID('turnin');if id and call(IsQuestCompletable) then send('complete:'..id,CompleteQuest) end
  elseif ev=='QUEST_COMPLETE' and (enabled('autoTurnIn') or enabled('autoReward')) then
@@ -300,8 +352,9 @@ function A.Event(ev)
  end
 end
 local f=CreateFrame('Frame');A.frame=f
-for _,ev in ipairs({'QUEST_GREETING','GOSSIP_SHOW','QUEST_DETAIL','QUEST_PROGRESS','QUEST_COMPLETE','QUEST_FINISHED','GOSSIP_CLOSED','GET_ITEM_INFO_RECEIVED','BAG_UPDATE','PLAYER_EQUIPMENT_CHANGED','PLAYER_LEVEL_UP','PLAYER_ENTERING_WORLD'}) do pcall(function() f:RegisterEvent(ev) end) end
+for _,ev in ipairs({'QUEST_GREETING','GOSSIP_SHOW','QUEST_DETAIL','QUEST_PROGRESS','QUEST_COMPLETE','QUEST_FINISHED','GOSSIP_CLOSED','QUEST_LOG_UPDATE','QUEST_ACCEPTED','GET_ITEM_INFO_RECEIVED','BAG_UPDATE','PLAYER_EQUIPMENT_CHANGED','PLAYER_LEVEL_UP','PLAYER_ENTERING_WORLD'}) do pcall(function() f:RegisterEvent(ev) end) end
 f:SetScript('OnEvent',function() A.Event(event) end)
+f:SetScript('OnUpdate',function() A.UpdateAccept(arg1 or 0) end)
 function G.BuildAutomationSettings()
  local options=G.options
  local p=G.MakeCard(UIParent);options.automationPanel=p

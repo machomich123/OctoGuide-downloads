@@ -72,4 +72,53 @@ function G.QuestNPCWaypoint(s)
  return {zone=c[3],x=c[1]/100,y=c[2]/100,npc=unique,npcName=loc[unique],evidence=kind=='U' and 'Quest NPC (pfQuest)' or 'Quest object (pfQuest)',questID=s.questID}
 end
 
+-- Some imported blocks describe a town-wide circuit, copied onto every
+-- individual pickup. Those points are other quest givers, not an approach
+-- path for the quest currently displayed. Confirm this against pfQuest.
+function G.PickupCircuitWaypoint(s)
+ if not s or not s.path or s.keepApproachPath or not s.sourceGuide or not s.sourceBlock then return nil end
+ if s.action~='accept' and s.action~='turnin' then return nil end
+ local guide=G.guides[s.sourceGuide]
+ if not guide or not pfDB or not pfDB.quests or not pfDB.units then return nil end
+ G.pickupCircuitCache=G.pickupCircuitCache or {}
+ local cache=G.pickupCircuitCache[s]
+ if cache and cache.db==pfDB and cache.steps==guide.steps then return cache.point end
+ local point=G.QuestNPCWaypoint(s);local result
+ if point then
+  local localPath=true
+  for _,p in ipairs(s.path) do
+   if p.zone~=point.zone or not number(p.x) or not number(p.y) or (p.x-point.x)^2+(p.y-point.y)^2>.035^2 then localPath=false;break end
+  end
+  if localPath then
+   local seen={};local count=0
+   for _,other in ipairs(guide.steps) do
+    if other.sourceBlock==s.sourceBlock and other.path and table.getn(other.path)==table.getn(s.path) then
+     local same=true
+     for i,p in ipairs(s.path) do local q=other.path[i];if p.zone~=q.zone or p.x~=q.x or p.y~=q.y then same=false;break end end
+     local npc=same and G.QuestNPCWaypoint(other)
+     if npc and npc.npc and npc.zone==point.zone and not seen[npc.npc] then
+      for _,p in ipairs(s.path) do
+       if (p.x-npc.x)^2+(p.y-npc.y)^2<=.004^2 then seen[npc.npc]=true;count=count+1;break end
+      end
+     end
+    end
+   end
+   if count>=2 then result=point;result.evidence='Quest NPC (pfQuest; shared circuit removed)' end
+  end
+ end
+ G.pickupCircuitCache[s]={db=pfDB,steps=guide.steps,point=result}
+ return result
+end
+
+local sourceNotes=G.SourceNotes
+function G.SourceNotes(s)
+ local notes=sourceNotes(s);local point=G.PickupCircuitWaypoint(s)
+ if not point or type(point.npcName)~='string' then return notes end
+ local out={}
+ for _,note in ipairs(notes) do
+  if string.find(note,'^Talk to ') then table.insert(out,'Talk to '..point.npcName..'.') else table.insert(out,note) end
+ end
+ return out
+end
+
 end

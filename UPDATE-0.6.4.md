@@ -1,0 +1,12 @@
+# OctoGuide 0.6.4
+
+Picking up The Forgotten Pools could send the player around several Crossroads NPCs while the same quest title remained visible. The imported block copied a shared NPC circuit onto each pickup, and navigation chose those circuit points before the already available pfQuest quest-giver position.
+
+- Resolve shared local pickup/turn-in circuits to the exact quest ID's unambiguous pfQuest start/end NPC. Confirm multiple matching sibling NPC stops before replacing a circuit; retain individual, cross-zone and explicitly retained approach paths. Keep the target stable while approaching and passing the old stops. Replace the inherited whole-town Talk to list with the current NPC's name.
+- Link all Chen's Empty Keg item-4926 collect/use starters to quest 819. An active or recorded turned-in 819 satisfies these starter steps without another manual Done. This does not mark the active quest's objectives or turn-in complete. Opening the starter's quest dialog can use the existing optional auto-accept setting.
+- Allow auto-accept after an obsolete observed-progress mark when the quest is no longer in the log. Explicit manual/skipped marks remain respected.
+- Observe quest-log confirmation separately from sending AcceptQuest. Follow up only while the same exact quest detail panel remains open, with at most three requests, half-second retry intervals and a bounded observation window. Initial acceptance is immediate. Disable retries during combat, with Shift held, when automation is off or after the panel closes. A full 25-quest log is reported instead of being treated as a successful request. Retain the last acceptance status in character diagnostics.
+
+Validation: 32 Lua 5.0.3 suites. The previous 0.6.3 installation fails the new actual-family Forgotten Pools regression. The fix passes all five route variants, 60 simulated positions around the old stops, 96 Barrens accept/turn-in actions, all ten Chen starter actions and event-order/retry/capacity checks. These are offline client mocks using the actual local route/database files; the active game was not controlled or reloaded for this release. The reported approximate auto-accept failure rate has not been measured or reproduced in a live session.
+
+Update OctoGuide-downloads through the launcher, then /reload when safely outside combat. No DLL change or full game restart is required. This release does not add background downloads or an Update available button.
