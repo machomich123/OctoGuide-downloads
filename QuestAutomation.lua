@@ -8,7 +8,8 @@ local function call(fn,...)
 end
 local function enabled(key) return G.db and G.db[key]==true end
 local function paused()
- return not G.ready or not G.state or (G.pauseAuto and G.state.reviewReason~='jump') or (IsShiftKeyDown and IsShiftKeyDown()) or (UnitAffectingCombat and UnitAffectingCombat('player'))
+ local selectedBack=G.state and G.state.reviewReason=='back' and G.state.reviewIndex and G.state.steps[G.state.reviewIndex]
+ return not G.ready or not G.state or (G.pauseAuto and G.state.reviewReason~='jump' and not selectedBack) or (IsShiftKeyDown and IsShiftKeyDown()) or (UnitAffectingCombat and UnitAffectingCombat('player'))
 end
 local function title(s)
  local locale=GetLocale and GetLocale() or 'enUS'
@@ -18,10 +19,22 @@ local function title(s)
  local _,_,name=string.find(s.text or '',s.action=='accept' and '^Accept (.-) from ' or '^Turn in (.-) to ')
  return name
 end
+function A.Wanted()
+ local s=G.Current and G.Current();local id=s and (s.questID or s.startsQuestID)
+ local action=s and (s.startsQuestID and 'accept' or s.action)
+ if id and action=='accept' then
+  local index=G.QuestIndex(id)
+  if index then local _,_,_,_,_,done=call(GetQuestLogTitle,index);action=(done==true or done==1) and 'turnin' or nil end
+ end
+ if action=='accept' or action=='turnin' then return id,action end
+end
 function A.Step(id,action)
  if not G.state or type(id)~='number' then return nil end
+ local wanted,phase=A.Wanted()
+ if wanted and (wanted~=id or phase~=action) then return nil end
  for _,s in ipairs(G.state.steps) do
-  if (s.questID==id and s.action==action or action=='accept' and s.startsQuestID==id) and G.Allowed(s) and (not G.SourceEligible or G.SourceEligible(s)) and not (s.minlevel and UnitLevel('player')<s.minlevel) then
+  local chosen=not (G.pauseAuto and G.state.reviewReason=='back') or G.state.reviewIndex and s==G.state.steps[G.state.reviewIndex]
+  if chosen and (s.questID==id and s.action==action or action=='accept' and s.startsQuestID==id) and G.Allowed(s) and (not G.SourceEligible or G.SourceEligible(s)) and not (s.minlevel and UnitLevel('player')<s.minlevel) then
    local mark=G.db.progress[G.Key(s)]
    if mark~='manual' and mark~='skipped' and not G.db.completedQuests[id] then
     if action=='accept' and not G.QuestIndex(id) then return s end
@@ -31,17 +44,29 @@ function A.Step(id,action)
  end
 end
 local function resolve(name,action)
+ local npc=call(UnitCreatureID,'npc');if type(npc)~='number' then npc=nil end
+ local function atNPC(id)
+  local q=pfDB and pfDB.quests and pfDB.quests.data and pfDB.quests.data[id]
+  if not q then return nil end
+  local phase=q[action=='accept' and 'start' or 'end']
+  for _,entry in pairs(phase and phase.U or {}) do if entry==npc then return true end end
+  return false
+ end
  local found
  for _,s in ipairs(G.state.steps) do
   local id=s.questID or action=='accept' and s.startsQuestID
-  if (s.action==action or action=='accept' and s.startsQuestID) and title(s)==name and A.Step(id,action) then
+  if (s.action==action or action=='accept' and s.startsQuestID) and title(s)==name and A.Step(id,action) and (not npc or atNPC(id)~=false) then
    if found and found~=id then return nil end;found=id
   end
  end
  -- Same-title chains require an ID from the gossip API or the dialog.
  local quests=pfDB and pfDB.quests and pfDB.quests[GetLocale and GetLocale() or 'enUS']
- if found and quests then for id,q in pairs(quests) do if q.T==name and id~=found then return nil end end end
+ if found and quests then for id,q in pairs(quests) do if q.T==name and id~=found and (not npc or atNPC(id)~=false) then return nil end end end
  return found
+end
+function A.EntryID(q,action)
+ if type(q.questID)=='number' and q.questID>0 then return q.questID end
+ return type(q.title)=='string' and resolve(q.title,action) or nil
 end
 function A.DialogID(action)
  local id=call(GetQuestID)
@@ -262,11 +287,20 @@ function A.Greeting(gossip)
  A.selected=nil;A.sent={};A.pending=nil
  if C_GossipInfo and C_GossipInfo.GetAvailableQuests and C_GossipInfo.GetActiveQuests then
   local active=call(C_GossipInfo.GetActiveQuests) or {};local available=call(C_GossipInfo.GetAvailableQuests) or {}
+  local wanted,action=A.Wanted()
+  if wanted and (action=='accept' or action=='turnin') then
+   if action=='accept' and enabled('autoAccept') then
+    for _,q in ipairs(available) do if A.EntryID(q,'accept')==wanted and A.Step(wanted,'accept') then selectQuest('accept',wanted,C_GossipInfo.SelectAvailableQuest,wanted);return end end
+   elseif action=='turnin' and enabled('autoTurnIn') then
+    for _,q in ipairs(active) do if A.EntryID(q,'turnin')==wanted and A.Step(wanted,'turnin') and complete(wanted) then selectQuest('turnin',wanted,C_GossipInfo.SelectActiveQuest,wanted);return end end
+   end
+   if table.getn(active)+table.getn(available)>0 then return end
+  end
   for _,q in ipairs(active) do
-   if enabled('autoTurnIn') and A.Step(q.questID,'turnin') and complete(q.questID) then selectQuest('turnin',q.questID,C_GossipInfo.SelectActiveQuest,q.questID);return end
+   local id=A.EntryID(q,'turnin');if enabled('autoTurnIn') and A.Step(id,'turnin') and complete(id) then selectQuest('turnin',id,C_GossipInfo.SelectActiveQuest,id);return end
   end
   for _,q in ipairs(available) do
-   if enabled('autoAccept') and A.Step(q.questID,'accept') then selectQuest('accept',q.questID,C_GossipInfo.SelectAvailableQuest,q.questID);return end
+   local id=A.EntryID(q,'accept');if enabled('autoAccept') and A.Step(id,'accept') then selectQuest('accept',id,C_GossipInfo.SelectAvailableQuest,id);return end
   end
   if table.getn(active)+table.getn(available)>0 then return end
  end

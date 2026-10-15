@@ -89,11 +89,11 @@ function G.BuildUI()
  local options=card(UIParent);G.options=options;options:SetWidth(350);options:SetHeight(450);options:SetPoint('CENTER',UIParent,'CENTER',0,0);options:SetFrameStrata('DIALOG');if options.SetFrameLevel and f.GetFrameLevel then options:SetFrameLevel(f:GetFrameLevel()+30) end;options:EnableMouse(true)
  options.title=label(options,18,310,true);point(options.title,options,20,18);options.title:SetHeight(24);options.title:SetText('OctoGuide settings')
  options.rows={}
- for i,spec in ipairs({{'targets','Quest targets on maps'},{'routes','Waypoint route lines'},{'checkpoints','Numbered checkpoints'},{'minimap','Minimap guidance'}}) do
+ for i,spec in ipairs({{'targets','Emphasize current pfQuest marker'},{'minimap','Emphasize current marker on minimap'}}) do
   local b=button(options,spec[2],310,function() local o=G.MapOptions and G.MapOptions() or G.db.mapOptions;if not o then return end;o[this.optionKey]=not o[this.optionKey];G.RenderSettings();if G.UpdateMaps then G.UpdateMaps(true) end end);b.optionKey=spec[1];b.optionLabel=spec[2];point(b,options,20,65+(i-1)*40);options.rows[i]=b
  end
  options.partyButton=button(options,'',310,function() local setting=G.db.partyMode or 'auto';G.SetPartyMode(setting=='auto' and 'solo' or setting=='solo' and 'group' or 'auto');G.RenderSettings() end);point(options.partyButton,options,20,225)
- options.info=label(options,11,300);point(options.info,options,23,262);options.info:SetHeight(58);options.info:SetText('Lines connect route checkpoints. Follow the written instructions for roads, obstacles and transport.')
+ options.info=label(options,11,300);point(options.info,options,23,262);options.info:SetHeight(58);options.info:SetText("Uses pfQuest's existing icons and movement updates. The current quest marker is 25% larger. No duplicate guide markers or route overlays.")
  G.BuildZoomControls(options,label,point)
  local smaller=button(options,'Narrower',95,function() G.ResizeWidth(-40) end);point(smaller,options,20,394)
  local wider=button(options,'Wider',95,function() G.ResizeWidth(40) end);point(wider,options,125,394)
