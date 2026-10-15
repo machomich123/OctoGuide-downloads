@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.6.4',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.6.5',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -291,9 +291,9 @@ function G.BindCharacter()
   local owner=realm..':'..name
   if G.db.characterOwner and G.db.characterOwner~=owner then
     G.db.characterArchives=G.db.characterArchives or {}
-    G.db.characterArchives[G.db.characterOwner]={progress=G.db.progress,completedQuests=G.db.completedQuests,placements=G.db.placements,guide=G.db.guide,travel=G.db.travel,observedSteps=G.db.observedSteps}
+    G.db.characterArchives[G.db.characterOwner]={progress=G.db.progress,completedQuests=G.db.completedQuests,placements=G.db.placements,guide=G.db.guide,travel=G.db.travel,observedSteps=G.db.observedSteps,pfServerHistory=G.db.pfServerHistory,pfQuestHistory=G.db.pfQuestHistory}
     local saved=G.db.characterArchives[owner] or {}
-    G.db.progress=saved.progress or {};G.db.completedQuests=saved.completedQuests or {}
+    G.db.progress=saved.progress or {};G.db.completedQuests=saved.completedQuests or {};G.db.pfServerHistory=saved.pfServerHistory;G.db.pfQuestHistory=saved.pfQuestHistory
     G.db.placements=saved.placements;G.db.guide=saved.guide;G.db.reviewGuide=nil;G.db.reviewStep=nil;G.db.observedSteps=saved.observedSteps or {};G.db.travel=saved.travel or {known={},reachable={}};G.db.historySource=nil
   end
   G.db.characterOwner=owner

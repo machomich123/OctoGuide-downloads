@@ -82,8 +82,9 @@ function G.PickupCircuitWaypoint(s)
  if not guide or not pfDB or not pfDB.quests or not pfDB.units then return nil end
  G.pickupCircuitCache=G.pickupCircuitCache or {}
  local cache=G.pickupCircuitCache[s]
- if cache and cache.db==pfDB and cache.steps==guide.steps then return cache.point end
- local point=G.QuestNPCWaypoint(s);local result
+ if cache and cache.db==pfDB and cache.steps==guide.steps then return cache.point and G.QuestNPCWaypoint(s) or nil end
+ local static=G.DatabaseQuestNPCWaypoint or G.QuestNPCWaypoint
+ local point=static(s);local result
  if point then
   local localPath=true
   for _,p in ipairs(s.path) do
@@ -95,7 +96,7 @@ function G.PickupCircuitWaypoint(s)
     if other.sourceBlock==s.sourceBlock and other.path and table.getn(other.path)==table.getn(s.path) then
      local same=true
      for i,p in ipairs(s.path) do local q=other.path[i];if p.zone~=q.zone or p.x~=q.x or p.y~=q.y then same=false;break end end
-     local npc=same and G.QuestNPCWaypoint(other)
+     local npc=same and static(other)
      if npc and npc.npc and npc.zone==point.zone and not seen[npc.npc] then
       for _,p in ipairs(s.path) do
        if (p.x-npc.x)^2+(p.y-npc.y)^2<=.004^2 then seen[npc.npc]=true;count=count+1;break end
@@ -107,7 +108,7 @@ function G.PickupCircuitWaypoint(s)
   end
  end
  G.pickupCircuitCache[s]={db=pfDB,steps=guide.steps,point=result}
- return result
+ return result and G.QuestNPCWaypoint(s) or nil
 end
 
 local sourceNotes=G.SourceNotes

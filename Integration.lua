@@ -32,6 +32,7 @@ function G.HandleSlash(msg)
   elseif cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
   elseif cmd=='solo' or cmd=='group' or cmd=='auto' then G.SetPartyMode(cmd);G.Chat('Party setting: '..cmd..'.')
   elseif cmd=='rxp' or cmd=='baseline' then G.SetRouteSource(cmd)
+  elseif cmd=='quests' or string.find(cmd,'^quests %d+$') then local _,_,zone=string.find(cmd,'^quests (%d+)$');G.ShowAreaQuests(tonumber(zone))
   elseif cmd=='check' then
     local lookup=(C_QuestLog and (type(C_QuestLog.GetLogIndexForQuestID)=='function' or type(C_QuestLog.GetQuestIDForLogIndex)=='function')) or type(GetQuestIDFromLogIndex)=='function'
     local history=(C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted)=='function') or (type(QueryQuestsCompleted)=='function' and type(GetQuestsCompleted)=='function')

@@ -51,7 +51,7 @@ function G.NavigationRead(step)
    local target=G.NavTarget()
    if target==step then result.heightDelta=G.WaypointHeight(step)
    elseif target and step and target.questID==step.questID and not target.flightFallback then
-    local point={questID=step.questID,action=step.action,zone=target.zone,x=target.x,y=target.y}
+    local point={questID=step.questID,action=step.action,zone=target.zone,x=target.x,y=target.y,height=target.height,worldMap=target.worldMap}
     result.heightDelta=G.WaypointHeight(point)
    end
   end

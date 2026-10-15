@@ -234,7 +234,7 @@ end
 function G.UpdateArrow(elapsed)
  local f=G.frame;if not f or not f.arrow or not f.distance or not f:IsShown() then return end
  if f.heightLabel then f.heightLabel:ClearAllPoints();f.heightLabel:SetPoint('TOP',f.distance,'BOTTOM',0,0);f.heightLabel:SetText('') end
- local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow(elapsed) end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText('No waypoint');return end
+ local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow(elapsed) end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();f.distance:SetText(s and s.blockedReason and 'Check pickup' or 'No waypoint');if f.targetEvidence then f.targetEvidence:SetText(s and s.blockedReason and 'Availability check required' or '') end;return end
  local result,why;if G.NavigationRead and not G.gatherTarget then result,why=G.NavigationRead(G.Current()) else result,why=OctoGuideNavigation.ReadWaypoint(s) end
  if not result then f.arrow:Hide();f.distance:SetText(why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
  local angle=result.angle

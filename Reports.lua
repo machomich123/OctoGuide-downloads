@@ -29,7 +29,7 @@ function G.MakeReport(description)
  local s=G.Current();local apis={}
  for _,key in ipairs({'UnitPosition','GetPlayerFacing','GetQuestLogLeaderBoardID','ClosestGameObjectPosition','ClosestUnitPosition','UnitCreatureID','UnitIsDeadOrGhost'}) do apis[key]=type(getglobal and getglobal(key) or _G[key])=='function' end
  local r={version=G.version,description=string.sub(description,1,2000),time=time and time() or 0,profile={race=G.player.race,class=G.player.class,level=UnitLevel('player')},apis=apis,
-  route=G.state and G.state.guide.id,step=s and s.id,quest=s and s.questID,objectives=s and G.Objectives(s),navigation=G.navigationEvidence,autoAccept=G.db.lastAutoAccept,
+  route=G.state and G.state.guide.id,step=s and s.id,quest=s and s.questID,objectives=s and G.Objectives(s),navigation=G.navigationEvidence,autoAccept=G.db.lastAutoAccept,questAvailability=G.PickupAvailability and G.PickupAvailability(s),serverHistory=G.db.pfServerHistory and {count=G.db.pfServerHistory.count,source=G.db.pfServerHistory.source,receivedAt=G.db.pfServerHistory.receivedAt},
   settings={zoom=G.db.zoom,view=G.db.view,mode=G.Mode(),party=G.PartyMode(),secondaryArrow=G.db.secondaryArrow,transparent=G.db.transparent,opacity=G.db.opacity,width=G.frame:GetWidth(),height=G.frame:GetHeight()},
   ui={guide=snapshot(G.frame),guides=snapshot(G.menu),settings=snapshot(G.options)},events={},errors={},status='saved locally',images='UI state snapshots; pixel screenshots unavailable',upload='unavailable in this client'}
  r.addons={};r.questLog={};r.completedQuestIDs={}
