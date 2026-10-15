@@ -35,6 +35,7 @@ function G.ReadPFQuestHistory()
  return count
 end
 function G.ScanCharacter(reason)
+ if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end
  -- Do not recopy an unchanged completion-history table for every bag event.
  -- Inventory AND quest objectives remain live (collect goals may regress).
  local previous=reason=='BAG_UPDATE' and G.characterScan

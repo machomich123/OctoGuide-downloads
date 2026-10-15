@@ -173,8 +173,10 @@ function G.UpdateArrow(elapsed)
   return
  end
  if o.mode=='off' then
-  if G.floatingArrow then G.floatingArrow:Hide() end
-  if G.frame then for _,element in ipairs({G.frame.arrow,G.frame.distance,G.frame.heightLabel,G.frame.targetEvidence,G.frame.secondaryArrow,G.frame.secondaryText}) do if element then element:Hide() end end end
+  if G.previousArrowMode~='off' then
+   if G.floatingArrow then G.floatingArrow:Hide() end
+   if G.frame then for _,element in ipairs({G.frame.arrow,G.frame.distance,G.frame.heightLabel,G.frame.targetEvidence,G.frame.secondaryArrow,G.frame.secondaryText}) do if element then element:Hide() end end end
+  end
   G.previousArrowMode='off'
   return
  end

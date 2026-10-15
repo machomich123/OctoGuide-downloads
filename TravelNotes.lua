@@ -41,6 +41,7 @@ function G.TravelLeadTarget(s)
    local nav=OctoGuideNavigation and OctoGuideNavigation.ReadWaypoint(t)
    if nav and type(nav.yards)=='number' and nav.yards<=math.max(15,t.radius or 25) then
     G.db.progress[G.Key(t)]='observed'
+    if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end
    else return t end
   end
  end

@@ -10,6 +10,9 @@ direct=0
 assert(G.RunProtected(function()for i=1,1000 do assert(not G.QuestIndex(777)) end end,'lookup'))
 assert(direct==1,'Reuse lookups within one protected event/update')
 present=true;assert(G.QuestIndex(777)==1,'No cached result escapes the update boundary')
+assert(G.RunProtected(function()assert(G.QuestIndex(777)==1)end,'new update'))
+present=false
+assert(G.RunProtected(function()assert(G.QuestIndex(777)==nil)end,'next update'),'Pooled callback storage must never reuse an old native answer')
 present=false;direct=0
 assert(G.RunProtected(function()
  assert(not G.QuestIndex(777));present=true;G.InvalidateQuestLookup();assert(G.QuestIndex(777)==1)

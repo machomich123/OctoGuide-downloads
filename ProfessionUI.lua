@@ -192,6 +192,10 @@ function G.BuildUI()
  -- Marker expiry must also run while the profession panel is closed.
  if P.timer then P.timer:SetScript('OnUpdate',nil) end
  P.timer=CreateFrame('Frame',nil,UIParent);P.timer:SetScript('OnUpdate',function()
+  if not P.marker then return end
+  local now=GetTime and GetTime()
+  if now and P.lastMarkerPoll and now>=P.lastMarkerPoll and now-P.lastMarkerPoll<.1 then return end
+  P.lastMarkerPoll=now
   if P.marker and GetTime and GetTime()>=P.marker.expires then P.ClearMarker();return end
   if P.marker and P.marker.resourceKey and OctoGather then local node=OctoGather.byKey and OctoGather.byKey[P.marker.resourceKey];if not node or not OctoGather.MapVisible(node) then P.ClearMarker() end end
  end)

@@ -1,4 +1,6 @@
-# OctoGuide 0.6.8
+# OctoGuide 0.6.9
+
+Reworks continuous runtime work: event-invalidated route reads, shared concurrent-unit observations, stable travel-plan caches, budgeted flight preparation, warm bounded secondary caches and fewer unchanged UI/map updates. Includes bounded local callback/frame-interval diagnostics in Report bug and `/octoguide perf`. See [0.6.9 verification and limits](UPDATE-0.6.9.md).
 
 Adds an optional freely movable arrow while the guide window stays open. Open **Settings -> Arrow settings** to choose the window arrow, free arrow, both or hidden, and adjust the short task text, labels, size, position and lock. Fixes redundant quest-log lookups during quest changes. See [0.6.8 notes](UPDATE-0.6.8.md).
 

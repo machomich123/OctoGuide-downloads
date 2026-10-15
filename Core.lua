@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.6.8',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.6.9',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -129,6 +129,7 @@ function G.SetMode(mode)
   return true
 end
 function G.Mark(reason)
+  if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end
   local s=G.Current();if not s then return end
   if G.CancelFindStep then G.CancelFindStep() end
   G.autoplacePending=false;G.placementMessage=nil
@@ -136,11 +137,11 @@ function G.Mark(reason)
     if G.state.reviewReason=='jump' then G.ResumeJump() end
   end
   if G.state.reviewIndex then
-    G.db.progress[G.Key(s)]=reason or 'manual';G.state.reviewIndex=G.state.reviewIndex+1
+    G.db.progress[G.Key(s)]=reason or 'manual';if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end;G.state.reviewIndex=G.state.reviewIndex+1
     local nextStep=G.state.steps[G.state.reviewIndex];G.db.reviewStep=nextStep and nextStep.id or s.id
     G.Current();if G.Render then G.Render() end;return
   end
-  G.db.progress[G.Key(s)]=reason or 'manual';G.pauseAuto=false;G.db.reviewGuide=nil;G.Current()
+  G.db.progress[G.Key(s)]=reason or 'manual';if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end;G.pauseAuto=false;G.db.reviewGuide=nil;G.Current()
   if G.Render then G.Render() end
 end
 function G.NextStage()
@@ -205,11 +206,12 @@ function G.QuestIndex(id)
  local forward=C_QuestLog and C_QuestLog.GetLogIndexForQuestID
  local inverse=C_QuestLog and C_QuestLog.GetQuestIDForLogIndex or GetQuestIDFromLogIndex
  if c.revision~=G.questLookupRevision or c.forward~=forward or c.inverse~=inverse then
-  c.revision=G.questLookupRevision;c.forward=forward;c.inverse=inverse;c.ids={}
+  c.revision=G.questLookupRevision;c.forward=forward;c.inverse=inverse;c.ids={};if c.seen then c.seen={} end
  end
  if type(id)~='number' or id<=0 then return nil end
- local cached=c.ids[id];if cached~=nil then return cached or nil end
- local result=questIndex(id);c.ids[id]=result or false;return result
+  local cached=c.ids[id]
+ if cached~=nil and (not c.seen or c.seen[id]==c.generation) then return cached or nil end
+ local result=questIndex(id);c.ids[id]=result or false;if c.seen then c.seen[id]=c.generation end;return result
 end
 function G.Objectives(step)
   local index=step.questID and G.QuestIndex(step.questID);local list={}
@@ -281,9 +283,10 @@ function G.Satisfied(s)
   return false
 end
 function G.Sync()
+  if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end
   if not G.state or G.pauseAuto then return end
   local count=0
-  while count<100 do local s=G.Current();if not s or not G.Satisfied(s) then break end;G.db.progress[G.Key(s)]='observed';count=count+1 end
+  while count<100 do local s=G.Current();if not s or not G.Satisfied(s) then break end;G.db.progress[G.Key(s)]='observed';if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end;count=count+1 end
   G.Current()
 end
 function G.DefaultGuide()
@@ -366,8 +369,15 @@ function G.Fail(phase,why)
  G.Chat('Stopped safely ('..phase..'): '..failure.message..' /octoguide shows this error; /reload reloads the addon.')
 end
 function G.RunProtected(fn,phase,...)
- local previous=G.questLookupCache;G.questLookupCache={ids={}}
- local ok,why=pcall(fn,unpack(arg));G.questLookupCache=previous
+ local started=G.PerformanceClock and G.PerformanceClock()
+ local frameDT=phase=='refresh' and arg1
+ local previous=G.questLookupCache;local reads=G.runtimeReads;local depth=(G.callbackDepth or 0)+1
+ G.callbackPools=G.callbackPools or {};local pool=G.callbackPools[depth]
+ if not pool then pool={lookup={ids={},seen={},generation=0},reads={generation=0}};G.callbackPools[depth]=pool end
+ pool.lookup.generation=pool.lookup.generation+1;pool.reads.generation=pool.reads.generation+1;pool.reads.observation=nil
+ G.callbackDepth=depth;G.questLookupCache=pool.lookup;G.runtimeReads=pool.reads
+ local ok,why=pcall(fn,unpack(arg));G.questLookupCache=previous;G.runtimeReads=reads;G.callbackDepth=depth-1
+ if G.PerformanceRecord then G.PerformanceRecord(phase,started,frameDT) end
  if not ok then G.Fail(phase,why) end;return ok,why
 end
 function G.Init()
@@ -381,6 +391,11 @@ function G.Event(ev,a,b)
   G.InvalidateQuestLookup()
   if ev=='PLAYER_ENTERING_WORLD' then G.Init();return end
   if not G.ready then return end
+  if ev=='PLAYER_XP_UPDATE' or ev=='PLAYER_MONEY' or ev=='PLAYER_EQUIPMENT_CHANGED' or ev=='UNIT_INVENTORY_CHANGED' or ev=='BANKFRAME_OPENED' or ev=='BANKFRAME_CLOSED' then
+    if ev=='UNIT_INVENTORY_CHANGED' and a and a~='player' then return end
+    if G.characterScan and G.ScanCharacter and ev~='PLAYER_XP_UPDATE' and ev~='PLAYER_MONEY' then G.ScanCharacter('BAG_UPDATE') end
+    G.Sync();G.renderPending=true;return
+  end
   if G.TrainingEvent and G.TrainingEvent(ev,a) then
     if ev~='TRAINER_SHOW' and ev~='TRAINER_CLOSED' then G.ResumeJump();G.Sync();G.Render() end
     return

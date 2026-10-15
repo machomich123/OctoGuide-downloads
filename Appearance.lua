@@ -66,8 +66,9 @@ function G.UpgradeSettings()
  p.reportHint=heading(p,'Diagnostics saved locally; online upload unavailable.',25,602,265);p.reportHint:SetHeight(30);p.reportHint:Hide()
  local f=G.frame
  f.secondaryArrow=f.currentCard:CreateTexture(nil,'OVERLAY');f.secondaryArrow:SetTexture(art..'Arrow');f.secondaryArrow:SetWidth(20);f.secondaryArrow:SetHeight(20);f.secondaryArrow:Hide()
- f.secondaryText=G.MakeLabel(f.currentCard,10,95);f.secondaryText:SetHeight(24);f.secondaryText:Hide()
+ f.secondaryText=G.MakeLabel(f.currentCard,10,95);f.secondaryText:SetHeight(55);f.secondaryText:Hide()
  f.targetEvidence=G.MakeLabel(f.currentCard,9,95);f.targetEvidence:SetHeight(25)
+ f.targetEvidence:SetPoint('TOPLEFT',f.heightLabel or f.distance,'BOTTOMLEFT',0,-2)
  G.UpdateAppearanceSettings();G.ApplyOpacity()
 end
 function G.UpdateAppearanceSettings()
@@ -78,13 +79,24 @@ function G.UpdateAppearanceSettings()
 end
 function G.UpdateSecondaryArrow(elapsed)
  local f=G.frame;if not f.secondaryArrow then return end
- f.targetEvidence:ClearAllPoints();f.targetEvidence:SetPoint('TOPLEFT',f.heightLabel or f.distance,'BOTTOMLEFT',0,-2)
  local target=G.SecondaryTarget and G.SecondaryTarget(G.Current());local r=target and (G.SecondaryRead and G.SecondaryRead(target) or OctoGuideNavigation.ReadWaypoint(target))
  if r and r.angle and f.secondaryArrow.SetRotation then
   local angle=r.angle
   if elapsed and f.secondaryAngle then local delta=math.mod(angle-f.secondaryAngle+3*math.pi,2*math.pi)-math.pi;angle=f.secondaryAngle+delta*(1-math.exp(-18*math.min(elapsed,.1))) end
-  f.secondaryAngle=angle;f.secondaryArrow:SetRotation(-angle);point(f.secondaryArrow,f,f:GetWidth()-80,(G.db.view=='full' and 130 or 66)+128);point(f.secondaryText,f,f:GetWidth()-113,(G.db.view=='full' and 130 or 66)+155)
-  local title=G.Present(target);f.secondaryText:SetText('Also: '..title..'\n'..math.floor(r.yards+.5)..' yd | '..(r.label or 'Quest area'));f.secondaryText:SetHeight(55);f.secondaryText:Show();f.secondaryArrow:Show()
+  f.secondaryAngle=angle;f.secondaryArrow:SetRotation(-angle)
+  local width=f:GetWidth();local view=G.db.view
+  if f.secondaryWidth~=width or f.secondaryView~=view then
+   point(f.secondaryArrow,f,width-80,(view=='full' and 130 or 66)+128);point(f.secondaryText,f,width-113,(view=='full' and 130 or 66)+155);f.secondaryWidth=width;f.secondaryView=view
+  end
+  local now=GetTime and GetTime();local c=f.secondaryCaption
+  if not now or not c or c.step~=target or c.source~=target.text or c.questRevision~=G.questLookupRevision or c.revision~=G.readRevision or now<c.time or now-c.time>=.2 then
+   local title=G.Present(target);c={step=target,source=target.text,title=title,time=now or 0,questRevision=G.questLookupRevision,revision=G.readRevision};f.secondaryCaption=c
+  end
+  local yards=math.floor(r.yards+.5);local evidence=r.label or 'Quest area'
+  if f.secondaryTitle~=c.title or f.secondaryYards~=yards or f.secondaryEvidence~=evidence then
+   f.secondaryText:SetText('Also: '..c.title..'\n'..yards..' yd | '..evidence);f.secondaryTitle=c.title;f.secondaryYards=yards;f.secondaryEvidence=evidence
+  end
+  f.secondaryText:Show();f.secondaryArrow:Show()
  else f.secondaryAngle=nil;f.secondaryArrow:Hide();f.secondaryText:Hide() end
 end
 function G.ShowReport()

@@ -58,14 +58,29 @@ function M.Install()
  local update=pfMap.UpdateNode
  M.wrapper=function(self,frame,...)
   local result=update(self,frame,unpack(arg))
-  M.Apply(frame,true)
+  M.Apply(frame,true,frame and M.Context(false))
   return result
  end
  pfMap.UpdateNode=M.wrapper;return true
 end
+function M.Context(force)
+ local o=G.MapOptions();local state=G.state;local now=GetTime and GetTime();local c=M.nativeContext
+ if not force and now and c and c.options==o and c.state==state and c.index==(state and state.index) and c.start==(state and state.startIndex) and c.review==(state and state.reviewIndex) and c.progress==(G.db and G.db.progress) and c.mode==(G.db and G.db.mode) and c.revision==G.readRevision and c.questRevision==G.questLookupRevision and c.ready==G.ready and c.targets==o.targets and now>=c.time and now-c.time<.12 then return c end
+ local current
+ if o.targets and G.ready and G.Current then
+  if G.RunProtected and not G.runtimeReads then local ok,value=G.RunProtected(G.Current,'map model');if ok then current=value end
+  else current=G.Current() end
+ end
+ state=G.state
+ c={options=o,current=current,state=state,index=state and state.index,start=state and state.startIndex,review=state and state.reviewIndex,progress=G.db and G.db.progress,mode=G.db and G.db.mode,revision=G.readRevision,questRevision=G.questLookupRevision,ready=G.ready,targets=o.targets,time=now or 0};M.nativeContext=c
+ return c
+end
 function G.UpdateMaps(force)
  M.Install()
- local context={options=G.MapOptions(),current=G.ready and G.Current and G.Current()}
+ local context=M.Context(force~=false)
+ local s=context.current;local o=context.options;local previous=M.lastRefresh
+ if force==false and previous and previous.map==pfMap and previous.step==s and previous.quest==(s and (s.questID or s.startsQuestID)) and previous.action==(s and s.action) and previous.targets==o.targets and previous.minimap==o.minimap and previous.ready==G.ready then return end
+ M.lastRefresh={map=pfMap,step=s,quest=s and (s.questID or s.startsQuestID),action=s and s.action,targets=o.targets,minimap=o.minimap,ready=G.ready}
  M.epoch=(M.epoch or 0)+1
  local function apply(frame)
   if frame and frame.octoMapEpoch~=M.epoch then frame.octoMapEpoch=M.epoch;M.Apply(frame,false,context) end

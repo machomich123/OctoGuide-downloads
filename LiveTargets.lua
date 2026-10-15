@@ -2,6 +2,39 @@
 local G=OctoGuide
 local N=OctoGuideNavigation
 local work={complete=true,objective=true,collect=true,use=true}
+local function targetKey(step)
+ local key=G.Key(step)
+ if step.sourceGuide and G.state and step.sourceGuide~=G.state.guide.id then return step.sourceGuide..':'..key end
+ return key
+end
+local fixedTokens={'target','mouseover','pettarget','party1target','party2target','party3target','party4target','focus'}
+local function observation()
+ local scope=G.runtimeReads
+ if scope then
+  local c=scope.observation
+  if c and c.revision==G.readRevision and c.questRevision==G.questLookupRevision then return c end
+ end
+ local c={units={},names={},closest={},objects={},revision=G.readRevision,questRevision=G.questLookupRevision}
+ if scope then scope.observation=c end
+ return c
+end
+local function unit(c,token)
+ local r=c.units[token];if r then return r end
+ local ok,id=pcall(UnitCreatureID,token);r={identityOK=ok,id=id};c.units[token]=r;return r
+end
+local function tokensFor(c,id)
+ if not c.byID then
+  c.byID={};local tokens={};for _,t in ipairs(fixedTokens) do table.insert(tokens,t) end
+  if C_NamePlate and C_NamePlate.GetNamePlates then
+   local ok,plates=pcall(C_NamePlate.GetNamePlates)
+   if ok and type(plates)=='table' then for i=1,math.min(40,table.getn(plates)) do table.insert(tokens,'nameplate'..i) end end
+  end
+  for _,t in ipairs(tokens) do local r=unit(c,t)
+   if r.identityOK and type(r.id)=='number' and r.id>0 then c.byID[r.id]=c.byID[r.id] or {};table.insert(c.byID[r.id],t) end
+  end
+ end
+ return c.byID[id] or {}
+end
 function G.TargetEntries(step)
  local result={};local seen={}
  local function add(id,kind)
@@ -24,36 +57,41 @@ function G.ReadObservedTarget(step)
  if not UnitPosition or not GetPlayerFacing then return nil end
  local ok,pw,pn,pz,map=pcall(UnitPosition,'player');if not ok or not pw or not pn then return nil end
  local entries=G.TargetEntries(step);local best;local previous;local prior=G.livePoll and G.livePoll.key==G.Key(step) and G.livePoll.result
+ local context=observation();local facing=GetPlayerFacing()
  for _,entry in ipairs(entries) do
   if entry.kind=='monster' and OctoGuideClosestLivingUnit and not G.RequiredTargetAura(step) then
-   local posOK,w,n,d,guid=pcall(OctoGuideClosestLivingUnit,entry.id,step.questID==5441 and 3 or 0)
+   local sample=context.closest[entry.id]
+   if not sample then local ok,w,n,d,guid=pcall(OctoGuideClosestLivingUnit,entry.id,0);sample={ok=ok,w=w,n=n,d=d,guid=guid};context.closest[entry.id]=sample end
+   local posOK,w,n,d,guid=sample.ok,sample.w,sample.n,sample.d,sample.guid
    if posOK and type(w)=='number' and type(n)=='number' and guid then
-    local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},GetPlayerFacing())
+    local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},facing)
     if r and (not best or r.yards<best.yards) then r.worldWest=w;r.worldNorth=n;r.worldMap=map;best=r;best.entry=entry.id;best.guid=guid;best.label=step.questID==5441 and 'Observed sleeping peon' or 'Live quest target' end
    end
   end
   -- ClosestUnitPosition does not expose a corpse filter or identity. Only
   -- units whose current life state can be checked are eligible here.
   if entry.kind=='monster' and UnitCreatureID and UnitIsDeadOrGhost and UnitHealth then
-   local tokens={'target','mouseover','pettarget','party1target','party2target','party3target','party4target','focus'}
-   if C_NamePlate and C_NamePlate.GetNamePlates then
-    local ok,plates=pcall(C_NamePlate.GetNamePlates)
-    if ok and type(plates)=='table' then for i=1,math.min(40,table.getn(plates)) do table.insert(tokens,'nameplate'..i) end end
-   end
+   local tokens={};for _,token in ipairs(tokensFor(context,entry.id)) do table.insert(tokens,token) end
    if UnitTokenFromName then
     local name=pfDB and pfDB.units and pfDB.units.loc and pfDB.units.loc[entry.id]
     if type(name)=='table' then name=name[1] end
-    if type(name)=='string' then local found,token=pcall(UnitTokenFromName,name,true);if found and token then table.insert(tokens,token) end end
+    if type(name)=='string' then
+     local sample=context.names[name]
+     if not sample then local ok,token=pcall(UnitTokenFromName,name,true);sample={ok=ok,token=token};context.names[name]=sample end
+     if sample.ok and sample.token then table.insert(tokens,sample.token) end
+    end
    end
    if prior and (prior.token or prior.guid) then table.insert(tokens,prior.token or prior.guid) end
    for _,token in ipairs(tokens) do
-    local good,id=pcall(UnitCreatureID,token)
-    if good and id==entry.id then
-     local deadOK,dead=pcall(UnitIsDeadOrGhost,token);local healthOK,health=pcall(UnitHealth,token)
-     local posOK,w,n,z,m=pcall(UnitPosition,token)
-     local usable=G.UnitEligibleForStep(step,token)
-     if usable and deadOK and not dead and healthOK and type(health)=='number' and health>0 and posOK and w and n and m==map then
-      local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=m},GetPlayerFacing())
+    local sample=unit(context,token)
+    if sample.identityOK and sample.id==entry.id then
+     if not sample.read then
+      sample.read=true;sample.deadOK,sample.dead=pcall(UnitIsDeadOrGhost,token);sample.healthOK,sample.health=pcall(UnitHealth,token)
+      sample.posOK,sample.w,sample.n,sample.z,sample.map=pcall(UnitPosition,token)
+     end
+     local w,n,z,m=sample.w,sample.n,sample.z,sample.map
+     if sample.deadOK and not sample.dead and sample.healthOK and type(sample.health)=='number' and sample.health>0 and sample.posOK and w and n and m==map and G.UnitEligibleForStep(step,token) then
+      local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=m},facing)
       if r then
        r.worldHeight=z;r.worldWest=w;r.worldNorth=n;r.worldMap=m;r.entry=entry.id;r.token=token;r.label='Live quest target'
        if prior and (prior.token==token or prior.guid==token) and prior.entry==entry.id then previous=r end
@@ -63,9 +101,11 @@ function G.ReadObservedTarget(step)
     end
    end
   elseif entry.kind=='object' and ClosestGameObjectPosition then
-   local posOK,n,w,d=pcall(ClosestGameObjectPosition,entry.id)
+   local sample=context.objects[entry.id]
+   if not sample then local ok,n,w,d=pcall(ClosestGameObjectPosition,entry.id);sample={ok=ok,n=n,w=w,d=d};context.objects[entry.id]=sample end
+   local posOK,n,w,d=sample.ok,sample.n,sample.w,sample.d
    if posOK and type(w)=='number' and type(n)=='number' then
-    local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},GetPlayerFacing())
+    local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=map},facing)
     if r and type(d)=='number' and d>=0 and r.yards<=d+2 and (not best or r.yards<best.yards) then r.worldWest=w;r.worldNorth=n;r.worldMap=map;best=r;best.entry=entry.id;best.label='Observed quest object' end
    end
   end
@@ -126,12 +166,19 @@ function G.SecondaryTarget(step)
  G.secondaryChoice={key=key,time=now,step=best};return best
 end
 function G.SecondaryRead(step)
- local key=G.Key(step);local now=GetTime and GetTime() or 0
+ local key=targetKey(step);local now=GetTime and GetTime() or 0
  G.secondaryPoll=G.secondaryPoll or {};local cached=G.secondaryPoll[key]
  if cached and now-cached.time<.12 then return G.RefreshObserved(cached.result) end
- local result=G.ResolveSecondary(step);G.secondaryPoll[key]={time=now,result=result}
- -- Bound caches across long sessions and route changes.
- G.secondaryPollCount=(G.secondaryPollCount or 0)+1;if G.secondaryPollCount>100 then G.secondaryPoll={};G.secondaryPollCount=0 end
+ local result=G.ResolveSecondary(step)
+ -- Bound UNIQUE keys, never flush all active targets every 100 refreshes.
+ if not cached then
+  G.secondaryPollCount=(G.secondaryPollCount or 0)+1
+  if G.secondaryPollCount>100 then
+   local oldest,time;for k,v in pairs(G.secondaryPoll) do if not time or v.time<time then oldest=k;time=v.time end end
+   if oldest then G.secondaryPoll[oldest]=nil end;G.secondaryPollCount=100
+  end
+ end
+ G.secondaryPoll[key]={time=now,result=result}
  return G.RefreshObserved(result)
 end
 function G.ResolveSecondary(step)

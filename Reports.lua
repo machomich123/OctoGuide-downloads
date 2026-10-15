@@ -32,6 +32,7 @@ function G.MakeReport(description)
   route=G.state and G.state.guide.id,step=s and s.id,quest=s and s.questID,objectives=s and G.Objectives(s),navigation=G.navigationEvidence,autoAccept=G.db.lastAutoAccept,questAvailability=G.PickupAvailability and G.PickupAvailability(s),serverHistory=G.db.pfServerHistory and {count=G.db.pfServerHistory.count,source=G.db.pfServerHistory.source,receivedAt=G.db.pfServerHistory.receivedAt},
   settings={zoom=G.db.zoom,view=G.db.view,mode=G.Mode(),party=G.PartyMode(),secondaryArrow=G.db.secondaryArrow,transparent=G.db.transparent,opacity=G.db.opacity,width=G.frame:GetWidth(),height=G.frame:GetHeight()},
   ui={guide=snapshot(G.frame),guides=snapshot(G.menu),settings=snapshot(G.options)},events={},errors={},status='saved locally',images='UI state snapshots; pixel screenshots unavailable',upload='unavailable in this client'}
+ r.performance=G.PerformanceSnapshot and G.PerformanceSnapshot()
  r.addons={};r.questLog={};r.completedQuestIDs={}
  if GetBuildInfo then local ok,version,build,date=pcall(GetBuildInfo);if ok then r.client={version=version,build=build,date=date} end end
  if OctoGuideBridgeVersion then local ok,version=pcall(OctoGuideBridgeVersion);if ok then r.bridgeVersion=version end end

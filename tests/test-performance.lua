@@ -77,7 +77,7 @@ local matches=0;local match=OctoGuideMap.Matches
 OctoGuideMap.Matches=function(s,n)matches=matches+1;return match(s,n) end
 writes=0;currentReads=0
 for i=1,2 do arg1=.5;OctoGuideMap.driver.scripts.OnUpdate() end
-assert(writes==0 and matches==2000 and currentReads==2,'Each frame once; no unchanged dimensions rewritten')
+assert(writes==0 and matches==0 and currentReads==2,'Unchanged map state does not rescan pins; native UpdateNode still handles new/recycled pins')
 local f=pfMap.pins[1];assert(f.defsize==17.5,'Initial highlight never compounds')
 pfMap.highlight='test';pfMap.highlightdb={[f]={test=true}};f.width=30;G.UpdateMaps();assert(f.width==30)
 pfMap.highlight=nil;G.UpdateMaps();assert(f.width==17.5,'Native hover reset remains correct')

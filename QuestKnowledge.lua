@@ -9,7 +9,7 @@ end
 local function now() return GetTime and GetTime() or 0 end
 local function data(id) return pfDB and pfDB.quests and pfDB.quests.data and pfDB.quests.data[id] end
 local function done(id) return G.db and G.db.completedQuests and G.db.completedQuests[id]==true end
-function G.KnowledgeInvalidate() K.revision=K.revision+1;K.positions={} end
+function G.KnowledgeInvalidate() K.revision=K.revision+1;K.positions={};if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end end
 
 -- Capture only explicit server IDs during a pfQuest query. pfQuest's final
 -- history also adds every database pre/close relation; those are NOT proof.
@@ -70,7 +70,7 @@ function G.UpdateFindStep(elapsed)
   for npc,offer in pairs(K.offers) do
    if offer.revision~=K.revision or now()-offer.time>=60 then K.offers[npc]=nil;changed=true end
   end
-  if changed and G.ready then G.Render() end
+  if changed then if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end;if G.ready then G.Render() end end
  end
 end
 
@@ -152,6 +152,7 @@ function G.ObserveQuestGiver()
  -- Active entries need valid identities too before absence can mean anything.
  for _,entry in ipairs(active) do if type(entry)~='table' or not valid(entry.questID) then offer.complete=false end end
  K.offers[npc]=offer
+ if G.InvalidateRuntimeReads then G.InvalidateRuntimeReads() end
 end
 
 function G.AreaQuestList(zone)

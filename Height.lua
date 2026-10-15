@@ -23,9 +23,12 @@ function G.HeightText(delta)
 end
 function G.HeightCaption(delta,step)
  if delta~=nil then return G.HeightText(delta) end
+ local now=GetTime and GetTime();local c=G.heightCaptionCache
+ if now and c and c.step==step and c.source==(step and step.text) and c.questRevision==G.questLookupRevision and c.revision==G.readRevision and now>=c.time and now-c.time<.2 then return c.text end
  local title,body=G.Present(step)
- if string.find(body or '', 'The Apothecarium is on the lower level',1,true) then return 'Lower level' end
- return G.HeightText(nil)
+ local value=string.find(body or '', 'The Apothecarium is on the lower level',1,true) and 'Lower level' or G.HeightText(nil)
+ if now then G.heightCaptionCache={step=step,source=step and step.text,time=now,text=value,questRevision=G.questLookupRevision,revision=G.readRevision} end
+ return value
 end
 function G.WaypointHeight(s)
  if not s or not UnitPosition or not C_Map or not C_Map.GetWorldPosFromMapPos then return nil end

@@ -1,3 +1,12 @@
+# 0.6.9
+
+- Separate smooth arrow painting from repeated route/model calculations; share reads inside callbacks and retain route reads for at most 0.12 seconds with immediate event/progression invalidation.
+- Reuse step keys and bounded callback storage. Share native unit observations across concurrent quests without retaining living-unit evidence past the callback.
+- Use coordinate values for flight-plan cache identity, cache negative/local results, compute shortest routes once per departure, and prepare at most four flight paths per tick.
+- Stop periodic full secondary-cache flushes and unnecessary map, caption and anchor updates.
+- Add bounded own-callback/stage timing and frame-interval logs to reports; add operation-budget, invalidation, loader, pool and observation regression tests.
+- Preserve guide data, progression, manual review, objective rules, arrow settings and existing live-target polling cadence. No live guarantee of zero game stutters.
+
 # 0.6.8
 
 - Add an optional free arrow with independent saved position, scale, text size, short task text and label/lock settings. Guide window can remain open.
