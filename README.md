@@ -1,4 +1,6 @@
-# OctoGuide 0.6.7
+# OctoGuide 0.6.8
+
+Adds an optional freely movable arrow while the guide window stays open. Open **Settings -> Arrow settings** to choose the window arrow, free arrow, both or hidden, and adjust the short task text, labels, size, position and lock. Fixes redundant quest-log lookups during quest changes. See [0.6.8 notes](UPDATE-0.6.8.md).
 
 Reduces repeated panel rebuilds, pfQuest map resizing, NPC identity searches and stationary arrow-label writes. Live inventory/objective evidence, quest automation, delayed client-state checks and per-frame arrow rotation remain active. See [performance update and verification limits](UPDATE-0.6.7.md).
 

@@ -79,7 +79,7 @@ function G.MissingPickup(index)
   if not lookup and type(GetQuestIDFromLogIndex)~='function' then return nil end
   for i=G.state.manualStart and (G.state.startIndex or 1) or 1,index-1 do
     local a=G.state.steps[i]
-    if a.action=='accept' and a.questID and not G.QuestIndex(a.questID) and not G.db.completedQuests[a.questID] then
+    if a.action=='accept' and a.questID and not G.db.completedQuests[a.questID] and not G.QuestIndex(a.questID) then
       local marked=G.db.progress[G.Key(a)]
       local completed=false
       if C_QuestLog and type(C_QuestLog.IsQuestFlaggedCompleted)=='function' then

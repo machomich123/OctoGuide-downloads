@@ -1,3 +1,10 @@
+# 0.6.8
+
+- Add an optional free arrow with independent saved position, scale, text size, short task text and label/lock settings. Guide window can remain open.
+- Share navigation between window/free arrows; keep current users on the existing window arrow. Ctrl-click a guide step to point at it without changing progress.
+- Avoid rescanning the quest log after authoritative native misses. Reuse quest lookups within a protected update/event and invalidate them at quest-state boundaries.
+- Skip quest-log lookups for already confirmed completed pickups. Retain inverse-only and failing-native API fallback.
+
 # 0.6.7
 
 - Combine bag/quest-log panel rebuilds before the next drawing; keep immediate evidence/progression and all delayed client-state checks.

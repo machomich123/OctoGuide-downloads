@@ -50,7 +50,11 @@ function G.OpenStepBrowser(id)
   p.error=p:CreateFontString(nil,'OVERLAY','GameFontHighlight');p.error:SetWidth(410);p.error:SetHeight(22);G.Place(p.error,p,4,61)
   p.rows={}
   for i=1,12 do
-   local row=G.MakeButton(p,'',410,function() jump(this.stepNumber) end);row:SetHeight(21);G.Place(row,p,4,86+(i-1)*22);p.rows[i]=row
+   local row=G.MakeButton(p,'',410,function()
+    if IsControlKeyDown and IsControlKeyDown() and G.PinArrowStep then
+     local s=p.steps[this.stepNumber];if not G.PinArrowStep(s) then p.error:SetText('This step has no waypoint.') end
+    else jump(this.stepNumber) end
+   end);row:SetHeight(21);G.Place(row,p,4,86+(i-1)*22);p.rows[i]=row
    if row.GetScript then
     local enter,leave=row:GetScript('OnEnter'),row:GetScript('OnLeave')
     row:SetScript('OnEnter',function() if enter then enter() end;if GameTooltip and row.stepText then GameTooltip:SetOwner(row,'ANCHOR_RIGHT');GameTooltip:SetText(row.stepText,1,1,1,1,true);GameTooltip:Show() end end)

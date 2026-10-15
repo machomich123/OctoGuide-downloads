@@ -234,10 +234,22 @@ end
 local function arrowText(label,value)
  if label and (not label.GetText or label:GetText()~=value) then label:SetText(value) end
 end
+function G.ReadArrowNavigation(s)
+ if G.shareArrowRead and G.sharedArrowRead then local c=G.sharedArrowRead;return c.result,c.reason,c.target end
+ s=s or G.NavTarget()
+ local result,why
+ if s and s.zone and s.x and s.y then
+  if G.NavigationRead and not G.gatherTarget then result,why=G.NavigationRead(G.Current()) else result,why=OctoGuideNavigation.ReadWaypoint(s) end
+ end
+ if G.shareArrowRead then
+  local c=G.arrowReadBuffer or {};G.arrowReadBuffer=c;c.result=result;c.reason=why;c.target=s;G.sharedArrowRead=c
+ end
+ return result,why,s
+end
 function G.UpdateArrow(elapsed)
  local f=G.frame;if not f or not f.arrow or not f.distance or not f:IsShown() then return end
  local s=G.NavTarget();if G.UpdateSecondaryArrow then G.UpdateSecondaryArrow(elapsed) end;if not s or not s.zone or not s.x or not s.y then f.arrow:Hide();arrowText(f.heightLabel,'');arrowText(f.distance,s and s.blockedReason and 'Check pickup' or 'No waypoint');arrowText(f.targetEvidence,s and s.blockedReason and 'Availability check required' or '');return end
- local result,why;if G.NavigationRead and not G.gatherTarget then result,why=G.NavigationRead(G.Current()) else result,why=OctoGuideNavigation.ReadWaypoint(s) end
+ local result,why=G.ReadArrowNavigation(s)
  if not result then f.arrow:Hide();arrowText(f.heightLabel,'');arrowText(f.distance,why=='transport required' and 'Transport' or 'Position N/A');f.arrowAngle=nil;return end
  local angle=result.angle
  if angle and elapsed and f.arrowAngle then local d=math.mod(angle-f.arrowAngle+3*math.pi,2*math.pi)-math.pi;angle=f.arrowAngle+d*(1-math.exp(-18*math.min(elapsed,.1))) end

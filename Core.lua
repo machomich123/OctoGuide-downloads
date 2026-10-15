@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.6.7',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.6.8',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -177,11 +177,12 @@ function G.ResumeJump()
  G.state.startIndex=G.state.reviewIndex;G.state.reviewIndex=nil;G.state.reviewReason=nil
  G.pauseAuto=false;G.db.reviewGuide=nil;G.db.reviewStep=nil;G.db.reviewReason=nil
 end
-function G.QuestIndex(id)
+local function questIndex(id)
   if type(id)~='number' or id<=0 then return nil end
   if C_QuestLog and type(C_QuestLog.GetLogIndexForQuestID)=='function' then
     local ok,index=pcall(C_QuestLog.GetLogIndexForQuestID,id)
-    if ok and type(index)=='number' and index>0 then return index end
+    if ok and type(index)=='number' then if index>0 then return index else return nil end end
+    if ok and index==nil then return nil end
   end
   -- Older ClassicAPI versions expose only the index-to-ID direction.
   -- Never guess by title: separate quests in a chain can share a name.
@@ -194,6 +195,21 @@ function G.QuestIndex(id)
     local valid,questID=pcall(readID,index)
     if valid and questID==id then return index end
   end
+end
+function G.InvalidateQuestLookup()
+ G.questLookupRevision=(G.questLookupRevision or 0)+1
+end
+function G.QuestIndex(id)
+ local c=G.questLookupCache
+ if not c then return questIndex(id) end
+ local forward=C_QuestLog and C_QuestLog.GetLogIndexForQuestID
+ local inverse=C_QuestLog and C_QuestLog.GetQuestIDForLogIndex or GetQuestIDFromLogIndex
+ if c.revision~=G.questLookupRevision or c.forward~=forward or c.inverse~=inverse then
+  c.revision=G.questLookupRevision;c.forward=forward;c.inverse=inverse;c.ids={}
+ end
+ if type(id)~='number' or id<=0 then return nil end
+ local cached=c.ids[id];if cached~=nil then return cached or nil end
+ local result=questIndex(id);c.ids[id]=result or false;return result
 end
 function G.Objectives(step)
   local index=step.questID and G.QuestIndex(step.questID);local list={}
@@ -350,7 +366,9 @@ function G.Fail(phase,why)
  G.Chat('Stopped safely ('..phase..'): '..failure.message..' /octoguide shows this error; /reload reloads the addon.')
 end
 function G.RunProtected(fn,phase,...)
- local ok,why=pcall(fn,unpack(arg));if not ok then G.Fail(phase,why) end;return ok,why
+ local previous=G.questLookupCache;G.questLookupCache={ids={}}
+ local ok,why=pcall(fn,unpack(arg));G.questLookupCache=previous
+ if not ok then G.Fail(phase,why) end;return ok,why
 end
 function G.Init()
  if G.initializing or G.ready or G.failed then return end
@@ -360,6 +378,7 @@ function G.Init()
  if ok and not G.ready then G.HidePanels() end
 end
 function G.Event(ev,a,b)
+  G.InvalidateQuestLookup()
   if ev=='PLAYER_ENTERING_WORLD' then G.Init();return end
   if not G.ready then return end
   if G.TrainingEvent and G.TrainingEvent(ev,a) then
