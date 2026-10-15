@@ -55,7 +55,7 @@ function G.ReadObservedTarget(step)
      if usable and deadOK and not dead and healthOK and type(health)=='number' and health>0 and posOK and w and n and m==map then
       local r=N.Calculate({north=pn,west=pw,map=map},{north=n,west=w,map=m},GetPlayerFacing())
       if r then
-       r.worldWest=w;r.worldNorth=n;r.worldMap=m;r.entry=entry.id;r.token=token;r.label='Live quest target'
+       r.worldHeight=z;r.worldWest=w;r.worldNorth=n;r.worldMap=m;r.entry=entry.id;r.token=token;r.label='Live quest target'
        if prior and (prior.token==token or prior.guid==token) and prior.entry==entry.id then previous=r end
        if not best or r.yards<best.yards then best=r end
       end

@@ -22,8 +22,21 @@ function G.ReadCompletedHistory()
  end
  G.db.historySource='server';G.historyReady=true;return true
 end
+function G.ReadPFQuestHistory()
+ if type(pfQuest_history)~='table' or not G.db then return 0 end
+ local rows={};local count=0
+ for key,value in pairs(pfQuest_history) do
+  local q=tonumber(key)
+  if id(q) and type(value)=='table' then
+   rows[q]={timestamp=tonumber(value[1]) or 0,level=tonumber(value[2]) or 0,source='pfQuest (may include manual marks)'};count=count+1
+  end
+ end
+ G.db.pfQuestHistory=rows
+ return count
+end
 function G.ScanCharacter()
- local scan={quests={},items={},equipped={},flight={},questCount=0,itemSlots=0,history=G.historyReady and 'server response' or G.historyFailure or 'not available',flightStatus='previously observed only',bankStatus='closed; not scanned'}
+ local pfCount=G.ReadPFQuestHistory()
+ local scan={pfQuestCount=pfCount,quests={},items={},equipped={},flight={},questCount=0,itemSlots=0,history=G.historyReady and 'server response' or G.historyFailure or 'not available',flightStatus='previously observed only',bankStatus='closed; not scanned'}
  local count=call(GetNumQuestLogEntries)
  if type(count)=='number' then
   for i=1,count do
@@ -120,7 +133,7 @@ function G.ReconcileCharacter()
 end
 function G.ScanSummary()
  local s=G.characterScan;if not s then return '' end
- return tostring(s.questCount)..' active quests; '..tostring(s.completedQuestCount or 0)..' recorded turn-ins; '..tostring(s.completedSteps or 0)..' satisfied guide actions (not separate completed quests). Inventory: '..s.inventory..'. Bank: '..s.bankStatus..'. Hearthstone: '..(s.hearth or 'unavailable')..'. Flight paths: '..s.flightStatus..'. Earlier quest history: '..s.history..'.'
+ return tostring(s.questCount)..' active quests; '..tostring(s.completedQuestCount or 0)..' recorded turn-ins; '..tostring(s.pfQuestCount or 0)..' pfQuest history entries (separate source); '..tostring(s.completedSteps or 0)..' satisfied guide actions (not separate completed quests). Inventory: '..s.inventory..'. Bank: '..s.bankStatus..'. Hearthstone: '..(s.hearth or 'unavailable')..'. Flight paths: '..s.flightStatus..'. Earlier quest history: '..s.history..'.'
 end
 function G.PlacementSummary(reason)
  local s=G.characterScan

@@ -78,12 +78,12 @@ function G.UpdateAppearanceSettings()
 end
 function G.UpdateSecondaryArrow(elapsed)
  local f=G.frame;if not f.secondaryArrow then return end
- f.targetEvidence:ClearAllPoints();f.targetEvidence:SetPoint('TOPLEFT',f.distance,'BOTTOMLEFT',0,-2)
+ f.targetEvidence:ClearAllPoints();f.targetEvidence:SetPoint('TOPLEFT',f.heightLabel or f.distance,'BOTTOMLEFT',0,-2)
  local target=G.SecondaryTarget and G.SecondaryTarget(G.Current());local r=target and (G.SecondaryRead and G.SecondaryRead(target) or OctoGuideNavigation.ReadWaypoint(target))
  if r and r.angle and f.secondaryArrow.SetRotation then
   local angle=r.angle
   if elapsed and f.secondaryAngle then local delta=math.mod(angle-f.secondaryAngle+3*math.pi,2*math.pi)-math.pi;angle=f.secondaryAngle+delta*(1-math.exp(-18*math.min(elapsed,.1))) end
-  f.secondaryAngle=angle;f.secondaryArrow:SetRotation(-angle);point(f.secondaryArrow,f,f:GetWidth()-80,(G.db.view=='full' and 130 or 66)+108);point(f.secondaryText,f,f:GetWidth()-113,(G.db.view=='full' and 130 or 66)+135)
+  f.secondaryAngle=angle;f.secondaryArrow:SetRotation(-angle);point(f.secondaryArrow,f,f:GetWidth()-80,(G.db.view=='full' and 130 or 66)+128);point(f.secondaryText,f,f:GetWidth()-113,(G.db.view=='full' and 130 or 66)+155)
   local title=G.Present(target);f.secondaryText:SetText('Also: '..title..'\n'..math.floor(r.yards+.5)..' yd | '..(r.label or 'Quest area'));f.secondaryText:SetHeight(55);f.secondaryText:Show();f.secondaryArrow:Show()
  else f.secondaryAngle=nil;f.secondaryArrow:Hide();f.secondaryText:Hide() end
 end

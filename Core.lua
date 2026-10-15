@@ -1,5 +1,5 @@
 -- OctoGuide original runtime, Lua 5.0 / WoW 1.12 + installed ClassicAPI.
-OctoGuide={version='0.6.1',guides={},order={},ready=false,elapsed=0}
+OctoGuide={version='0.6.2',guides={},order={},ready=false,elapsed=0}
 local G=OctoGuide
 local actions={accept=true,complete=true,objective=true,turnin=true,travel=true,level=true,train=true,buy=true,note=true,death=true,hearth=true,fly=true,flight=true,boat=true,grind=true,collect=true,use=true,bind=true,flightpath=true,vendor=true,repair=true}
 local deathActions={death=true}
@@ -323,6 +323,10 @@ local function initialize()
   end
   if G.RequestHistory then G.RequestHistory() end
   if G.db.hidden then G.frame:Hide() else G.frame:Show() end
+  if G.db.loadedVersion~=G.version then
+   G.Chat('Update loaded: '..G.version..'. Height below arrow, character flight checks and pfQuest history. /octoguide history shows history help.')
+   G.db.loadedVersion=G.version
+  end
   G.Chat('Loaded. /octoguide opens the guide; /octoguide help lists commands.')
 end
 function G.HidePanels()

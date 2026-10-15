@@ -28,7 +28,8 @@ function G.HandleSlash(msg)
     if OctoAddonHealth and not OctoAddonHealth.Check('OctoGuide',false) then G.Chat(OctoAddonHealth.Text and OctoAddonHealth.Text('OctoGuide') or 'Required addon components are unavailable. Use /octocheck.');return end
     G.Chat('Wait for character login.');return
   end
-  if cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
+  if cmd=='history' then G.ReadPFQuestHistory();G.Chat('pfQuest history copied locally with source labels. Use /db journal to browse and /db query to request the server history. Manual marks are not server confirmation.')
+  elseif cmd=='normal' or cmd=='hardcore' then G.SetMode(cmd);G.Chat('Route mode: '..(G.Mode()=='hardcore' and 'Hardcore' or 'Normal')..'.')
   elseif cmd=='solo' or cmd=='group' or cmd=='auto' then G.SetPartyMode(cmd);G.Chat('Party setting: '..cmd..'.')
   elseif cmd=='rxp' or cmd=='baseline' then G.SetRouteSource(cmd)
   elseif cmd=='check' then
