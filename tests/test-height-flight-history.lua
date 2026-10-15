@@ -36,4 +36,9 @@ assert(r and r.heightDelta==20,'Corrected NPC waypoint must retain quest height'
 G.NavTarget=baseNav
 assert(G.HeightCaption(nil,{action='turnin',text='Turn in A Recipe For Death.',notes={'Apothecarium'}})=='Height unknown')
 assert(G.db.loadedVersion==G.version,'Successful startup records loaded update version')
+local messages=0;G.Chat=function(text) assert(string.find(text,'Update loaded:',1,true));messages=messages+1 end
+G.loadedNoticeRemaining=4;G.ready=true
+G.PollLoadedNotice(3);assert(messages==0)
+G.PollLoadedNotice(2);assert(messages==1 and G.db.notifiedVersion==G.version)
+G.PollLoadedNotice(10);assert(messages==1,'Announce only once after other addons have loaded')
 print('PASS height signs, unknown and mismatched NPC, flight fallback both directions, no departure arrow, pfQuest provenance')

@@ -323,11 +323,18 @@ local function initialize()
   end
   if G.RequestHistory then G.RequestHistory() end
   if G.db.hidden then G.frame:Hide() else G.frame:Show() end
-  if G.db.loadedVersion~=G.version then
-   G.Chat('Update loaded: '..G.version..'. Height below arrow, character flight checks and pfQuest history. /octoguide history shows history help.')
-   G.db.loadedVersion=G.version
-  end
+  G.db.loadedVersion=G.version
+  if G.db.notifiedVersion~=G.version then G.loadedNoticeRemaining=4 end
   G.Chat('Loaded. /octoguide opens the guide; /octoguide help lists commands.')
+end
+function G.PollLoadedNotice(elapsed)
+ if not G.loadedNoticeRemaining or not G.ready then return end
+ G.loadedNoticeRemaining=G.loadedNoticeRemaining-(elapsed or 0)
+ if G.loadedNoticeRemaining<=0 then
+  G.loadedNoticeRemaining=nil
+  G.Chat('Update loaded: '..G.version..'. Height below arrow, character flight checks and pfQuest history. /octoguide history shows history help.')
+  G.db.notifiedVersion=G.version
+ end
 end
 function G.HidePanels()
  for _,key in ipairs({'frame','menu','options','stepBrowser','reportWindow'}) do local p=G[key];if p and p.Hide then p:Hide() end end
