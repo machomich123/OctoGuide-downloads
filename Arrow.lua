@@ -27,7 +27,8 @@ function G.ApplyArrowSettings()
  if not G.floatingArrow then return end
  local f,o=G.floatingArrow,G.ArrowOptions();f:SetScale(o.scale)
  f:EnableMouse(o.locked==false)
- for _,label in ipairs({f.title,f.distance,f.task,f.height}) do label:SetFont('Fonts\\FRIZQT__.TTF',o.font,'OUTLINE') end
+ for _,label in ipairs({f.title,f.task,f.heightText}) do label:SetFont('Fonts\\FRIZQT__.TTF',o.font,'OUTLINE') end
+ f.distance:SetFont('Fonts\\FRIZQT__.TTF',math.max(8,o.font-2),'OUTLINE')
  local p=o.position
  f:ClearAllPoints()
  if type(p)=='table' and anchors[p[1]] and anchors[p[2]] and type(p[3])=='number' and type(p[4])=='number' and p[3]==p[3] and p[4]==p[4] and math.abs(p[3])<100000 and math.abs(p[4])<100000 then
@@ -53,7 +54,13 @@ function G.ShortArrowTask(s)
   end
   return s.sourceObjective or ('Complete '..title)
  end
- if action=='accept' or action=='turnin' or action=='travel' or action=='fly' or action=='hearth' or action=='use' or action=='train' or action=='collect' or action=='buy' or action=='bind' or action=='flightpath' then return s.text or title end
+ if action=='accept' then
+  local _,body=G.Present(s);local _,_,npc=string.find(body or '','Talk to ([^\n]+)')
+  if not npc then local _,_,value=string.find(body or '','Speak to ([^\n]+)');npc=value end
+  npc=s.name or npc
+  return npc and ('Talk to '..npc) or 'Accept the quest.'
+ end
+ if action=='turnin' or action=='travel' or action=='fly' or action=='hearth' or action=='use' or action=='train' or action=='collect' or action=='buy' or action=='bind' or action=='flightpath' then return s.text or title end
  return title
 end
 local function concise(value)
@@ -99,7 +106,7 @@ local function build()
  local function label(y,height)
   local t=f:CreateFontString(nil,'OVERLAY');t:SetWidth(250);t:SetHeight(height);t:SetPoint('TOP',f,'TOP',0,-y);t:SetJustifyH('CENTER');return t
  end
- f.title=label(65,18);f.distance=label(84,18);f.task=label(104,38);f.height=label(147,18)
+ f.title=label(63,18);f.distance=label(81,14);f.task=label(96,30);f.heightText=label(127,18)
  G.ApplyArrowSettings()
 end
 local function show(label,on)if label:IsShown()~=on then if on then label:Show() else label:Hide() end end end
@@ -129,10 +136,19 @@ function G.DrawFloatingArrow(elapsed)
  if f.captionElapsed>=.2 or f.captionStep~=s then
   f.captionElapsed=0;f.captionStep=s
   local title=G.Present(s);text(f.title,(selected and '[Selected] ' or '')..concise(title))
-  text(f.task,concise(G.ShortArrowTask(s)))
+  local task=concise(G.ShortArrowTask(s));text(f.task,task);f.duplicateTask=task==concise(title)
  end
- text(f.height,r and (G.HeightText and G.HeightText(r.heightDelta) or '') or '')
- show(f.title,o.title~=false);show(f.distance,o.distance~=false);show(f.task,o.task~=false);show(f.height,o.height~=false)
+ text(f.heightText,r and (G.HeightText and G.HeightText(r.heightDelta) or '') or '')
+ local duplicate=f.duplicateTask
+ show(f.title,o.title~=false);show(f.distance,o.distance~=false);show(f.task,o.task~=false and not (o.title~=false and duplicate));show(f.heightText,o.height~=false)
+ local layout=tostring(f.title:IsShown())..tostring(f.distance:IsShown())..tostring(f.task:IsShown())..tostring(f.heightText:IsShown())
+ if f.captionLayout~=layout then
+ f.captionLayout=layout;local y=63
+ for _,entry in ipairs({{f.title,18},{f.distance,15},{f.task,31},{f.heightText,18}}) do
+  if entry[1]:IsShown() then entry[1]:ClearAllPoints();entry[1]:SetPoint('TOP',f,'TOP',0,-y);y=y+entry[2] end
+ end
+ f:SetHeight(y)
+ end
 end
 local function settings()
  local p=G.MakeCard(UIParent);G.arrowSettings=p;p:SetWidth(410);p:SetHeight(530);p:SetPoint('CENTER',UIParent,'CENTER',0,0);p:SetFrameStrata('DIALOG');p:EnableMouse(true);p:Hide()

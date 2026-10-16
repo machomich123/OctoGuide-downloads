@@ -19,7 +19,7 @@ local o=G.ArrowOptions();o.mode='both';G.ApplyArrowSettings();reads=0;G.UpdateAr
 local f=G.floatingArrow
 assert(G.frame:IsShown() and G.frame.arrow:IsShown() and f:IsShown(),'Guide and free arrow coexist')
 assert(reads==1 and G.frame.distance:GetText()=='100 yd' and f.distance:GetText()=='100 yd','Both views share one navigation result')
-assert(f.task:GetText()=='Walk to the tower.' and f.task:IsShown())
+assert(f.task:GetText()=='Walk to the tower.' and not f.task:IsShown(),'Duplicate title/task is displayed once')
 assert(G.ArrowCell(0)==0 and G.ArrowCell(math.pi/2)==81 and G.ArrowCell(math.pi)==54 and G.ArrowCell(3*math.pi/2)==27)
 for i=0,107 do assert(G.ArrowCell(-i*2*math.pi/108)==i,'Every sprite cell must be reachable') end
 assert(G.ArrowCell(2*math.pi-.0001)==0 and G.ArrowCell(.0001)==0,'Angle wrap is stable')

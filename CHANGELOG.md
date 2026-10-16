@@ -1,3 +1,7 @@
+# 0.6.10
+
+Compact arrow captions, accurate acceptance instructions, shared menu backgrounds, close icons and persistent movable/resizable auxiliary windows.
+
 # 0.6.9
 
 - Separate smooth arrow painting from repeated route/model calculations; share reads inside callbacks and retain route reads for at most 0.12 seconds with immediate event/progression invalidation.

@@ -5,7 +5,7 @@ local function heading(p,text,x,y,w)
  local t=G.MakeLabel(p,11,w or 310,true);point(t,p,x,y);t:SetHeight(20);t:SetText(text);return t
 end
 local function skin(p)
- p.panelSkin=G.CreatePanelSkin(p)
+ p.panelSkin=p.panelSkin or G.CreatePanelSkin(p)
  G.LayoutPanelSkin(p.panelSkin,p:GetWidth(),p:GetHeight(),p)
 end
 local function sliderStyle(slider,width)

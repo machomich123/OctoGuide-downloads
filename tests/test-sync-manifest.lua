@@ -7,7 +7,7 @@ for line in toc:lines() do if string.find(line,'%.lua$') then dofile(line) end e
 local G=OctoGuide
 local scan=G.ScanCharacter;local scans=0
 G.ScanCharacter=function() scans=scans+1;return scan() end
-G.Init();assert(G.ready and G.version=='0.6.9')
+G.Init();assert(G.ready and G.version=='0.6.10')
 local settings=G.options;local automation=settings.automationPanel
 assert(automation and not automation:IsShown() and settings.height==650)
 settings.automationButton.scripts.OnClick();assert(automation:IsShown())
