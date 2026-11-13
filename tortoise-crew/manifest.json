@@ -1,7 +1,7 @@
 {
   "launcherVersion": "1.0.0",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "9564AEEF951AB95346C9552F92A7E59036A037854E6134320C052B125906FE95",
+  "launcherSha256": "632641B627473A9CC54868E264F979DB61866308A8571ABA514814EA798EE9CE",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
