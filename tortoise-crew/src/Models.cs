@@ -49,7 +49,7 @@ namespace TortoiseCrew
 
     public static class Paths
     {
-        public const string Version = "1.0.1";
+        public const string Version = "1.0.2";
         public const string GoodSha256 = "97EA82AB7A82ED88BC5A155AB9BBF7E0BCDB5B9F892A47C6F8EDABE1496BFC75";
         public const string ManifestUrl = "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/manifest.json";
         public static readonly string Root = Path.Combine(
