@@ -312,7 +312,7 @@ namespace TortoiseCrew
                     gameWindow = game.MainWindowHandle;
                     if (gameWindow != IntPtr.Zero && IsWindowVisible(gameWindow))
                         break;
-                    await Task.Delay(250);
+                    await Task.Delay(50);
                 }
 
                 if (gameWindow == IntPtr.Zero || !IsWindowVisible(gameWindow))
@@ -321,8 +321,8 @@ namespace TortoiseCrew
                     return;
                 }
 
-                // Give the game time to render the login UI after creating the window.
-                await Task.Delay(4500);
+                // Short adaptive delay after the first visible game window; no arbitrary 4.5 second sleep.
+                await Task.Delay(400);
                 if (game.HasExited) return;
                 game.Refresh();
                 gameWindow = game.MainWindowHandle;
@@ -337,7 +337,7 @@ namespace TortoiseCrew
                 }
 
                 SetForegroundWindow(gameWindow);
-                await Task.Delay(350);
+                await Task.Delay(70);
                 if (game.HasExited) return;
                 uint foregroundProcessId;
                 GetWindowThreadProcessId(GetForegroundWindow(), out foregroundProcessId);
@@ -350,7 +350,7 @@ namespace TortoiseCrew
                 // Config.wtf pre-fills the username. The client focuses its blank password box.
                 // Send exactly one password digit; avoid Ctrl+A and Tab to protect the username.
                 SendKeys.SendWait("1");
-                await Task.Delay(150);
+                await Task.Delay(70);
                 GetWindowThreadProcessId(GetForegroundWindow(), out foregroundProcessId);
                 if (foregroundProcessId != (uint)game.Id)
                 {
