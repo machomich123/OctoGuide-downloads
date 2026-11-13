@@ -1,15 +1,24 @@
-# Tortoise Crew Launcher v1.0.1
+# Tortoise Crew Launcher v1.0.2
 
-Download [TortoiseCrewLauncher-v1.0.1.zip](./TortoiseCrewLauncher-v1.0.1.zip), extract, and run the EXE. Windows 10/11 with built-in OpenSSH Client required. The launcher installs per-user and creates a desktop shortcut. No console window is shown during gameplay.
+A shared Windows launcher for MICHAEL, JAYKE, BERNARD, and AUGUST.
 
-1. Choose your account: MICHAEL, JAYKE, BERNARD, or AUGUST. Each player has their own Windows installation and SSH private key; never share it.
-2. The launcher scans for the exact verified WoW 1.18.1 build 7272 executable. It prefers the Tortoise/Turtle client folder over a modified Octo client. If not found, browse to WoW.exe manually.
-3. Open **Settings → Copy public SSH key** and send only the public key to the server administrator. Approval is required once per machine before **Play** works.
-4. Press **Play**. Login is attempted once by typing only the shared password into WoW's normally focused password field; the username is prefilled using WTF/Config.wtf. Automatic login has not yet been verified interactively on every Windows/game configuration; uncheck auto-login if it misbehaves.
-5. Use **Update** when a new launcher version is shown. The launcher fetches the public manifest and verifies SHA-256 before replacing itself. The Altare host and port values are synced automatically from the manifest when available.
+**[Download v1.0.2 ZIP](./TortoiseCrewLauncher-v1.0.2.zip)** · Extract and run the enclosed `TortoiseCrewLauncher.exe`.
 
-**Troubleshooting:** Log is stored in `%LOCALAPPDATA%\TortoiseCrewLauncher\launcher.log`. If auto-login types into the wrong field, disable auto-login in the launcher and report the issue; nothing is injected into or patched in WoW.exe. The existing WoW game folder is backed up before changes to `realmlist.wtf` and `WTF\Config.wtf`.
+## What's new in 1.0.2
 
-**Security:** The current shared game password is weak. SSH restricts the exposed game ports, but unique passwords per game account should be configured when convenient.
+- Faster auto-login: the verified WoW window is focused shortly after it becomes visible, with a ~400ms settling delay instead of the previous fixed 4.5-second delay. Username is prefilled from WoW config; only the password is typed once.
+- Automatic launcher exit: when WoW starts, a hidden watcher takes over the SSH process. The window then closes. The watcher closes the tunnel only after WoW exits, verified by a Windows integration test.
+- Safer self-update: downloads are SHA-256 verified, the replacement runs in a separate invisible helper, and the previous installed EXE is preserved as an NTFS backup. Updates are blocked while WoW is running.
+- Supports existing v1.0.1's two-argument update protocol, so existing users can upgrade using their **Update** button. The first upgrade still invokes the old v1.0.1 update implementation.
 
-Source: [src](./src).
+## Setup
+
+1. Run the EXE. It installs to `%LOCALAPPDATA%\TortoiseCrewLauncher` and creates a desktop shortcut.
+2. Choose MICHAEL, JAYKE, BERNARD, or AUGUST. Find or browse to the exact verified WoW 1.18.1 build 7272 executable in a compatible Turtle/Tortoise client folder; Octo client assets are known to cause graphic issues.
+3. Each new PC generates its own OpenSSH Ed25519 key. Use **Settings → Copy public SSH key** and send only the public key to the server administrator for one-time approval. Never share private keys.
+4. Click **Play**. A private SSH tunnel connects to Altare; the launcher closes when the game starts, with the background watcher monitoring the connection.
+5. New versions and changing Altare ports are discovered from the public `manifest.json`. Press **Update** and confirm to upgrade.
+
+If autologin is unreliable on a specific PC, disable it in the launcher. It does not modify or inject into WoW.exe. Log: `%LOCALAPPDATA%\TortoiseCrewLauncher\launcher.log`.
+
+**Security:** All game accounts currently share the weak password `1`; use distinct stronger game passwords when feasible. Public SSH keys grant port-restricted access only after approval.
