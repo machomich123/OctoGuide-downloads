@@ -283,8 +283,6 @@ namespace TortoiseCrew
             updateButton.Click += async (s, e) => await UpdateAsync(true);
             settingsButton = MakeButton("Innstillinger", 814, 585, 149, 53, false);
             settingsButton.Click += (s, e) => ShowSettings();
-            keyButton = MakeButton("Kopier offentlig nøkkel", 603, 310, 330, 0, false);
-            keyButton.Visible = false;
 
             feedMessage = TextLabel("Oppdateringer hentes fra GitHub. Ingen passord sendes dit.",
                 267, 548, 680, 22, 9, muted);
@@ -653,9 +651,7 @@ namespace TortoiseCrew
 
         private void OnClosing(object sender, FormClosingEventArgs e)
         {
-            try { if (activeSsh != null && !activeSsh.HasExited) activeSsh.Kill(); }
-            catch { }
-            // Closing the launcher while playing would break the game tunnel.
+            // Never kill the tunnel if closing was cancelled; the player would disconnect.
             if (activeWow != null)
             {
                 try
@@ -665,10 +661,13 @@ namespace TortoiseCrew
                         MessageBox.Show("WoW er fortsatt åpent. La launcheren stå åpen mens du spiller.",
                             "Tortoise Crew", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         e.Cancel = true;
+                        return;
                     }
                 }
                 catch { }
             }
+            try { if (activeSsh != null && !activeSsh.HasExited) activeSsh.Kill(); }
+            catch { }
         }
     }
 }
