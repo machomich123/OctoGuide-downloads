@@ -110,7 +110,7 @@ namespace TortoiseCrew
         private RealmManifest currentManifest;
         private Label status, statusDescription, gamePath, information, feedMessage, versionLabel;
         private ComboBox username;
-        private Button playButton, updateButton, browseButton, keyButton, settingsButton;
+        private Button playButton, updateButton, browseButton, keyButton, settingsButton, accountButton;
         private CheckBox loginToggle;
         private Process activeSsh, activeWow;
         private bool starting, checking, searching, updating, handedOffSession, closingForUpdate;
@@ -279,8 +279,11 @@ namespace TortoiseCrew
             browseButton = MakeButton("Change file", 813, 413, 121, 38, false);
             browseButton.Click += (s, e) => BrowseGame();
 
-            information = TextLabel("First time? A unique SSH key is created for this PC.",
-                289, 486, 632, 27, 10, muted);
+            information = TextLabel("First time? Set your personal account password.",
+                289, 486, 310, 50, 10, muted);
+            accountButton = MakeButton("ACCOUNT & PASSWORD", 604, 480, 328, 46, false);
+            accountButton.Click += (s, e) => AccountSetup.Show(this, settings,
+                (username.Text ?? "").Trim().ToUpperInvariant());
 
             playButton = MakeButton("▶   PLAY TORTOISE WOW", 266, 585, 365, 53, true);
             playButton.Click += async (s, e) => await PlayAsync();
@@ -505,6 +508,13 @@ namespace TortoiseCrew
                 BrowseGame();
                 if (!GameDetector.IsVerified(settings.WowPath)) return;
             }
+            string password = PasswordVault.Read(account);
+            if (!CrewEnrollment.ValidExistingPassword(password))
+            {
+                if (!AccountSetup.Show(this, settings, account)) return;
+                password = PasswordVault.Read(account);
+                if (!CrewEnrollment.ValidExistingPassword(password)) return;
+            }
             if (SshSupport.PortOpen("127.0.0.1", 3724, 200) ||
                 SshSupport.PortOpen("127.0.0.1", 8085, 200))
             {
@@ -569,7 +579,7 @@ namespace TortoiseCrew
                 Notice("WoW launched. The private tunnel stays connected while you play.");
                 playButton.Text = "GAME RUNNING...";
                 if (settings.AutoLogin)
-                    await AutoLogin.TryLoginAsync(activeWow, account);
+                    await AutoLogin.TryLoginAsync(activeWow, account, password);
                 if (!await SessionMonitor.HandOffAsync(activeWow.Id, activeSsh.Id))
                     throw new InvalidOperationException(
                         "The background game-session monitor could not start; the launcher will keep the tunnel until you retry.");
@@ -627,7 +637,7 @@ namespace TortoiseCrew
             using (var dialog = new Form())
             {
                 dialog.Text = "Tortoise Crew - Settings";
-                dialog.ClientSize = new Size(610, 330);
+                dialog.ClientSize = new Size(610, 388);
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dialog.MaximizeBox = false;
@@ -676,6 +686,11 @@ namespace TortoiseCrew
                 };
                 dialog.Controls.Add(folder);
 
+                var credentials = new Button { Text = "Account & password",
+                    Location = new Point(22, 239), Size = new Size(218, 37) };
+                credentials.Click += (s,e) => { dialog.Close(); AccountSetup.Show(this, settings,
+                    (username.Text ?? "").Trim().ToUpperInvariant()); };
+                dialog.Controls.Add(credentials);
                 var help = new Label { Text = "Game server ports are updated automatically from GitHub. " +
                         "On a new PC, send your public SSH key to Michael for approval.",
                     Location = new Point(22, 251), Size = new Size(550, 51), ForeColor = muted };
