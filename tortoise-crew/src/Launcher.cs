@@ -1,0 +1,674 @@
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace TortoiseCrew
+{
+    internal static class Program
+    {
+        [STAThread]
+        private static void Main(string[] args)
+        {
+            try
+            {
+                Directory.CreateDirectory(Paths.Root);
+                if (args.Length >= 2 && args[0] == "--replace")
+                {
+                    string original = Path.GetFullPath(args[1]);
+                    if (!String.Equals(original, Paths.Executable, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Oppdateringsmål er ikke appens egen mappe.");
+                    for (int attempt = 0; attempt < 48; attempt++)
+                    {
+                        try
+                        {
+                            Thread.Sleep(250);
+                            File.Copy(Assembly.GetExecutingAssembly().Location, original, true);
+                            Process.Start(new ProcessStartInfo(original) { WorkingDirectory = Paths.Root });
+                            return;
+                        }
+                        catch (IOException) { }
+                    }
+                    throw new IOException("Kunne ikke bytte ut en kjørende launcher.");
+                }
+
+                string current = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
+                if (!String.Equals(current, Paths.Executable, StringComparison.OrdinalIgnoreCase))
+                {
+                    bool shouldCopy = true;
+                    if (File.Exists(Paths.Executable))
+                    {
+                        try
+                        {
+                            var oldVersion = AssemblyName.GetAssemblyName(Paths.Executable).Version;
+                            var incoming = Assembly.GetExecutingAssembly().GetName().Version;
+                            shouldCopy = oldVersion == null || oldVersion <= incoming;
+                        }
+                        catch { }
+                    }
+                    if (shouldCopy) File.Copy(current, Paths.Executable, true);
+                    DesktopShortcut.Create();
+                    Process.Start(new ProcessStartInfo(Paths.Executable) { WorkingDirectory = Paths.Root });
+                    return;
+                }
+
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new LauncherForm());
+            }
+            catch (Exception ex)
+            {
+                Paths.WriteLog("Startup: " + ex);
+                MessageBox.Show(ex.Message, "Tortoise Crew Launcher",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    internal static class DesktopShortcut
+    {
+        public static void Create()
+        {
+            try
+            {
+                string dir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string link = Path.Combine(dir, "Tortoise Crew Launcher.lnk");
+                Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+                if (shellType == null) return;
+                dynamic shell = Activator.CreateInstance(shellType);
+                dynamic shortcut = shell.CreateShortcut(link);
+                shortcut.TargetPath = Paths.Executable;
+                shortcut.WorkingDirectory = Paths.Root;
+                shortcut.Description = "Tortoise Crew – privat WoW 1.18.1";
+                shortcut.IconLocation = Paths.Executable + ",0";
+                shortcut.Save();
+            }
+            catch (Exception ex) { Paths.WriteLog("Shortcut: " + ex.GetType().Name); }
+        }
+    }
+
+    public sealed class LauncherForm : Form
+    {
+        private readonly Color background = Color.FromArgb(12, 18, 28);
+        private readonly Color surface = Color.FromArgb(20, 30, 43);
+        private readonly Color muted = Color.FromArgb(144, 160, 180);
+        private readonly Color white = Color.FromArgb(240, 246, 251);
+        private readonly Color accent = Color.FromArgb(98, 232, 190);
+        private LauncherSettings settings;
+        private RealmManifest currentManifest;
+        private Label status, statusDescription, gamePath, information, feedMessage, versionLabel;
+        private ComboBox username;
+        private Button playButton, updateButton, browseButton, keyButton, settingsButton;
+        private CheckBox loginToggle;
+        private Process activeSsh, activeWow;
+        private bool starting, checking, searching, updating;
+
+        public LauncherForm()
+        {
+            settings = Paths.Load();
+            Text = "Tortoise Crew · Realm Launcher";
+            ClientSize = new Size(1000, 650);
+            MinimumSize = MaximumSize = Size;
+            StartPosition = FormStartPosition.CenterScreen;
+            BackColor = background;
+            ForeColor = white;
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            Font = new Font("Segoe UI", 10f, FontStyle.Regular);
+            DoubleBuffered = true;
+            Icon = SystemIcons.Application;
+            BuildLayout();
+            FormClosing += OnClosing;
+            Shown += async (s, e) =>
+            {
+                await InitializeAsync();
+            };
+        }
+
+        private Label TextLabel(string text, int x, int y, int w, int h,
+                                float size, Color color, FontStyle style = FontStyle.Regular)
+        {
+            var label = new Label
+            {
+                Text = text, Location = new Point(x, y), Size = new Size(w, h),
+                Font = new Font("Segoe UI", size, style), ForeColor = color,
+                BackColor = Color.Transparent, AutoEllipsis = true
+            };
+            Controls.Add(label);
+            return label;
+        }
+
+        private Button MakeButton(string text, int x, int y, int w, int h, bool primary)
+        {
+            var b = new Button
+            {
+                Text = text, Location = new Point(x, y), Size = new Size(w, h),
+                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                BackColor = primary ? accent : Color.FromArgb(38, 54, 71),
+                ForeColor = primary ? Color.FromArgb(10, 32, 34) : white,
+                Font = new Font("Segoe UI Semibold", primary ? 13f : 10f, FontStyle.Bold),
+                UseVisualStyleBackColor = false
+            };
+            b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = primary
+                ? Color.FromArgb(143, 246, 213) : Color.FromArgb(54, 73, 94);
+            Controls.Add(b);
+            b.Resize += (s, e) => RoundControl(b, 12);
+            RoundControl(b, 12);
+            return b;
+        }
+
+        private void RoundControl(Control c, int radius)
+        {
+            var rect = new Rectangle(0, 0, c.Width, c.Height);
+            using (var path = RoundedRect(rect, radius))
+            {
+                var previous = c.Region;
+                c.Region = new Region(path);
+                if (previous != null) previous.Dispose();
+            }
+        }
+
+        private static GraphicsPath RoundedRect(Rectangle r, int radius)
+        {
+            int size = radius * 2;
+            var p = new GraphicsPath();
+            p.AddArc(r.X, r.Y, size, size, 180, 90);
+            p.AddArc(r.Right - size, r.Y, size, size, 270, 90);
+            p.AddArc(r.Right - size, r.Bottom - size, size, size, 0, 90);
+            p.AddArc(r.X, r.Bottom - size, size, size, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var bg = new LinearGradientBrush(ClientRectangle, background,
+                         Color.FromArgb(16, 27, 42), LinearGradientMode.ForwardDiagonal))
+                e.Graphics.FillRectangle(bg, ClientRectangle);
+            using (var side = new SolidBrush(Color.FromArgb(16, 25, 38)))
+                e.Graphics.FillRectangle(side, 0, 0, 232, Height);
+            using (var rule = new SolidBrush(Color.FromArgb(45, 66, 80)))
+                e.Graphics.FillRectangle(rule, 232, 0, 1, Height);
+
+            using (var logo = new SolidBrush(accent))
+                e.Graphics.FillEllipse(logo, 32, 30, 40, 40);
+            using (var logoText = new SolidBrush(Color.FromArgb(14, 46, 45)))
+            using (var f = new Font("Segoe UI", 14f, FontStyle.Bold))
+                e.Graphics.DrawString("TC", f, logoText, 33, 37);
+
+            using (var card = new SolidBrush(surface))
+            {
+                using (var p = RoundedRect(new Rectangle(263, 112, 699, 129), 18))
+                    e.Graphics.FillPath(card, p);
+                using (var p = RoundedRect(new Rectangle(263, 269, 699, 291), 18))
+                    e.Graphics.FillPath(card, p);
+            }
+            using (var line = new Pen(Color.FromArgb(45, 65, 84)))
+            {
+                e.Graphics.DrawLine(line, 289, 375, 936, 375);
+                e.Graphics.DrawLine(line, 289, 467, 936, 467);
+            }
+        }
+
+        private void BuildLayout()
+        {
+            TextLabel("TORTOISE", 82, 32, 139, 23, 15, white, FontStyle.Bold);
+            TextLabel("CREW", 82, 57, 138, 19, 10, accent, FontStyle.Bold);
+            TextLabel("PRIVATE REALM", 30, 132, 190, 20, 9, muted, FontStyle.Bold);
+            TextLabel("MYSTERIES OF AZEROTH", 30, 160, 200, 23, 10, white);
+            TextLabel("1.18.1  ·  BUILD 7272", 30, 194, 196, 18, 8.5f, muted);
+            TextLabel("CREW", 30, 285, 180, 18, 9, muted, FontStyle.Bold);
+            TextLabel("MICHAEL", 33, 316, 167, 24, 11, white);
+            TextLabel("JAYKE", 33, 344, 167, 24, 11, white);
+            TextLabel("BERNARD", 33, 372, 167, 24, 11, white);
+            TextLabel("AUGUST", 33, 400, 167, 24, 11, white);
+            TextLabel("Én launcher. Samme realm.", 28, 584, 192, 22, 9, muted);
+            versionLabel = TextLabel("Launcher v" + Paths.Version, 28, 611, 193, 20, 9, muted);
+
+            TextLabel("Welcome back, adventurer.", 265, 31, 680, 41, 21.5f, white, FontStyle.Bold);
+            TextLabel("Tilkobling til privat Tortoise-realm", 266, 79, 660, 24, 11, muted);
+
+            TextLabel("SERVERSTATUS", 289, 133, 210, 25, 9.5f, muted, FontStyle.Bold);
+            status = TextLabel("Sjekker forbindelsen ...", 289, 160, 560, 33, 17, white, FontStyle.Bold);
+            statusDescription = TextLabel("Kontrollerer Altare-noden og WoW-porten.", 289, 204, 640, 22, 9.5f, muted);
+
+            TextLabel("DIN SPILLKONTO", 290, 290, 260, 22, 9.5f, muted, FontStyle.Bold);
+            username = new ComboBox
+            {
+                Location = new Point(290, 319), Size = new Size(296, 32),
+                DropDownStyle = ComboBoxStyle.DropDown, FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(36, 51, 69), ForeColor = white,
+                Font = new Font("Segoe UI", 12f)
+            };
+            username.Items.AddRange(new object[] { "MICHAEL", "JAYKE", "BERNARD", "AUGUST" });
+            username.Text = settings.Username;
+            username.TextChanged += (s, e) => SaveUsername();
+            Controls.Add(username);
+
+            loginToggle = new CheckBox
+            {
+                Text = "Fyll inn brukernavn og passord automatisk (1)",
+                Location = new Point(603, 327), Size = new Size(333, 27),
+                Checked = settings.AutoLogin, ForeColor = white, BackColor = surface,
+                Font = new Font("Segoe UI", 9f)
+            };
+            loginToggle.CheckedChanged += (s, e) =>
+            {
+                settings.AutoLogin = loginToggle.Checked;
+                Paths.Save(settings);
+            };
+            Controls.Add(loginToggle);
+
+            TextLabel("VERIFISERT WOW-KLIENT", 291, 395, 250, 19, 9.5f, muted, FontStyle.Bold);
+            gamePath = TextLabel("Leter etter 1.18.1 ...", 290, 425, 484, 25, 10, white);
+            browseButton = MakeButton("Endre fil", 813, 413, 121, 38, false);
+            browseButton.Click += (s, e) => BrowseGame();
+
+            information = TextLabel("Første gang? Launcheren oppretter din egen SSH-nøkkel.",
+                289, 486, 632, 27, 10, muted);
+
+            playButton = MakeButton("▶   PLAY TORTOISE WOW", 266, 585, 365, 53, true);
+            playButton.Click += async (s, e) => await PlayAsync();
+            updateButton = MakeButton("↻  Oppdater", 650, 585, 153, 53, false);
+            updateButton.Click += async (s, e) => await UpdateAsync(true);
+            settingsButton = MakeButton("Innstillinger", 814, 585, 149, 53, false);
+            settingsButton.Click += (s, e) => ShowSettings();
+            keyButton = MakeButton("Kopier offentlig nøkkel", 603, 310, 330, 0, false);
+            keyButton.Visible = false;
+
+            feedMessage = TextLabel("Oppdateringer hentes fra GitHub. Ingen passord sendes dit.",
+                267, 548, 680, 22, 9, muted);
+        }
+
+        private void SaveUsername()
+        {
+            string chosen = (username.Text ?? "").Trim().ToUpperInvariant();
+            if (chosen.Length == 0 || chosen.Length > 24) return;
+            settings.Username = chosen;
+            Paths.Save(settings);
+        }
+
+        private async Task InitializeAsync()
+        {
+            try
+            {
+                SshSupport.ExistingOrNewKey(settings);
+            }
+            catch (Exception ex)
+            {
+                Notice("OpenSSH er ikke klar: " + ex.Message);
+            }
+
+            if (!GameDetector.IsVerified(settings.WowPath))
+            {
+                searching = true;
+                gamePath.Text = "Søker etter riktig WoW.exe ...";
+                try
+                {
+                    string found = await Task.Run(() => GameDetector.Find((count, folder) =>
+                    {
+                        if (!IsDisposed && IsHandleCreated)
+                            BeginInvoke((Action)(() => gamePath.Text = "Gjennomsøkt " + count + " mapper ..."));
+                    }));
+                    if (!String.IsNullOrEmpty(found))
+                    {
+                        settings.WowPath = found;
+                        Paths.Save(settings);
+                        Notice("Riktig WoW.exe ble funnet og verifisert.");
+                    }
+                    else
+                    {
+                        Notice("Fant ikke bekreftet WoW.exe automatisk. Bruk «Endre fil».");
+                        BrowseGame();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Paths.WriteLog("Game scan: " + ex);
+                    Notice("Automatisk søk stoppet. Velg WoW.exe manuelt.");
+                }
+                finally { searching = false; }
+            }
+            UpdateGameLabel();
+            await UpdateAsync(false);
+            await CheckStatusAsync();
+        }
+
+        private void UpdateGameLabel()
+        {
+            if (GameDetector.IsVerified(settings.WowPath))
+                gamePath.Text = "✓  " + settings.WowPath;
+            else
+                gamePath.Text = "Mangler bekreftet WoW.exe (1.18.1 / 7272)";
+        }
+
+        private void BrowseGame()
+        {
+            var selected = GameDetector.Browse(settings.WowPath);
+            if (String.IsNullOrEmpty(selected)) return;
+            settings.WowPath = selected;
+            Paths.Save(settings);
+            UpdateGameLabel();
+            Notice("Bekreftet riktig klient fra " + Path.GetDirectoryName(selected));
+        }
+
+        private void Notice(string message)
+        {
+            information.Text = message;
+            Paths.WriteLog(message);
+        }
+
+        private async Task CheckStatusAsync()
+        {
+            if (checking) return;
+            checking = true;
+            status.Text = "Sjekker serverstatus ...";
+            status.ForeColor = white;
+            try
+            {
+                bool reachable = await Task.Run(() => SshSupport.PortOpen(settings.Host, settings.SshPort, 5000));
+                if (!reachable)
+                {
+                    status.Text = "Server ikke tilgjengelig";
+                    status.ForeColor = Color.FromArgb(247, 147, 138);
+                    statusDescription.Text = settings.Host + ":" + settings.SshPort + " svarer ikke.";
+                    return;
+                }
+
+                bool world = await SshSupport.ProbeGameAsync(settings);
+                status.Text = world ? "Realm online  ●" : "Altare online  ◉";
+                status.ForeColor = world ? accent : Color.FromArgb(254, 205, 129);
+                statusDescription.Text = world
+                    ? "Spillserveren svarer på autentisert kontroll."
+                    : "SSH-porten svarer. Mangler godkjent nøkkel, eller WoW-verdenen er nede.";
+            }
+            catch (Exception ex)
+            {
+                status.Text = "Status ikke tilgjengelig";
+                status.ForeColor = Color.FromArgb(254, 205, 129);
+                Paths.WriteLog("Status: " + ex);
+            }
+            finally { checking = false; }
+        }
+
+        private async Task UpdateAsync(bool userRequested)
+        {
+            if (updating) return;
+            updating = true;
+            updateButton.Enabled = false;
+            updateButton.Text = "Sjekker ...";
+            try
+            {
+                RealmManifest manifest = await Task.Run(() => RemoteUpdates.Fetch());
+                currentManifest = manifest;
+                bool routingChanged = settings.Host != manifest.Host ||
+                                      settings.SshPort != manifest.SshPort ||
+                                      settings.AuthPort != manifest.AuthPort ||
+                                      settings.WorldPort != manifest.WorldPort;
+                if (routingChanged)
+                {
+                    RemoteUpdates.ApplyRouting(settings, manifest);
+                    Notice("Serveradressen er automatisk oppdatert via GitHub.");
+                }
+
+                if (RemoteUpdates.IsNewer(manifest))
+                {
+                    updateButton.Text = "Oppdater v" + manifest.LauncherVersion;
+                    feedMessage.Text = "Ny versjon tilgjengelig: " + manifest.LauncherVersion;
+                    if (userRequested)
+                    {
+                        var ask = MessageBox.Show(
+                            "Versjon " + manifest.LauncherVersion + " er klar.\n\nVil du installere den nå?",
+                            "Launcher-oppdatering", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                        if (ask == DialogResult.Yes)
+                        {
+                            string candidate = await RemoteUpdates.DownloadVerifiedUpdateAsync(manifest);
+                            Paths.WriteLog("Verified update downloaded; switching to new version.");
+                            Process.Start(new ProcessStartInfo(candidate,
+                                "--replace \"" + Paths.Executable + "\"")
+                            { UseShellExecute = true, WorkingDirectory = Paths.Root });
+                            Close();
+                            return;
+                        }
+                    }
+                }
+                else
+                {
+                    updateButton.Text = "↻  Oppdater";
+                    feedMessage.Text = routingChanged ? "Serveroppsett oppdatert fra GitHub." :
+                        "Siste launcher- og serveroppsett: oppdatert fra GitHub.";
+                    if (userRequested) Notice("Du har nyeste versjon av launcheren.");
+                }
+            }
+            catch (Exception ex)
+            {
+                updateButton.Text = "↻  Oppdater";
+                feedMessage.Text = "GitHub kan ikke nås. Bruker sist kjente serveroppsett.";
+                Paths.WriteLog("Manifest fetch: " + ex.GetType().Name + ": " + ex.Message);
+                if (userRequested) Notice("Kunne ikke hente oppdateringer. Prøv igjen.");
+            }
+            finally
+            {
+                updating = false;
+                updateButton.Enabled = true;
+            }
+        }
+
+        private async Task PlayAsync()
+        {
+            if (starting || searching) return;
+            string account = (username.Text ?? "").Trim().ToUpperInvariant();
+            if (!System.Text.RegularExpressions.Regex.IsMatch(account, "^[A-Z0-9]{2,24}$"))
+            {
+                MessageBox.Show("Velg MICHAEL, JAYKE, BERNARD eller AUGUST først.",
+                    "Spillkonto", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            settings.Username = account;
+            Paths.Save(settings);
+            if (!GameDetector.IsVerified(settings.WowPath))
+            {
+                BrowseGame();
+                if (!GameDetector.IsVerified(settings.WowPath)) return;
+            }
+            if (SshSupport.PortOpen("127.0.0.1", 3724, 200) ||
+                SshSupport.PortOpen("127.0.0.1", 8085, 200))
+            {
+                MessageBox.Show("Port 3724 eller 8085 brukes allerede av en annen WoW-tunnel.\n" +
+                    "Lukk den gamle tilkoblingen først.", "Tilkobling opptatt",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            starting = true;
+            playButton.Enabled = false;
+            playButton.Text = "KOBLER TIL ...";
+            try
+            {
+                SshSupport.ExistingOrNewKey(settings);
+                GameDetector.Configure(settings.WowPath, account);
+                activeSsh = SshSupport.StartTunnel(settings);
+
+                bool ready = await Task.Run(() =>
+                {
+                    for (int i = 0; i < 40; i++)
+                    {
+                        if (activeSsh == null || activeSsh.HasExited) return false;
+                        if (SshSupport.PortOpen("127.0.0.1", 3724, 400) &&
+                            SshSupport.WorldChallenge()) return true;
+                        Thread.Sleep(500);
+                    }
+                    return false;
+                });
+                if (!ready)
+                {
+                    string error = "";
+                    try
+                    {
+                        if (activeSsh != null && activeSsh.HasExited)
+                            error = activeSsh.StandardError.ReadToEnd();
+                    }
+                    catch { }
+                    Paths.WriteLog("SSH tunnel failed: " + error);
+                    if (error.IndexOf("Permission denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        error.IndexOf("publickey", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        ShowPublicKey(true);
+                        Notice("Denne PC-ens offentlige nøkkel må godkjennes én gang av Michael.");
+                    }
+                    else
+                    {
+                        MessageBox.Show("Klarte ikke å åpne spillforbindelsen.\n\n" +
+                            (String.IsNullOrEmpty(error) ? "Kontroller serverstatus og at SSH-nøkkelen er godkjent." :
+                              error.Substring(0, Math.Min(700, error.Length))),
+                            "Tilkoblingsfeil", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    return;
+                }
+
+                var gameStart = new ProcessStartInfo(settings.WowPath)
+                {
+                    WorkingDirectory = Path.GetDirectoryName(settings.WowPath),
+                    UseShellExecute = true
+                };
+                activeWow = Process.Start(gameStart);
+                if (activeWow == null) throw new InvalidOperationException("WoW.exe ble ikke startet.");
+                Notice("WoW startet. SSH-tunnelen holdes åpen mens du spiller.");
+                playButton.Text = "SPILLER NÅ ...";
+                if (settings.AutoLogin)
+                    await AutoLogin.TryLoginAsync(activeWow, account);
+                await Task.Run(() => activeWow.WaitForExit());
+                Notice("WoW ble avsluttet. Spilltunnelen lukkes automatisk.");
+            }
+            catch (Exception ex)
+            {
+                Paths.WriteLog("Play failed: " + ex);
+                MessageBox.Show(ex.Message + "\n\nLogg: " + Paths.Log, "Oppstart feilet",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                try { if (activeSsh != null && !activeSsh.HasExited) activeSsh.Kill(); } catch { }
+                try { if (activeSsh != null) activeSsh.Dispose(); } catch { }
+                try { if (activeWow != null) activeWow.Dispose(); } catch { }
+                activeSsh = null;
+                activeWow = null;
+                starting = false;
+                if (!IsDisposed)
+                {
+                    playButton.Enabled = true;
+                    playButton.Text = "▶   PLAY TORTOISE WOW";
+                    await CheckStatusAsync();
+                }
+            }
+        }
+
+        private void ShowPublicKey(bool showInstructions)
+        {
+            try
+            {
+                string publicKey = SshSupport.PublicKey(settings);
+                Clipboard.SetText(publicKey);
+                MessageBox.Show(
+                    "Den offentlige SSH-nøkkelen er kopiert til utklippstavlen.\n\n" +
+                    "Send den til Michael for engangsgodkjenning på Altare-serveren.\n" +
+                    "Den PRIVATE nøkkelen må aldri deles.\n\n" +
+                    (showInstructions ? "Denne datamaskinen mangler SSH-tilgang. " : "") +
+                    "Når nøkkelen er godkjent, kan du trykke Play uten å gjøre mer.",
+                    "Førstegangsoppsett", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "SSH-nøkkel"); }
+        }
+
+        private void ShowSettings()
+        {
+            using (var dialog = new Form())
+            {
+                dialog.Text = "Tortoise Crew – Innstillinger";
+                dialog.ClientSize = new Size(610, 330);
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MaximizeBox = false;
+                dialog.MinimizeBox = false;
+                dialog.BackColor = background;
+                dialog.ForeColor = white;
+                dialog.Font = Font;
+                var header = new Label { Text = "TILKOBLING", Location = new Point(20, 18),
+                    Size = new Size(430, 30), Font = new Font("Segoe UI", 16, FontStyle.Bold),
+                    ForeColor = accent };
+                dialog.Controls.Add(header);
+                var endpoint = new Label
+                {
+                    Text = settings.Host + ":" + settings.SshPort + "   →   127.0.0.1:3724 / 8085",
+                    Location = new Point(23, 61), Size = new Size(554, 31), ForeColor = muted
+                };
+                dialog.Controls.Add(endpoint);
+
+                var pathLabel = new Label { Text = "Valgt WoW.exe:", Location = new Point(22, 112),
+                    Size = new Size(170, 25) };
+                dialog.Controls.Add(pathLabel);
+                var pathText = new TextBox { Text = settings.WowPath, Location = new Point(22, 143),
+                    Size = new Size(557, 25), ReadOnly = true };
+                dialog.Controls.Add(pathText);
+
+                var choose = new Button { Text = "Velg ny WoW.exe", Location = new Point(22, 186),
+                    Size = new Size(151, 34) };
+                choose.Click += (s, e) =>
+                {
+                    BrowseGame();
+                    pathText.Text = settings.WowPath;
+                };
+                dialog.Controls.Add(choose);
+
+                var copy = new Button { Text = "Kopier offentlig SSH-nøkkel",
+                    Location = new Point(188, 186), Size = new Size(225, 34) };
+                copy.Click += (s, e) => ShowPublicKey(false);
+                dialog.Controls.Add(copy);
+
+                var folder = new Button { Text = "Vis logger",
+                    Location = new Point(428, 186), Size = new Size(151, 34) };
+                folder.Click += (s, e) =>
+                {
+                    Directory.CreateDirectory(Paths.Root);
+                    Process.Start("explorer.exe", Paths.Root);
+                };
+                dialog.Controls.Add(folder);
+
+                var help = new Label { Text = "Serverportene oppdateres automatisk fra GitHub. " +
+                        "Dersom din PC er ny, send den offentlige SSH-nøkkelen til Michael.",
+                    Location = new Point(22, 251), Size = new Size(550, 51), ForeColor = muted };
+                dialog.Controls.Add(help);
+                dialog.ShowDialog(this);
+            }
+        }
+
+        private void OnClosing(object sender, FormClosingEventArgs e)
+        {
+            try { if (activeSsh != null && !activeSsh.HasExited) activeSsh.Kill(); }
+            catch { }
+            // Closing the launcher while playing would break the game tunnel.
+            if (activeWow != null)
+            {
+                try
+                {
+                    if (!activeWow.HasExited)
+                    {
+                        MessageBox.Show("WoW er fortsatt åpent. La launcheren stå åpen mens du spiller.",
+                            "Tortoise Crew", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        e.Cancel = true;
+                    }
+                }
+                catch { }
+            }
+        }
+    }
+}
