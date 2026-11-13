@@ -20,12 +20,6 @@ namespace TortoiseCrew
             try
             {
                 Directory.CreateDirectory(Paths.Root);
-                if (args.Length == 3 && args[0] == "--watch")
-                {
-                    // Background worker remains invisible while WoW is running.
-                    SessionMonitor.Watch(int.Parse(args[1]), int.Parse(args[2]), args.Length > 3 ? args[3] : "");
-                    return;
-                }
                 if (args.Length == 4 && args[0] == "--watch")
                 {
                     SessionMonitor.Watch(int.Parse(args[1]), int.Parse(args[2]), args[3]);
