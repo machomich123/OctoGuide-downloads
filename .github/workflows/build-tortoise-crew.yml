@@ -1,0 +1,85 @@
+name: Build Tortoise Crew Windows Launcher
+on:
+  issues:
+    types: [opened]
+permissions:
+  contents: write
+  issues: write
+jobs:
+  build:
+    if: >-
+      github.repository == 'machomich123/OctoGuide-downloads' &&
+      github.event.issue.user.login == 'machomich123' &&
+      github.event.issue.title == '[Build Tortoise Crew Launcher]'
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile standalone WinForms launcher (.NET Framework 4.8)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $csc = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
+          if (-not (Test-Path -LiteralPath $csc)) {
+              $csc = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter 'csc.exe' -ErrorAction SilentlyContinue | Where-Object FullName -Match '\\Roslyn\\csc.exe$' | Select-Object -First 1).FullName
+          }
+          if (-not $csc) { throw 'Missing Visual Studio Roslyn csc.exe' }
+          $target = 'tortoise-crew\TortoiseCrewLauncher.exe'
+          $sources = @(Get-ChildItem 'tortoise-crew\src\*.cs' | ForEach-Object FullName)
+          $compilerArgs = @('/nologo','/langversion:latest','/target:winexe','/platform:anycpu','/optimize+')
+          $compilerArgs += "/out:$target"
+          $compilerArgs += @('/reference:System.dll','/reference:System.Core.dll','/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll','/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll','/reference:Microsoft.CSharp.dll','/reference:System.Security.dll')
+          $compilerArgs += $sources
+          & $csc @compilerArgs
+          if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCODE" }
+          if (-not (Test-Path $target)) { throw "Built executable missing" }
+          Write-Host "Built launcher: $((Get-Item $target).Length) bytes"
+      - name: Build public GitHub update manifest
+        shell: pwsh
+        run: |
+          $exe = 'tortoise-crew\TortoiseCrewLauncher.exe'
+          $hash = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToUpperInvariant()
+          $manifest = [ordered]@{
+              launcherVersion = '1.0.0'
+              launcherUrl = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe'
+              launcherSha256 = $hash
+              host = 'us-iad01.altare.global'
+              sshPort = 25034
+              authPort = 3724
+              worldPort = 8085
+              message = 'Private Tortoise WoW 1.18.1 realm'
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'tortoise-crew\manifest.json' -Encoding utf8
+          Write-Host "Manifest SHA256: $hash"
+          Get-Content -LiteralPath 'tortoise-crew\manifest.json'
+      - name: Publish verified binary and server settings to the public distribution path
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tortoise-crew/TortoiseCrewLauncher.exe tortoise-crew/manifest.json
+          $changed = git diff --cached --name-only
+          if ($changed) {
+            git commit -m 'Publish Tortoise Crew Launcher v1.0.0 and public endpoint manifest'
+            if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
+            git push origin HEAD:main
+            if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
+          } else {
+            Write-Host 'No change to public binary and manifest.'
+          }
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TortoiseCrewLauncher-Windows-v1.0.0
+          path: |
+            tortoise-crew/TortoiseCrewLauncher.exe
+            tortoise-crew/manifest.json
+          retention-days: 30
+      - name: Summarize build in tracking issue
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $url = "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe"
+          $body = "Launcher v1.0.0 built and published. URL: $url. SHA256: $((Get-FileHash -Algorithm SHA256 'tortoise-crew\TortoiseCrewLauncher.exe').Hash)"
+          gh issue comment ${{ github.event.issue.number }} --body $body
