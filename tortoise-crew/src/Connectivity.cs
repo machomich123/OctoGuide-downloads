@@ -300,7 +300,7 @@ namespace TortoiseCrew
         // Vanilla/Turtle WoW focuses the password field when Config.wtf has a saved account.
         // Never retype the username: pressing Tab from the password field targets another input.
         // This is a single best-effort password submission, never a repeated retry loop.
-        public static async Task TryLoginAsync(Process game, string username)
+        public static async Task TryLoginAsync(Process game, string username, string password)
         {
             try
             {
@@ -348,8 +348,13 @@ namespace TortoiseCrew
                 }
 
                 // Config.wtf pre-fills the username. The client focuses its blank password box.
-                // Send exactly one password digit; avoid Ctrl+A and Tab to protect the username.
-                SendKeys.SendWait("1");
+                // Send the DPAPI-protected personal password exactly once, without Tab or Ctrl+A.
+                if (!CrewEnrollment.ValidExistingPassword(password))
+                {
+                    Paths.WriteLog("Auto-login skipped: no saved valid account password.");
+                    return;
+                }
+                SendKeys.SendWait(password);
                 await Task.Delay(70);
                 GetWindowThreadProcessId(GetForegroundWindow(), out foregroundProcessId);
                 if (foregroundProcessId != (uint)game.Id)
