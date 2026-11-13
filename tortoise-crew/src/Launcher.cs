@@ -693,7 +693,7 @@ namespace TortoiseCrew
                 dialog.Controls.Add(credentials);
                 var help = new Label { Text = "Game server ports are updated automatically from GitHub. " +
                         "On a new PC, send your public SSH key to Michael for approval.",
-                    Location = new Point(22, 251), Size = new Size(550, 51), ForeColor = muted };
+                    Location = new Point(22, 304), Size = new Size(550, 51), ForeColor = muted };
                 dialog.Controls.Add(help);
                 dialog.ShowDialog(this);
             }
