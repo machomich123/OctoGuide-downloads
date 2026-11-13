@@ -1,16 +1,16 @@
 name: Build Tortoise Crew Windows Launcher
 on:
-  issues:
-    types: [opened]
+  push:
+    branches: [main]
+    paths:
+      - 'tortoise-crew/src/**'
+      - '.github/workflows/build-tortoise-crew.yml'
 permissions:
   contents: write
   issues: write
 jobs:
   build:
-    if: >-
-      github.repository == 'machomich123/OctoGuide-downloads' &&
-      github.event.issue.user.login == 'machomich123' &&
-      github.event.issue.title == '[Build Tortoise Crew Launcher]'
+    if: github.repository == 'machomich123/OctoGuide-downloads'
     runs-on: windows-2022
     timeout-minutes: 12
     steps:
@@ -75,11 +75,3 @@ jobs:
             tortoise-crew/TortoiseCrewLauncher.exe
             tortoise-crew/manifest.json
           retention-days: 30
-      - name: Summarize build in tracking issue
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $url = "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe"
-          $body = "Launcher v1.0.0 built and published. URL: $url. SHA256: $((Get-FileHash -Algorithm SHA256 'tortoise-crew\TortoiseCrewLauncher.exe').Hash)"
-          gh issue comment ${{ github.event.issue.number }} --body $body
