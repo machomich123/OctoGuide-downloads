@@ -81,7 +81,7 @@ namespace TortoiseCrew
 
     internal static class CrewEnrollment
     {
-        private const string BootstrapPrivateBase64 = "LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFyWlhrdGRqRUFBQUFBQkc1dmJtVUFBQUFFYm05dVpRQUFBQUFBQUFBQkFBQUFNd0FBQUF0emMyZ3RaVwpReU5UVXhPUUFBQUNBSkdFVVl3YjJBQnFGRzJQSHF2QTVWamdTWDNkaVBvdFVNZUlRS2N5dFdBUUFBQUpodWdwUEdib0tUCnhnQUFBQXR6YzJndFpXUXlOVFV4T1FBQUFDQUpHRVVZd2IyQUJxRkcyUEhxdkE1VmpnU1gzZGlQb3RVTWVJUUtjeXRXQVEKQUFBRUNsbEt1Z2lmV1kvS3hMck9zTHhidlhQSkEwTThVTEVkMEpXcW9nN0czZ2dBa1lSUmpCdllBR29VYlk4ZXE4RGxXTwpCSmZkMkkraTFReDRoQXB6SzFZQkFBQUFGR055WlhjdFpXNXliMnd0WW05dmRITjBjbUZ3QVE9PQotLS0tLUVORCBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0K";
+        private const string BootstrapPrivateBase64 = ""; // Disabled: Altare SSH gateway ignores forced-key restrictions
         private static string BootstrapFile { get { return Path.Combine(Paths.Root, "crew-bootstrap"); } }
 
         public static bool ValidExistingPassword(string pass)
@@ -98,6 +98,7 @@ namespace TortoiseCrew
 
         private static void EnsureBootstrapFile()
         {
+            throw new InvalidOperationException("Crew onboarding has been disabled until a secure transport is configured.");
             Directory.CreateDirectory(Paths.Root);
             string key = Encoding.UTF8.GetString(Convert.FromBase64String(BootstrapPrivateBase64));
             if (!key.Contains("BEGIN OPENSSH PRIVATE KEY"))
