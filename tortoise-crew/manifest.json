@@ -1,0 +1,10 @@
+{
+  "launcherVersion": "1.0.0",
+  "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
+  "launcherSha256": "9564AEEF951AB95346C9552F92A7E59036A037854E6134320C052B125906FE95",
+  "host": "us-iad01.altare.global",
+  "sshPort": 25034,
+  "authPort": 3724,
+  "worldPort": 8085,
+  "message": "Private Tortoise WoW realm. Per-player SSH approval required."
+}
