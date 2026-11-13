@@ -60,10 +60,10 @@ namespace TortoiseCrew
                 if (!proc.WaitForExit(12000))
                 {
                     proc.Kill();
-                    throw new InvalidOperationException("Tidsavbrudd ved oppretting av SSH-nøkkel.");
+                    throw new InvalidOperationException("Timed out while generating an SSH key.");
                 }
                 if (proc.ExitCode != 0 || !File.Exists(chosen))
-                    throw new InvalidOperationException("Fant ikke ssh-keygen.exe. Aktiver OpenSSH Client i Windows.");
+                    throw new InvalidOperationException("ssh-keygen.exe is unavailable. Enable OpenSSH Client in Windows.");
             }
             Paths.WriteLog("Local SSH key generated, private key remains on this PC.");
             return chosen;
@@ -88,7 +88,7 @@ namespace TortoiseCrew
                 if (p.ExitCode == 0 && output.StartsWith("ssh-ed25519 "))
                     return output;
             }
-            throw new InvalidOperationException("Kunne ikke hente offentlig SSH-nøkkel.");
+            throw new InvalidOperationException("Could not obtain the public SSH key.");
         }
 
         public static bool PortOpen(string host, int port, int timeoutMs)
@@ -134,7 +134,7 @@ namespace TortoiseCrew
                 settings.SshPort < 1 || settings.SshPort > 65535 ||
                 settings.AuthPort < 1 || settings.AuthPort > 65535 ||
                 settings.WorldPort < 1 || settings.WorldPort > 65535)
-                throw new InvalidOperationException("Ugyldig serveradresse eller port fra oppsett.");
+                throw new InvalidOperationException("Invalid server address or port in the configuration.");
             string key = ExistingOrNewKey(settings);
             string args = "-N -T -F NUL -o BatchMode=yes -o IdentitiesOnly=yes " +
                 "-o StrictHostKeyChecking=accept-new -o ExitOnForwardFailure=yes " +
@@ -214,7 +214,7 @@ namespace TortoiseCrew
             using (var reader = new StreamReader(response.GetResponseStream()))
             {
                 string json = reader.ReadToEnd();
-                if (json.Length > 32000) throw new InvalidDataException("Oppdateringsmanifest for stort.");
+                if (json.Length > 32000) throw new InvalidDataException("Update manifest exceeds the size limit.");
                 var manifest = new JavaScriptSerializer().Deserialize<RealmManifest>(json);
                 if (manifest == null || String.IsNullOrEmpty(manifest.Host) ||
                     !Regex.IsMatch(manifest.Host, @"^[a-z0-9-]+\.altare\.global$", RegexOptions.IgnoreCase) ||
@@ -222,7 +222,7 @@ namespace TortoiseCrew
                     manifest.AuthPort < 1 || manifest.AuthPort > 65535 ||
                     manifest.WorldPort < 1 || manifest.WorldPort > 65535 ||
                     String.IsNullOrEmpty(manifest.LauncherVersion))
-                    throw new InvalidDataException("Ugyldige manifestverdier.");
+                    throw new InvalidDataException("Update manifest contains invalid values.");
                 return manifest;
             }
         }
@@ -245,11 +245,11 @@ namespace TortoiseCrew
 
         public static async Task<string> DownloadVerifiedUpdateAsync(RealmManifest manifest)
         {
-            if (!IsNewer(manifest)) throw new InvalidOperationException("Ingen nyere versjon.");
+            if (!IsNewer(manifest)) throw new InvalidOperationException("No newer version is available.");
             var expectedUrl = "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe";
             if (!String.Equals(manifest.LauncherUrl, expectedUrl, StringComparison.OrdinalIgnoreCase) ||
                 !Regex.IsMatch(manifest.LauncherSha256 ?? "", "^[0-9a-fA-F]{64}$"))
-                throw new InvalidDataException("Oppdateringen mangler en godkjent URL eller kontrollsum.");
+                throw new InvalidDataException("Update URL or SHA-256 checksum is not trusted.");
             string candidate = Path.Combine(Paths.Root, "pending-update.exe");
             await Task.Run(() =>
             {
@@ -268,7 +268,7 @@ namespace TortoiseCrew
                     {
                         count += n;
                         if (count > 35000000)
-                            throw new InvalidDataException("Oppdateringsfilen er for stor.");
+                            throw new InvalidDataException("Update file exceeds the size limit.");
                         output.Write(bytes, 0, n);
                     }
                 }
@@ -276,7 +276,7 @@ namespace TortoiseCrew
                 if (!String.Equals(actual, manifest.LauncherSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     File.Delete(candidate);
-                    throw new InvalidDataException("SHA-256 stemmer ikke. Oppdatering blokkert.");
+                    throw new InvalidDataException("SHA-256 verification failed. Update blocked.");
                 }
             });
             return candidate;
@@ -285,31 +285,85 @@ namespace TortoiseCrew
 
     public static class AutoLogin
     {
-        [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr handle);
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr handle);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint processId);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr handle);
+
+        // Vanilla/Turtle WoW focuses the password field when Config.wtf has a saved account.
+        // Never retype the username: pressing Tab from the password field targets another input.
+        // This is a single best-effort password submission, never a repeated retry loop.
         public static async Task TryLoginAsync(Process game, string username)
         {
-            // Avoid injecting into unknown processes and only perform this once per game launch.
-            await Task.Delay(4500);
             try
             {
+                IntPtr gameWindow = IntPtr.Zero;
+                for (int i = 0; i < 100; i++)
+                {
+                    if (game.HasExited) return;
+                    game.Refresh();
+                    gameWindow = game.MainWindowHandle;
+                    if (gameWindow != IntPtr.Zero && IsWindowVisible(gameWindow))
+                        break;
+                    await Task.Delay(250);
+                }
+
+                if (gameWindow == IntPtr.Zero || !IsWindowVisible(gameWindow))
+                {
+                    Paths.WriteLog("Auto-login skipped: the WoW window was not ready.");
+                    return;
+                }
+
+                // Give the game time to render the login UI after creating the window.
+                await Task.Delay(4500);
                 if (game.HasExited) return;
                 game.Refresh();
-                var handle = game.MainWindowHandle;
-                if (handle == IntPtr.Zero) return;
-                SetForegroundWindow(handle);
-                await Task.Delay(1100);
+                gameWindow = game.MainWindowHandle;
+                if (gameWindow == IntPtr.Zero || !IsWindowVisible(gameWindow)) return;
+
+                uint windowProcessId;
+                GetWindowThreadProcessId(gameWindow, out windowProcessId);
+                if (windowProcessId != (uint)game.Id)
+                {
+                    Paths.WriteLog("Auto-login skipped: unexpected game window.");
+                    return;
+                }
+
+                SetForegroundWindow(gameWindow);
+                await Task.Delay(350);
                 if (game.HasExited) return;
-                // The original 1.18.1 login screen opens with username focused.
-                // Config.wtf is already prefilled; send both fields for resilience.
-                SendKeys.SendWait("^a");
-                SendKeys.SendWait(username.ToUpperInvariant());
-                SendKeys.SendWait("{TAB}");
+                uint foregroundProcessId;
+                GetWindowThreadProcessId(GetForegroundWindow(), out foregroundProcessId);
+                if (foregroundProcessId != (uint)game.Id)
+                {
+                    Paths.WriteLog("Auto-login skipped: WoW is not the foreground window.");
+                    return;
+                }
+
+                // Config.wtf pre-fills the username. The client focuses its blank password box.
+                // Send exactly one password digit; avoid Ctrl+A and Tab to protect the username.
                 SendKeys.SendWait("1");
+                await Task.Delay(150);
+                GetWindowThreadProcessId(GetForegroundWindow(), out foregroundProcessId);
+                if (foregroundProcessId != (uint)game.Id)
+                {
+                    Paths.WriteLog("Auto-login aborted: WoW lost focus before submitting.");
+                    return;
+                }
                 SendKeys.SendWait("{ENTER}");
-                Paths.WriteLog("Single best-effort autologin keystroke sequence sent.");
+                Paths.WriteLog("Auto-login v2: password sent once to the focused WoW window; username was untouched.");
             }
-            catch (Exception ex) { Paths.WriteLog("Auto login skipped: " + ex.GetType().Name); }
+            catch (Exception ex)
+            {
+                Paths.WriteLog("Auto-login skipped: " + ex.GetType().Name);
+            }
         }
     }
 }
