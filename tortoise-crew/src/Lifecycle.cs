@@ -157,11 +157,38 @@ namespace TortoiseCrew
                                 if (File.Exists(backup)) File.Copy(backup, target, true);
                                 throw new InvalidDataException("Installed update checksum mismatch.");
                             }
-                            Process.Start(new ProcessStartInfo(target)
+                            try
                             {
-                                WorkingDirectory = Paths.Root,
-                                UseShellExecute = true
-                            });
+                                Process.Start(new ProcessStartInfo(target)
+                                {
+                                    WorkingDirectory = Paths.Root,
+                                    UseShellExecute = true
+                                });
+                            }
+                            catch (Exception startError)
+                            {
+                                // A fully downloaded binary can still be unable to launch.
+                                // Restore the previous working version from the atomic backup.
+                                Paths.WriteLog("Updated launcher failed to start; restoring backup: " +
+                                               startError.GetType().Name);
+                                if (File.Exists(backup))
+                                {
+                                    File.Copy(backup, target, true);
+                                    try
+                                    {
+                                        Process.Start(new ProcessStartInfo(target)
+                                        {
+                                            WorkingDirectory = Paths.Root,
+                                            UseShellExecute = true
+                                        });
+                                    }
+                                    catch (Exception rollbackError)
+                                    {
+                                        Paths.WriteLog("Backup relaunch failed: " + rollbackError.GetType().Name);
+                                    }
+                                }
+                                throw new IOException("Update could not launch. Previous version was restored.", startError);
+                            }
                             Paths.WriteLog("Launcher update installed successfully: " + expectedHash);
                             return;
                         }
