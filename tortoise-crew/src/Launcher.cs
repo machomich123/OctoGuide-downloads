@@ -30,6 +30,19 @@ namespace TortoiseCrew
                     SafeUpdater.ReplaceInstalled(args[1], args[2]);
                     return;
                 }
+                if (args.Length == 2 && args[0] == "--replace")
+                {
+                    // Backwards-compatible update from v1.0.0/v1.0.1:
+                    // they invoke downloaded EXEs with no SHA argument, having
+                    // already validated the download against the GitHub manifest.
+                    // Validate the currently published manifest again here.
+                    var manifest = RemoteUpdates.Fetch();
+                    string hash = GameDetector.HashOf(Assembly.GetExecutingAssembly().Location);
+                    if (!String.Equals(manifest.LauncherSha256, hash, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("The downloaded update is not in the trusted GitHub manifest.");
+                    SafeUpdater.ReplaceInstalled(args[1], hash);
+                    return;
+                }
 
                 string current = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
                 if (!String.Equals(current, Paths.Executable, StringComparison.OrdinalIgnoreCase))
