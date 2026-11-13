@@ -240,6 +240,7 @@ namespace TortoiseCrew
             settings.SshPort = manifest.SshPort;
             settings.AuthPort = manifest.AuthPort;
             settings.WorldPort = manifest.WorldPort;
+            settings.CrewApiUrl = manifest.CrewApiUrl ?? "";
             Paths.Save(settings);
         }
 
@@ -354,7 +355,16 @@ namespace TortoiseCrew
                     Paths.WriteLog("Auto-login skipped: no saved valid account password.");
                     return;
                 }
-                SendKeys.SendWait(password);
+                // Escape SendKeys metacharacters so symbols remain literal.
+                var escaped = new StringBuilder(password.Length * 3);
+                foreach (char c in password)
+                {
+                    if ("+^%~(){}[]".IndexOf(c) >= 0)
+                        escaped.Append('{').Append(c).Append('}');
+                    else
+                        escaped.Append(c);
+                }
+                SendKeys.SendWait(escaped.ToString());
                 await Task.Delay(70);
                 GetWindowThreadProcessId(GetForegroundWindow(), out foregroundProcessId);
                 if (foregroundProcessId != (uint)game.Id)
