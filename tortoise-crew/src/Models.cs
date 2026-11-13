@@ -126,6 +126,30 @@ namespace TortoiseCrew
                 return BitConverter.ToString(sha.ComputeHash(input)).Replace("-", "");
         }
 
+        private static bool LooksLikeOctoClient(string exe)
+        {
+            string folder = (Path.GetDirectoryName(exe) ?? "").Replace('/', '\\');
+            return Regex.IsMatch(folder, @"(^|\\)(client-octo|octowow)(\\|$)", RegexOptions.IgnoreCase);
+        }
+
+        private static int ClientPreference(string exe)
+        {
+            var parent = Path.GetDirectoryName(exe) ?? "";
+            var folder = Path.GetFileName(parent) ?? "";
+            int score = 0;
+            if (String.Equals(folder, "client-turtle", StringComparison.OrdinalIgnoreCase))
+                score += 1000;
+            else if (folder.IndexOf("turtle", StringComparison.OrdinalIgnoreCase) >= 0)
+                score += 400;
+            else if (folder.IndexOf("tortoise", StringComparison.OrdinalIgnoreCase) >= 0)
+                score += 300;
+            if (Directory.Exists(Path.Combine(parent, "Data")))
+                score += 100;
+            if (LooksLikeOctoClient(exe))
+                score -= 1000;
+            return score;
+        }
+
         public static string Browse(string current)
         {
             using (var dialog = new OpenFileDialog())
@@ -143,6 +167,17 @@ namespace TortoiseCrew
                             "Select WoW.exe from your client-turtle folder, not a newer or differently modified WoW client.",
                             "Wrong WoW client", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return "";
+                    }
+                    if (LooksLikeOctoClient(dialog.FileName))
+                    {
+                        var confirmation = MessageBox.Show(
+                            "This appears to be an OctoWoW client folder.\n\n" +
+                            "This exact WoW.exe may match build 7272, but Octo's modified assets " +
+                            "previously caused missing textures and Error #132.\n\n" +
+                            "Use this folder anyway?",
+                            "Potentially incompatible client",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        if (confirmation != DialogResult.Yes) return "";
                     }
                     return dialog.FileName;
                 }
@@ -192,7 +227,9 @@ namespace TortoiseCrew
                         matches.Add(candidate);
                 }
                 catch { }
-                if (matches.Count > 0 && started.Elapsed.TotalSeconds > 5)
+                // Do not stop at an Octo folder when a verified client-turtle may exist.
+                if (matches.Any(m => ClientPreference(m) >= 1000) &&
+                    started.Elapsed.TotalSeconds > 5)
                     break;
                 try
                 {
@@ -214,14 +251,22 @@ namespace TortoiseCrew
                 catch { }
             }
             if (matches.Count == 0) return "";
-            return matches.OrderByDescending(m => {
-                try { return File.GetLastAccessTimeUtc(m); } catch { return DateTime.MinValue; }
-            }).First();
+            // Exact executable hash is mandatory; compatible Turtle data folders
+            // outrank Octo folders. Among equivalent folders prefer recent access.
+            string selected = matches
+                .OrderByDescending(m => ClientPreference(m))
+                .ThenByDescending(m => {
+                    try { return File.GetLastAccessTimeUtc(m); }
+                    catch { return DateTime.MinValue; }
+                })
+                .First();
+            // Never automatically choose the Octo client known to crash; ask the user instead.
+            return LooksLikeOctoClient(selected) ? "" : selected;
         }
 
         public static void Configure(string exe, string username)
         {
-            if (!IsVerified(exe)) throw new InvalidOperationException("WoW.exe ble ikke verifisert.");
+            if (!IsVerified(exe)) throw new InvalidOperationException("WoW.exe could not be verified.");
             if (!Regex.IsMatch(username, @"^[A-Za-z0-9]{2,24}$"))
                 throw new InvalidOperationException("Username must contain 2–24 letters or digits.");
             var gameDir = Path.GetDirectoryName(exe);
