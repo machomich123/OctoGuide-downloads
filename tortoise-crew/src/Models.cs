@@ -49,7 +49,7 @@ namespace TortoiseCrew
 
     public static class Paths
     {
-        public const string Version = "1.0.0";
+        public const string Version = "1.0.1";
         public const string GoodSha256 = "97EA82AB7A82ED88BC5A155AB9BBF7E0BCDB5B9F892A47C6F8EDABE1496BFC75";
         public const string ManifestUrl = "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/manifest.json";
         public static readonly string Root = Path.Combine(
@@ -130,7 +130,7 @@ namespace TortoiseCrew
         {
             using (var dialog = new OpenFileDialog())
             {
-                dialog.Title = "Velg WoW.exe fra Tortoise / Turtle WoW 1.18.1";
+                dialog.Title = "Choose WoW.exe from Tortoise / Turtle WoW 1.18.1";
                 dialog.Filter = "World of Warcraft|WoW.exe";
                 dialog.FileName = "WoW.exe";
                 if (!String.IsNullOrEmpty(current) && Directory.Exists(Path.GetDirectoryName(current)))
@@ -139,9 +139,9 @@ namespace TortoiseCrew
                 {
                     if (!IsVerified(dialog.FileName))
                     {
-                        MessageBox.Show("Denne WoW.exe samsvarer ikke med bekreftet Tortoise 1.18.1 (build 7272).\n\n" +
-                            "Velg filen fra client-turtle-mappen, ikke en nyere WoW-versjon eller en annen modifisert klient.",
-                            "Feil WoW-klient", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("This WoW.exe does not match the verified Tortoise 1.18.1 (build 7272).\n\n" +
+                            "Select WoW.exe from your client-turtle folder, not a newer or differently modified WoW client.",
+                            "Wrong WoW client", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return "";
                     }
                     return dialog.FileName;
@@ -223,7 +223,7 @@ namespace TortoiseCrew
         {
             if (!IsVerified(exe)) throw new InvalidOperationException("WoW.exe ble ikke verifisert.");
             if (!Regex.IsMatch(username, @"^[A-Za-z0-9]{2,24}$"))
-                throw new InvalidOperationException("Brukernavn må bestå av 2–24 bokstaver/tall.");
+                throw new InvalidOperationException("Username must contain 2–24 letters or digits.");
             var gameDir = Path.GetDirectoryName(exe);
             var realmlist = Path.Combine(gameDir, "realmlist.wtf");
             WriteBackedUp(realmlist, "set realmlist 127.0.0.1" + Environment.NewLine);
