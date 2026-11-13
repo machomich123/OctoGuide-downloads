@@ -1,24 +1,21 @@
-# Tortoise Crew Launcher v1.0.2
+# Tortoise Crew Launcher v1.0.3
 
-A shared Windows launcher for MICHAEL, JAYKE, BERNARD, and AUGUST.
+One shared Windows launcher for MICHAEL, JAYKE, BERNARD and AUGUST.
 
-**[Download v1.0.2 ZIP](./TortoiseCrewLauncher-v1.0.2.zip)** · Extract and run the enclosed `TortoiseCrewLauncher.exe`.
+**[Download v1.0.3 ZIP](./TortoiseCrewLauncher-v1.0.3.zip)** · Extract and run `TortoiseCrewLauncher.exe`. Existing v1.0.2 users can press **Update v1.0.3**.
 
-## What's new in 1.0.2
+## What's new
 
-- Faster auto-login: the verified WoW window is focused shortly after it becomes visible, with a ~400ms settling delay instead of the previous fixed 4.5-second delay. Username is prefilled from WoW config; only the password is typed once.
-- Automatic launcher exit: when WoW starts, a hidden watcher takes over the SSH process. The window then closes. The watcher closes the tunnel only after WoW exits, verified by a Windows integration test.
-- Safer self-update: downloads are SHA-256 verified, the replacement runs in a separate invisible helper, and the previous installed EXE is preserved as an NTFS backup. Updates are blocked while WoW is running.
-- Supports existing v1.0.1's two-argument update protocol, so existing users can upgrade using their **Update** button. The first upgrade still invokes the old v1.0.1 update implementation.
+- Each player can save their own game-account password using **Account & Password**. Credentials are stored locally with Windows DPAPI; no passwords are sent to GitHub.
+- When personal passwords are configured, the game's auto-login uses them instead of hard-coded `1`.
+- To **change** a game-account password, use **Account & Password → Change my password using the in-game command**. Enter the current and new password (12–16 alphanumeric characters). The launcher copies the normal player command to the clipboard. Log in with your current password, paste the command into WoW chat, wait for server confirmation, then return to **Account & Password → Remember my existing account password** and save the new one. It is not changed merely by saving it in the launcher.
+- Launcher still finds the exact approved WoW.exe, creates the desktop shortcut, connects using SSH, and closes the window while the background watcher retains the tunnel until WoW exits.
+- GitHub manifest handles server routing and update verification using SHA-256.
 
-## Setup
+## Important SSH security limitation
 
-1. Run the EXE. It installs to `%LOCALAPPDATA%\TortoiseCrewLauncher` and creates a desktop shortcut.
-2. Choose MICHAEL, JAYKE, BERNARD, or AUGUST. Find or browse to the exact verified WoW 1.18.1 build 7272 executable in a compatible Turtle/Tortoise client folder; Octo client assets are known to cause graphic issues.
-3. Each new PC generates its own OpenSSH Ed25519 key. Use **Settings → Copy public SSH key** and send only the public key to the server administrator for one-time approval. Never share private keys.
-4. Click **Play**. A private SSH tunnel connects to Altare; the launcher closes when the game starts, with the background watcher monitoring the connection.
-5. New versions and changing Altare ports are discovered from the public `manifest.json`. Press **Update** and confirm to upgrade.
+The Altare public SSH gateway was confirmed to ignore OpenSSH `authorized_keys` forced-command and `restrict` options. **Automatic public key enrollment is intentionally disabled in this release.** No shared SSH bootstrap credential is distributed in the EXE. Players without SSH access still need administrator-assisted provisioning until a properly isolated relay or service is deployed. Do not assume existing tunnel keys prevent remote shell access on Altare.
 
-If autologin is unreliable on a specific PC, disable it in the launcher. It does not modify or inject into WoW.exe. Log: `%LOCALAPPDATA%\TortoiseCrewLauncher\launcher.log`.
+Current local logs: `%LOCALAPPDATA%\TortoiseCrewLauncher\launcher.log`.
 
-**Security:** All game accounts currently share the weak password `1`; use distinct stronger game passwords when feasible. Public SSH keys grant port-restricted access only after approval.
+Source code: [src](./src).

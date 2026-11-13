@@ -1,10 +1,10 @@
 {
-  "launcherVersion": "1.0.2",
+  "launcherVersion": "1.0.3",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "1DA4E0E597416F64D42577D45A67A8FAC2308D73D9BA2307BF8F4DEC1F3E3D2A",
+  "launcherSha256": "8154D70EFB975DFEFDDBC6F7CA53B6DFEAC17F49B26E5557A4645E54B42010F5",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.2: Fast autologin, resilient background updater, launcher closes automatically after game launch."
+  "message": "v1.0.3: Separate encrypted personal passwords and guided in-game password change. Automatic SSH key enrollment disabled for security."
 }
