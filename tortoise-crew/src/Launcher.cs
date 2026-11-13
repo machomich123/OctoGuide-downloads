@@ -20,23 +20,21 @@ namespace TortoiseCrew
             try
             {
                 Directory.CreateDirectory(Paths.Root);
-                if (args.Length >= 2 && args[0] == "--replace")
+                if (args.Length == 3 && args[0] == "--watch")
                 {
-                    string original = Path.GetFullPath(args[1]);
-                    if (!String.Equals(original, Paths.Executable, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidOperationException("Update target is outside the launcher installation folder.");
-                    for (int attempt = 0; attempt < 48; attempt++)
-                    {
-                        try
-                        {
-                            Thread.Sleep(250);
-                            File.Copy(Assembly.GetExecutingAssembly().Location, original, true);
-                            Process.Start(new ProcessStartInfo(original) { WorkingDirectory = Paths.Root });
-                            return;
-                        }
-                        catch (IOException) { }
-                    }
-                    throw new IOException("Could not replace the running launcher.");
+                    // Background worker remains invisible while WoW is running.
+                    SessionMonitor.Watch(int.Parse(args[1]), int.Parse(args[2]), args.Length > 3 ? args[3] : "");
+                    return;
+                }
+                if (args.Length == 4 && args[0] == "--watch")
+                {
+                    SessionMonitor.Watch(int.Parse(args[1]), int.Parse(args[2]), args[3]);
+                    return;
+                }
+                if (args.Length == 3 && args[0] == "--replace")
+                {
+                    SafeUpdater.ReplaceInstalled(args[1], args[2]);
+                    return;
                 }
 
                 string current = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
@@ -108,7 +106,7 @@ namespace TortoiseCrew
         private Button playButton, updateButton, browseButton, keyButton, settingsButton;
         private CheckBox loginToggle;
         private Process activeSsh, activeWow;
-        private bool starting, checking, searching, updating;
+        private bool starting, checking, searching, updating, handedOffSession, closingForUpdate;
 
         public LauncherForm()
         {
@@ -430,11 +428,31 @@ namespace TortoiseCrew
                             "Launcher update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                         if (ask == DialogResult.Yes)
                         {
+                            if (SessionMonitor.IsSessionActive() || activeWow != null)
+                            {
+                                Notice("Close WoW before installing a launcher update.");
+                                return;
+                            }
+                            updateButton.Text = "DOWNLOADING...";
+                            feedMessage.Text = "Downloading and verifying the signed-off update...";
                             string candidate = await RemoteUpdates.DownloadVerifiedUpdateAsync(manifest);
-                            Paths.WriteLog("Verified update downloaded; switching to new version.");
-                            Process.Start(new ProcessStartInfo(candidate,
-                                "--replace \"" + Paths.Executable + "\"")
-                            { UseShellExecute = true, WorkingDirectory = Paths.Root });
+                            if (!File.Exists(candidate))
+                                throw new IOException("Update download was not saved.");
+                            Paths.WriteLog("SHA-256 verified. Starting safe, independent updater.");
+                            var helperStart = new ProcessStartInfo(candidate,
+                                "--replace \"" + Paths.Executable + "\" " + manifest.LauncherSha256)
+                            {
+                                WorkingDirectory = Paths.Root,
+                                UseShellExecute = false,
+                                CreateNoWindow = true,
+                                WindowStyle = ProcessWindowStyle.Hidden
+                            };
+                            using (var helper = Process.Start(helperStart))
+                            {
+                                if (helper == null) throw new IOException("Could not start update helper.");
+                            }
+                            closingForUpdate = true;
+                            Hide();
                             Close();
                             return;
                         }
@@ -458,7 +476,8 @@ namespace TortoiseCrew
             finally
             {
                 updating = false;
-                updateButton.Enabled = true;
+                if (!IsDisposed && !Disposing && !closingForUpdate)
+                    updateButton.Enabled = true;
             }
         }
 
@@ -544,8 +563,13 @@ namespace TortoiseCrew
                 playButton.Text = "GAME RUNNING...";
                 if (settings.AutoLogin)
                     await AutoLogin.TryLoginAsync(activeWow, account);
-                await Task.Run(() => activeWow.WaitForExit());
-                Notice("WoW exited. The game tunnel was closed automatically.");
+                if (!await SessionMonitor.HandOffAsync(activeWow.Id, activeSsh.Id))
+                    throw new InvalidOperationException(
+                        "The background game-session monitor could not start; the launcher will keep the tunnel until you retry.");
+                handedOffSession = true;
+                Paths.WriteLog("WoW launched successfully. Closing UI; background session monitor owns SSH.");
+                Close();
+                return;
             }
             catch (Exception ex)
             {
@@ -555,13 +579,17 @@ namespace TortoiseCrew
             }
             finally
             {
-                try { if (activeSsh != null && !activeSsh.HasExited) activeSsh.Kill(); } catch { }
+                // After confirmed handoff, the background monitor must keep SSH alive.
+                if (!handedOffSession)
+                {
+                    try { if (activeSsh != null && !activeSsh.HasExited) activeSsh.Kill(); } catch { }
+                }
                 try { if (activeSsh != null) activeSsh.Dispose(); } catch { }
                 try { if (activeWow != null) activeWow.Dispose(); } catch { }
                 activeSsh = null;
                 activeWow = null;
                 starting = false;
-                if (!IsDisposed)
+                if (!IsDisposed && !Disposing && !handedOffSession)
                 {
                     playButton.Enabled = true;
                     playButton.Text = "▶   PLAY TORTOISE WOW";
@@ -651,14 +679,17 @@ namespace TortoiseCrew
 
         private void OnClosing(object sender, FormClosingEventArgs e)
         {
-            // Never kill the tunnel if closing was cancelled; the player would disconnect.
+            if (handedOffSession || closingForUpdate)
+                return;
+            // Never kill the tunnel if closing was cancelled.
             if (activeWow != null)
             {
                 try
                 {
                     if (!activeWow.HasExited)
                     {
-                        MessageBox.Show("WoW is still running. Keep the launcher open while playing.",
+                        MessageBox.Show("WoW is still running. The launcher must remain open until " +
+                                        "the background session monitor is ready.",
                             "Tortoise Crew", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         e.Cancel = true;
                         return;
