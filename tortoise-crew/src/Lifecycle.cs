@@ -187,7 +187,7 @@ namespace TortoiseCrew
                                         Paths.WriteLog("Backup relaunch failed: " + rollbackError.GetType().Name);
                                     }
                                 }
-                                throw new IOException("Update could not launch. Previous version was restored.", startError);
+                                throw new InvalidOperationException("Update could not launch. Previous version was restored.", startError);
                             }
                             Paths.WriteLog("Launcher update installed successfully: " + expectedHash);
                             return;
