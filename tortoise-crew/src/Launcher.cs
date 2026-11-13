@@ -539,7 +539,7 @@ namespace TortoiseCrew
                     UseShellExecute = true
                 };
                 activeWow = Process.Start(gameStart);
-                if (activeWow == null) throw new InvalidOperationException("WoW.exe ble ikke startet.");
+                if (activeWow == null) throw new InvalidOperationException("WoW.exe could not be started.");
                 Notice("WoW launched. The private tunnel stays connected while you play.");
                 playButton.Text = "GAME RUNNING...";
                 if (settings.AutoLogin)
