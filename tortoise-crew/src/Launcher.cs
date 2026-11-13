@@ -427,7 +427,7 @@ namespace TortoiseCrew
                     {
                         var ask = MessageBox.Show(
                             "Version " + manifest.LauncherVersion + " is ready.\n\nInstall it now?",
-                            "Launcher-oppdatering", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                            "Launcher update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                         if (ask == DialogResult.Yes)
                         {
                             string candidate = await RemoteUpdates.DownloadVerifiedUpdateAsync(manifest);
@@ -591,7 +591,7 @@ namespace TortoiseCrew
         {
             using (var dialog = new Form())
             {
-                dialog.Text = "Tortoise Crew – Settings";
+                dialog.Text = "Tortoise Crew - Settings";
                 dialog.ClientSize = new Size(610, 330);
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -627,7 +627,7 @@ namespace TortoiseCrew
                 };
                 dialog.Controls.Add(choose);
 
-                var copy = new Button { Text = "Kopier offentlig SSH key",
+                var copy = new Button { Text = "Copy public SSH key",
                     Location = new Point(188, 186), Size = new Size(225, 34) };
                 copy.Click += (s, e) => ShowPublicKey(false);
                 dialog.Controls.Add(copy);
@@ -642,7 +642,7 @@ namespace TortoiseCrew
                 dialog.Controls.Add(folder);
 
                 var help = new Label { Text = "Game server ports are updated automatically from GitHub. " +
-                        "Dersom din PC er ny, send den offentlige SSH keyen til Michael.",
+                        "On a new PC, send your public SSH key to Michael for approval.",
                     Location = new Point(22, 251), Size = new Size(550, 51), ForeColor = muted };
                 dialog.Controls.Add(help);
                 dialog.ShowDialog(this);
