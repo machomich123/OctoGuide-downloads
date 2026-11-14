@@ -74,12 +74,24 @@ namespace TortoiseCrew
                     }
                     if (initial)
                     {
-                        if (!String.IsNullOrEmpty(settings.CrewApiUrl))
-                            await CrewApi.LoginAsync(settings, username, current.Text);
-                        PasswordVault.Save(username, current.Text);
-                        result = true;
-                        dialog.DialogResult = DialogResult.OK;
-                        dialog.Close();
+                        save.Enabled = false;
+                        try
+                        {
+                            if (!String.IsNullOrEmpty(settings.CrewApiUrl))
+                                await CrewApi.LoginAsync(settings, username, current.Text);
+                            PasswordVault.Save(username, current.Text);
+                            result = true;
+                            dialog.DialogResult = DialogResult.OK;
+                            dialog.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            detail.Text = "Sign-in failed: " + ex.Message;
+                        }
+                        finally
+                        {
+                            if (!dialog.IsDisposed) save.Enabled = true;
+                        }
                         return;
                     }
                     if (!CrewEnrollment.ValidNewPassword(desired.Text) ||
