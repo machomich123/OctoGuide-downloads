@@ -2,6 +2,8 @@
 
 One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
+**[Download launcher v1.0.4 EXE](./TortoiseCrewLauncher.exe)** · **[Download ZIP](./TortoiseCrewLauncher-v1.0.4.zip)**. Both are built from the verified Windows 1.0.4 source. Existing clients update through the SHA-256-checked GitHub manifest.
+
 ## First-time setup and play
 
 1. Run `TortoiseCrewLauncher.exe`. Existing installations detect the update through the verified GitHub manifest.
