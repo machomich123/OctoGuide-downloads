@@ -1,0 +1,46 @@
+name: Tortoise Crew v1.0.4 preview compile
+on:
+  push:
+    branches: [feature/crew-v1.0.4]
+    paths:
+      - 'tortoise-crew/src/**'
+      - '.github/workflows/crew-preview.yml'
+  pull_request:
+    paths:
+      - 'tortoise-crew/src/**'
+jobs:
+  compile:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile with installed .NET Framework 4.8
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $csc = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
+          if (-not (Test-Path $csc)) {
+            $csc = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter 'csc.exe' -ErrorAction SilentlyContinue |
+              Where-Object FullName -Match '\\Roslyn\\csc.exe$' | Select-Object -First 1).FullName
+          }
+          if (-not $csc) { throw 'Missing C# compiler' }
+          New-Item -ItemType Directory -Path 'out' -Force | Out-Null
+          $sources = @(Get-ChildItem 'tortoise-crew\src\*.cs' | ForEach-Object FullName)
+          $refs = @('/reference:System.dll','/reference:System.Core.dll','/reference:System.Drawing.dll',
+            '/reference:System.Windows.Forms.dll','/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll',
+            '/reference:Microsoft.CSharp.dll','/reference:System.Security.dll')
+          $args = @('/nologo','/langversion:latest','/target:winexe','/platform:anycpu','/optimize+',
+            '/out:out\TortoiseCrewLauncher-preview.exe') + $refs + $sources
+          & $csc @args
+          if ($LASTEXITCODE -ne 0) { throw "Compilation failed: $LASTEXITCODE" }
+          $assembly=[Reflection.AssemblyName]::GetAssemblyName((Resolve-Path 'out\TortoiseCrewLauncher-preview.exe').Path)
+          if ($assembly.Version.ToString() -ne '1.0.4.0') { throw "Wrong version $($assembly.Version)" }
+          Get-FileHash out\TortoiseCrewLauncher-preview.exe -Algorithm SHA256
+      - name: Upload preview executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: tortoise-crew-v1.0.4-preview
+          path: out/TortoiseCrewLauncher-preview.exe
+          retention-days: 30
