@@ -9,7 +9,7 @@ namespace TortoiseCrew
     // the gateway does not enforce authorized_keys forced-command restrictions.
     internal static class AccountSetup
     {
-        public static bool Show(IWin32Window parent, LauncherSettings settings, string username)
+        public static bool Show(IWin32Window parent, LauncherSettings settings, string username, bool initial = false)
         {
             if (!Regex.IsMatch(username ?? "", "^(MICHAEL|JAYKE|BERNARD|AUGUST)$"))
             {
@@ -35,16 +35,6 @@ namespace TortoiseCrew
                 dialog.Controls.Add(new Label {
                     Text = "Passwords are encrypted locally with Windows DPAPI.",
                     Location = new Point(24,53), Size = new Size(540,25) });
-                var mode = new ComboBox {
-                    Location = new Point(24,89), Size = new Size(540,30),
-                    DropDownStyle = ComboBoxStyle.DropDownList
-                };
-                mode.Items.AddRange(new object[] {
-                    "Remember my existing account password",
-                    "Change my password using the in-game command"
-                });
-                mode.SelectedIndex = 0;
-                dialog.Controls.Add(mode);
                 Func<string,int,Label> label = (text,y) => {
                     var l = new Label { Text=text, Location=new Point(24,y),
                         Size=new Size(540,21), ForeColor=Color.LightGray };
@@ -59,7 +49,7 @@ namespace TortoiseCrew
                 };
                 var oldLabel = label("Current game account password", 129);
                 var current = passwordBox(151);
-                var newLabel = label("Choose a new password (12-16 letters and digits)", 194);
+                var newLabel = label("New password (1-16 characters, no strength rules)", 194);
                 var desired = passwordBox(216);
                 var confirmLabel = label("Confirm your new password", 252);
                 var confirm = passwordBox(274);
@@ -70,26 +60,22 @@ namespace TortoiseCrew
                     Size=new Size(158,44), FlatStyle=FlatStyle.Flat,
                     BackColor=Color.FromArgb(98,232,190),ForeColor=Color.Black };
                 dialog.Controls.Add(save);
-                Action refresh = () => {
-                    bool change = mode.SelectedIndex == 1;
-                    newLabel.Visible = desired.Visible = change;
-                    confirmLabel.Visible = confirm.Visible = change;
-                    detail.Text = change
-                        ? "A game chat command is copied. Run it inside WoW to activate the new password."
-                        : "Save the password already active on the server (use 1 only before changing it).";
-                    save.Text = change ? "COPY COMMAND" : "SAVE PASSWORD";
-                };
-                mode.SelectedIndexChanged += (s,e) => refresh();
-                refresh();
+                newLabel.Visible = desired.Visible = !initial;
+                confirmLabel.Visible = confirm.Visible = !initial;
+                detail.Text = initial ? "Enter the account password once." :
+                    "Updates your WoW account immediately, without in-game commands.";
+                save.Text = initial ? "SAVE PASSWORD" : "DONE";
                 bool result = false;
-                save.Click += (s,e) => {
+                save.Click += async (s,e) => {
                     if (!CrewEnrollment.ValidExistingPassword(current.Text))
                     {
                         detail.Text = "Enter the current game account password.";
                         return;
                     }
-                    if (mode.SelectedIndex == 0)
+                    if (initial)
                     {
+                        if (!String.IsNullOrEmpty(settings.CrewApiUrl))
+                            await CrewApi.LoginAsync(settings, username, current.Text);
                         PasswordVault.Save(username, current.Text);
                         result = true;
                         dialog.DialogResult = DialogResult.OK;
@@ -99,24 +85,19 @@ namespace TortoiseCrew
                     if (!CrewEnrollment.ValidNewPassword(desired.Text) ||
                         desired.Text != confirm.Text || desired.Text == current.Text)
                     {
-                        detail.Text = "Use 12-16 letters/digits, confirm the new password and make it different.";
+                        detail.Text = "Confirm a different password using up to 16 printable characters.";
                         return;
                     }
-                    // Safe, native MaNGOS command authenticated as the currently logged-in player.
-                    // The new password is NOT stored until the player confirms server-side success.
-                    string command = ".account password " + current.Text + " " +
-                                     desired.Text + " " + desired.Text;
-                    Clipboard.SetText(command);
-                    PasswordVault.Save(username, current.Text);
-                    MessageBox.Show(dialog,
-                        "The password-change command was copied.\n\n" +
-                        "1. Start WoW and enter the world using your CURRENT password.\n" +
-                        "2. Paste the command into the in-game chat and press Enter.\n" +
-                        "3. After the server confirms the change, reopen this dialog and choose " +
-                        "'Remember my existing account password' to save your NEW password.\n\n" +
-                        "The launcher cannot confirm the change until you complete it in game.",
-                        "Finish changing your game password",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    try
+                    {
+                        await CrewApi.ChangePasswordAsync(settings, username, current.Text, desired.Text);
+                        PasswordVault.Save(username, desired.Text);
+                    }
+                    catch (Exception ex)
+                    {
+                        detail.Text = "Password was not changed: " + ex.Message;
+                        return;
+                    }
                     result = true;
                     dialog.DialogResult = DialogResult.OK;
                     dialog.Close();
