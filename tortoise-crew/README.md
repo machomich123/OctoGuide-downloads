@@ -6,7 +6,7 @@ One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
 1. Run `TortoiseCrewLauncher.exe`. Existing installations detect the update through the verified GitHub manifest.
 2. Select your WoW account and locate the approved WoW.exe if it is not found automatically.
-3. The first time on each PC, enter the account's *existing* game password (currently `1` unless you changed it).
+3. The first time on each PC, enter the account's *existing* game password.
 4. Press **Play**. The launcher authenticates to the private Crew HTTPS service, starts local 3724/8085 game relays over TLS-protected WebSockets, configures WoW, and signs in with your locally encrypted personal password. No SSH key needs to be sent to Michael.
 
 ## Account and player status
