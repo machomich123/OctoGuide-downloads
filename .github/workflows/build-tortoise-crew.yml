@@ -5,12 +5,19 @@ on:
     paths:
       - 'tortoise-crew/src/**'
       - '.github/workflows/build-tortoise-crew.yml'
+  issues:
+    types: [opened]
 permissions:
   contents: write
   issues: write
 jobs:
   build:
-    if: github.repository == 'machomich123/OctoGuide-downloads'
+    if: >-
+      github.repository == 'machomich123/OctoGuide-downloads' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'issues' &&
+        github.event.issue.user.login == 'machomich123' &&
+        github.event.issue.title == '[Build Tortoise Crew Launcher v1.0.4]'))
     runs-on: windows-2022
     timeout-minutes: 12
     steps:
