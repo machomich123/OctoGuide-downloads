@@ -39,15 +39,31 @@ jobs:
         run: |
           $exe = 'tortoise-crew\TortoiseCrewLauncher.exe'
           $hash = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToUpperInvariant()
+          $existing = Get-Content -LiteralPath 'tortoise-crew\manifest.json' -Raw | ConvertFrom-Json
+          if (-not $existing.crewApiUrl) { throw 'Crew HTTPS endpoint not configured; refusing to publish' }
+          $api = [Uri]$existing.crewApiUrl
+          if ($api.Scheme -ne 'https' -or $api.Port -ne 443 -or
+              -not $api.Host.EndsWith('.trycloudflare.com', [StringComparison]::OrdinalIgnoreCase)) {
+              throw 'Crew HTTPS endpoint is not trusted'
+          }
+          $endpoint = $api.GetLeftPart([UriPartial]::Authority)
+          $health = Invoke-RestMethod -Uri "$endpoint/v1/health" -TimeoutSec 12
+          $presence = Invoke-RestMethod -Uri "$endpoint/v1/presence" -TimeoutSec 12
+          if (-not $health.ok -or $health.service -ne 'crew-bridge-1.0.4' -or
+              -not $presence.ok -or -not $presence.online) {
+              throw 'Crew HTTPS bridge failed live health/presence check; keeping old manifest'
+          }
+          Write-Host 'External crew backend health verified.'
           $manifest = [ordered]@{
-              launcherVersion = '1.0.0'
+              launcherVersion = '1.0.4'
               launcherUrl = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe'
               launcherSha256 = $hash
+              crewApiUrl = $endpoint
               host = 'us-iad01.altare.global'
               sshPort = 25034
               authPort = 3724
               worldPort = 8085
-              message = 'Private Tortoise WoW 1.18.1 realm'
+              message = 'v1.0.4: Click-to-play TLS relay, direct password change, online crew status. HTTPS preview endpoint may change after server restart.'
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'tortoise-crew\manifest.json' -Encoding utf8
           Write-Host "Manifest SHA256: $hash"
@@ -60,7 +76,7 @@ jobs:
           git add tortoise-crew/TortoiseCrewLauncher.exe tortoise-crew/manifest.json
           $changed = git diff --cached --name-only
           if ($changed) {
-            git commit -m 'Publish Tortoise Crew Launcher v1.0.0 and public endpoint manifest'
+            git commit -m 'Publish Tortoise Crew Launcher v1.0.4 and public endpoint manifest'
             if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
             git push origin HEAD:main
             if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
@@ -70,7 +86,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TortoiseCrewLauncher-Windows-v1.0.0
+          name: TortoiseCrewLauncher-Windows-v1.0.4
           path: |
             tortoise-crew/TortoiseCrewLauncher.exe
             tortoise-crew/manifest.json
