@@ -1,21 +1,24 @@
-# Tortoise Crew Launcher v1.0.3
+# Tortoise Crew Launcher v1.0.4
 
-One shared Windows launcher for MICHAEL, JAYKE, BERNARD and AUGUST.
+One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
-**[Download v1.0.3 ZIP](./TortoiseCrewLauncher-v1.0.3.zip)** · Extract and run `TortoiseCrewLauncher.exe`. Existing v1.0.2 users can press **Update v1.0.3**.
+## First-time setup and play
 
-## What's new
+1. Run `TortoiseCrewLauncher.exe`. Existing installations detect the update through the verified GitHub manifest.
+2. Select your WoW account and locate the approved WoW.exe if it is not found automatically.
+3. The first time on each PC, enter the account's *existing* game password (currently `1` unless you changed it).
+4. Press **Play**. The launcher authenticates to the private Crew HTTPS service, starts local 3724/8085 game relays over TLS-protected WebSockets, configures WoW, and signs in with your locally encrypted personal password. No SSH key needs to be sent to Michael.
 
-- Each player can save their own game-account password using **Account & Password**. Credentials are stored locally with Windows DPAPI; no passwords are sent to GitHub.
-- When personal passwords are configured, the game's auto-login uses them instead of hard-coded `1`.
-- To **change** a game-account password, use **Account & Password → Change my password using the in-game command**. Enter the current and new password (12–16 alphanumeric characters). The launcher copies the normal player command to the clipboard. Log in with your current password, paste the command into WoW chat, wait for server confirmation, then return to **Account & Password → Remember my existing account password** and save the new one. It is not changed merely by saving it in the launcher.
-- Launcher still finds the exact approved WoW.exe, creates the desktop shortcut, connects using SSH, and closes the window while the background watcher retains the tunnel until WoW exits.
-- GitHub manifest handles server routing and update verification using SHA-256.
+## Account and player status
 
-## Important SSH security limitation
+- **Change password** directly below the account selector asks for current, new, and confirmation. Press **Done** to update the live server and then the local encrypted Windows DPAPI password vault. No in-game chat commands or arbitrary complexity rules. Vanilla WoW supports passwords of 1–16 printable characters.
+- The sidebar shows **Online / Offline** from live realm account state for Michael, Jayke, Bernard and August. An unreachable backend shows **Unknown** rather than incorrectly showing Offline.
+- The former per-PC SSH tunnel is retained in source as a legacy fallback for installations using older routing. Bernard's existing SSH key is not deleted or replaced by this update.
 
-The Altare public SSH gateway was confirmed to ignore OpenSSH `authorized_keys` forced-command and `restrict` options. **Automatic public key enrollment is intentionally disabled in this release.** No shared SSH bootstrap credential is distributed in the EXE. Players without SSH access still need administrator-assisted provisioning until a properly isolated relay or service is deployed. Do not assume existing tunnel keys prevent remote shell access on Altare.
+## Preview service and operational limitation
+
+The initial Crew HTTPS endpoint uses a free **Cloudflare Quick Tunnel**, which has **no uptime guarantee and changes address whenever cloudflared restarts**. It is a functional early-access test, not a permanent hosted production endpoint. The launcher reads the current endpoint from the GitHub manifest at startup; if it changes, the manifest must be updated before users can reconnect. To make it reliably plug-and-play across restarts, provision a **named Cloudflare Tunnel** or another persistent HTTPS hostname.
 
 Current local logs: `%LOCALAPPDATA%\TortoiseCrewLauncher\launcher.log`.
 
-Source code: [src](./src).
+Source: [src](./src). The previous validated v1.0.3 binary is retained in this repository and private ops artifacts for recovery.
