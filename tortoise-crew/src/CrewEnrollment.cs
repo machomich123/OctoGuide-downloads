@@ -50,7 +50,7 @@ namespace TortoiseCrew
         public static void Save(string username, string password)
         {
             if (!CrewEnrollment.ValidExistingPassword(password))
-                throw new ArgumentException("Password must contain 1 to 16 letters/digits.");
+                throw new ArgumentException("The WoW client supports 1 to 16 printable characters.");
             Directory.CreateDirectory(Paths.Root);
             byte[] raw = Encoding.UTF8.GetBytes(password);
             try
@@ -87,15 +87,16 @@ namespace TortoiseCrew
         // gateway ignored authorized_keys forced-command restrictions in live tests.
         public static bool ValidExistingPassword(string pass)
         {
-            return !String.IsNullOrEmpty(pass) &&
-                Regex.IsMatch(pass, "^[A-Za-z0-9]{1,16}$");
+            // Vanilla-era game protocol accepts 1–16 printable characters.
+            // No forced numbers, uppercase letters, or special-character rules.
+            return !String.IsNullOrWhiteSpace(pass) &&
+                pass.Length <= 16 &&
+                Regex.IsMatch(pass, @"^[\x20-\x7e]{1,16}$");
         }
 
         public static bool ValidNewPassword(string pass)
         {
-            return !String.IsNullOrEmpty(pass) &&
-                Regex.IsMatch(pass, "^[A-Za-z0-9]{12,16}$") &&
-                Regex.IsMatch(pass, "[A-Za-z]") && Regex.IsMatch(pass, "[0-9]");
+            return ValidExistingPassword(pass);
         }
     }
 }

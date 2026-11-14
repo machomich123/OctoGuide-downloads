@@ -18,6 +18,7 @@ namespace TortoiseCrew
         public string KeyPath { get; set; }
         public bool AutoLogin { get; set; }
         public string Host { get; set; }
+        public string CrewApiUrl { get; set; }
         public int SshPort { get; set; }
         public int AuthPort { get; set; }
         public int WorldPort { get; set; }
@@ -29,6 +30,7 @@ namespace TortoiseCrew
             KeyPath = "";
             AutoLogin = true;
             Host = "us-iad01.altare.global";
+            CrewApiUrl = "";
             SshPort = 25034;
             AuthPort = 3724;
             WorldPort = 8085;
@@ -40,6 +42,7 @@ namespace TortoiseCrew
         public string LauncherVersion { get; set; }
         public string LauncherUrl { get; set; }
         public string LauncherSha256 { get; set; }
+        public string CrewApiUrl { get; set; }
         public string Host { get; set; }
         public int SshPort { get; set; }
         public int AuthPort { get; set; }
@@ -49,7 +52,7 @@ namespace TortoiseCrew
 
     public static class Paths
     {
-        public const string Version = "1.0.3";
+        public const string Version = "1.0.4";
         public const string GoodSha256 = "97EA82AB7A82ED88BC5A155AB9BBF7E0BCDB5B9F892A47C6F8EDABE1496BFC75";
         public const string ManifestUrl = "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/manifest.json";
         public static readonly string Root = Path.Combine(

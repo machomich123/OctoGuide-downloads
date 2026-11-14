@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -113,7 +114,9 @@ namespace TortoiseCrew
         private Button playButton, updateButton, browseButton, keyButton, settingsButton, accountButton;
         private CheckBox loginToggle;
         private Process activeSsh, activeWow;
-        private bool starting, checking, searching, updating, handedOffSession, closingForUpdate;
+        private bool starting, checking, searching, updating, handedOffSession, closingForUpdate, presenceChecking;
+        private readonly Dictionary<string, Label> crewPresence = new Dictionary<string, Label>();
+        private System.Windows.Forms.Timer crewRefresh;
 
         public LauncherForm()
         {
@@ -233,10 +236,16 @@ namespace TortoiseCrew
             TextLabel("MYSTERIES OF AZEROTH", 30, 160, 200, 23, 10, white);
             TextLabel("1.18.1  ·  BUILD 7272", 30, 194, 196, 18, 8.5f, muted);
             TextLabel("CREW", 30, 285, 180, 18, 9, muted, FontStyle.Bold);
-            TextLabel("MICHAEL", 33, 316, 167, 24, 11, white);
-            TextLabel("JAYKE", 33, 344, 167, 24, 11, white);
-            TextLabel("BERNARD", 33, 372, 167, 24, 11, white);
-            TextLabel("AUGUST", 33, 400, 167, 24, 11, white);
+            string[] members = { "MICHAEL", "JAYKE", "BERNARD", "AUGUST" };
+            for (int i = 0; i < members.Length; i++)
+            {
+                int y = 316 + i * 28;
+                TextLabel(members[i], 33, y, 103, 24, 10.5f, white);
+                crewPresence[members[i]] = TextLabel("● Unknown", 139, y + 2, 90, 24, 9, muted);
+            }
+            crewRefresh = new System.Windows.Forms.Timer { Interval = 15000 };
+            crewRefresh.Tick += async (s,e) => await RefreshCrewStatusAsync();
+            crewRefresh.Start();
             TextLabel("One launcher. One realm.", 28, 584, 192, 22, 9, muted);
             versionLabel = TextLabel("Launcher v" + Paths.Version, 28, 611, 193, 20, 9, muted);
 
@@ -262,7 +271,7 @@ namespace TortoiseCrew
 
             loginToggle = new CheckBox
             {
-                Text = "Auto-login using shared password (1)",
+                Text = "Auto-login with my saved password",
                 Location = new Point(603, 327), Size = new Size(333, 27),
                 Checked = settings.AutoLogin, ForeColor = white, BackColor = surface,
                 Font = new Font("Segoe UI", 9f)
@@ -281,7 +290,7 @@ namespace TortoiseCrew
 
             information = TextLabel("First time? Set your personal account password.",
                 289, 486, 310, 50, 10, muted);
-            accountButton = MakeButton("ACCOUNT & PASSWORD", 604, 480, 328, 46, false);
+            accountButton = MakeButton("CHANGE PASSWORD", 290, 356, 296, 35, false);
             accountButton.Click += (s, e) => AccountSetup.Show(this, settings,
                 (username.Text ?? "").Trim().ToUpperInvariant());
 
@@ -306,15 +315,6 @@ namespace TortoiseCrew
 
         private async Task InitializeAsync()
         {
-            try
-            {
-                SshSupport.ExistingOrNewKey(settings);
-            }
-            catch (Exception ex)
-            {
-                Notice("OpenSSH is not ready: " + ex.Message);
-            }
-
             if (!GameDetector.IsVerified(settings.WowPath))
             {
                 searching = true;
@@ -347,6 +347,11 @@ namespace TortoiseCrew
             }
             UpdateGameLabel();
             await UpdateAsync(false);
+            if (String.IsNullOrEmpty(settings.CrewApiUrl))
+            {
+                try { SshSupport.ExistingOrNewKey(settings); }
+                catch (Exception ex) { Notice("OpenSSH is not ready: " + ex.Message); }
+            }
             await CheckStatusAsync();
         }
 
@@ -380,6 +385,26 @@ namespace TortoiseCrew
             checking = true;
             status.Text = "Checking server status...";
             status.ForeColor = white;
+            if (!String.IsNullOrEmpty(settings.CrewApiUrl))
+            {
+                try
+                {
+                    bool live = await CrewApi.IsOnlineAsync(settings);
+                    status.Text = live ? "Crew realm online  ●" : "Crew service unavailable";
+                    status.ForeColor = live ? accent : Color.FromArgb(247,147,138);
+                    statusDescription.Text = live ? "Secure game relay is available." :
+                        "The secure game relay could not be reached.";
+                }
+                catch (Exception ex)
+                {
+                    status.Text = "Crew service unavailable";
+                    status.ForeColor = Color.FromArgb(247,147,138);
+                    Paths.WriteLog("Crew status: " + ex.GetType().Name);
+                }
+                finally { checking = false; }
+                await RefreshCrewStatusAsync();
+                return;
+            }
             try
             {
                 bool reachable = await Task.Run(() => SshSupport.PortOpen(settings.Host, settings.SshPort, 5000));
@@ -417,7 +442,8 @@ namespace TortoiseCrew
             {
                 RealmManifest manifest = await Task.Run(() => RemoteUpdates.Fetch());
                 currentManifest = manifest;
-                bool routingChanged = settings.Host != manifest.Host ||
+                bool routingChanged = settings.CrewApiUrl != (manifest.CrewApiUrl ?? "") ||
+                                      settings.Host != manifest.Host ||
                                       settings.SshPort != manifest.SshPort ||
                                       settings.AuthPort != manifest.AuthPort ||
                                       settings.WorldPort != manifest.WorldPort;
@@ -491,6 +517,100 @@ namespace TortoiseCrew
             }
         }
 
+        private async Task RefreshCrewStatusAsync()
+        {
+            if (presenceChecking || IsDisposed || String.IsNullOrEmpty(settings.CrewApiUrl)) return;
+            presenceChecking = true;
+            try
+            {
+                Dictionary<string, bool> online = await CrewApi.PresenceAsync(settings);
+                if (IsDisposed) return;
+                foreach (var pair in crewPresence)
+                {
+                    bool isOnline = online != null && online.ContainsKey(pair.Key) && online[pair.Key];
+                    pair.Value.Text = online == null ? "● Unknown" : (isOnline ? "● Online" : "● Offline");
+                    pair.Value.ForeColor = online == null ? muted : (isOnline ? accent : muted);
+                }
+            }
+            catch (Exception ex)
+            {
+                Paths.WriteLog("Crew presence: " + ex.GetType().Name);
+                if (!IsDisposed) foreach (var pair in crewPresence)
+                {
+                    pair.Value.Text = "● Unknown";
+                    pair.Value.ForeColor = muted;
+                }
+            }
+            finally { presenceChecking = false; }
+        }
+
+        private async Task PlayViaCrewBridgeAsync(string account)
+        {
+            string password = PasswordVault.Read(account);
+            if (!CrewEnrollment.ValidExistingPassword(password))
+            {
+                if (!AccountSetup.Show(this, settings, account, true)) return;
+                password = PasswordVault.Read(account);
+            }
+            if (SshSupport.PortOpen("127.0.0.1", 3724, 200) ||
+                SshSupport.PortOpen("127.0.0.1", 8085, 200))
+            {
+                MessageBox.Show("A game connection is already running on this PC.",
+                    "Connection in use", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            starting = true;
+            playButton.Enabled = false;
+            playButton.Text = "CONNECTING...";
+            CrewBridge bridge = null;
+            try
+            {
+                string session;
+                try { session = await CrewApi.LoginAsync(settings, account, password); }
+                catch (InvalidOperationException)
+                {
+                    Notice("Verify your current game account password.");
+                    if (!AccountSetup.Show(this, settings, account, true)) return;
+                    password = PasswordVault.Read(account);
+                    session = await CrewApi.LoginAsync(settings, account, password);
+                }
+                bridge = new CrewBridge(settings, session);
+                bridge.Start();
+                GameDetector.Configure(settings.WowPath, account);
+                activeWow = Process.Start(new ProcessStartInfo(settings.WowPath)
+                {
+                    WorkingDirectory = Path.GetDirectoryName(settings.WowPath),
+                    UseShellExecute = true
+                });
+                if (activeWow == null) throw new InvalidOperationException("WoW.exe could not start.");
+                if (settings.AutoLogin) await AutoLogin.TryLoginAsync(activeWow, account, password);
+                Hide();
+                while (!activeWow.HasExited) await Task.Delay(1000);
+                handedOffSession = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                Paths.WriteLog("Crew play: " + ex.GetType().Name);
+                MessageBox.Show(ex.Message, "Unable to launch WoW",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                if (bridge != null) bridge.Dispose();
+                if (activeWow != null) { activeWow.Dispose(); activeWow = null; }
+                starting = false;
+                if (!IsDisposed && !Disposing)
+                {
+                    Show();
+                    playButton.Enabled = true;
+                    playButton.Text = "▶   PLAY TORTOISE WOW";
+                    await CheckStatusAsync();
+                }
+            }
+        }
+
         private async Task PlayAsync()
         {
             if (starting || searching) return;
@@ -508,10 +628,15 @@ namespace TortoiseCrew
                 BrowseGame();
                 if (!GameDetector.IsVerified(settings.WowPath)) return;
             }
+            if (!String.IsNullOrEmpty(settings.CrewApiUrl))
+            {
+                await PlayViaCrewBridgeAsync(account);
+                return;
+            }
             string password = PasswordVault.Read(account);
             if (!CrewEnrollment.ValidExistingPassword(password))
             {
-                if (!AccountSetup.Show(this, settings, account)) return;
+                if (!AccountSetup.Show(this, settings, account, true)) return;
                 password = PasswordVault.Read(account);
                 if (!CrewEnrollment.ValidExistingPassword(password)) return;
             }
@@ -692,7 +817,7 @@ namespace TortoiseCrew
                     (username.Text ?? "").Trim().ToUpperInvariant()); };
                 dialog.Controls.Add(credentials);
                 var help = new Label { Text = "Game server ports are updated automatically from GitHub. " +
-                        "On a new PC, send your public SSH key to Michael for approval.",
+                        "With the secure Crew service, first-time setup uses only your game password.",
                     Location = new Point(22, 304), Size = new Size(550, 51), ForeColor = muted };
                 dialog.Controls.Add(help);
                 dialog.ShowDialog(this);
@@ -701,6 +826,7 @@ namespace TortoiseCrew
 
         private void OnClosing(object sender, FormClosingEventArgs e)
         {
+            if (crewRefresh != null) crewRefresh.Stop();
             if (handedOffSession || closingForUpdate)
                 return;
             // Never kill the tunnel if closing was cancelled.
