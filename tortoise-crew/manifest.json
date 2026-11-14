@@ -6,5 +6,6 @@
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.3: Separate encrypted personal passwords and guided in-game password change. Automatic SSH key enrollment disabled for security."
+  "message": "v1.0.3: Separate encrypted personal passwords and guided in-game password change. Automatic SSH key enrollment disabled for security.",
+  "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com"
 }
