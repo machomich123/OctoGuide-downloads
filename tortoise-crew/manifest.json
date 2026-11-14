@@ -1,11 +1,11 @@
 {
-  "launcherVersion": "1.0.3",
+  "launcherVersion": "1.0.4",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "8154D70EFB975DFEFDDBC6F7CA53B6DFEAC17F49B26E5557A4645E54B42010F5",
+  "launcherSha256": "DA853D469029A0C56D8923D3CDE1AD62B74C589E74B44FE1425312902D8761F3",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.3: Separate encrypted personal passwords and guided in-game password change. Automatic SSH key enrollment disabled for security.",
+  "message": "v1.0.4 early access: automatic HTTPS game connection, live crew presence, direct account password change. Initial Cloudflare Quick Tunnel is temporary and may need to be restarted/reconfigured.",
   "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com"
 }
