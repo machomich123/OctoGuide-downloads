@@ -95,5 +95,10 @@ jobs:
           if ($env:SIGNING_OUTCOME -eq 'success') {
             'Signed v1.0.9 was published with its SHA-256 manifest.' >> $env:GITHUB_STEP_SUMMARY
           } else {
-            'v1.0.9 source compiled and passed tests. NOT RELEASED: trusted signing is not configured. Public launcher updates remain paused.' >> $env:GITHUB_STEP_SUMMARY
+            $public = Get-Content tortoise-crew/manifest.json -Raw | ConvertFrom-Json
+            if (-not $public.updatesPaused -and $public.launcherVersion -eq '1.0.9') {
+              "Public v1.0.9 is available ($($public.releaseSignature)). This CI build was tested but was not substituted for the published artifact." >> $env:GITHUB_STEP_SUMMARY
+            } else {
+              'v1.0.9 source compiled and passed tests. This unsigned CI artifact was not published; the public release manifest was preserved.' >> $env:GITHUB_STEP_SUMMARY
+            }
           }

@@ -35,6 +35,19 @@ namespace TortoiseCrew
 
         internal static void RequireTrusted(string path)
         {
+            Verify(path, true);
+        }
+
+        // An unsigned, hash-verified build may be allowed by Windows reputation.
+        // Do not replace that OS decision with our own mandatory-certificate rule.
+        // A present but invalid signature is still rejected.
+        internal static void ValidateForLaunch(string path)
+        {
+            Verify(path, false);
+        }
+
+        private static void Verify(string path, bool requireSignature)
+        {
             if (!System.IO.File.Exists(path)) throw new FileNotFoundException("Update file is missing.", path);
             var file = new FileInfo { Size = (uint)Marshal.SizeOf(typeof(FileInfo)), Path = path };
             IntPtr pointer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(FileInfo)));
@@ -48,11 +61,11 @@ namespace TortoiseCrew
             {
                 Marshal.StructureToPtr(file, pointer, false);
                 int result = WinVerifyTrust(new IntPtr(-1), ref action, ref data);
+                if (!requireSignature && result == unchecked((int)0x800B0100)) return;
                 if (result != 0)
                     throw new InvalidDataException("This update has no valid Windows-trusted publisher signature " +
                         "(0x" + unchecked((uint)result).ToString("X8") + "). " +
-                        "The current launcher has been kept. Wait for a signed release; " +
-                        "do not disable Windows protection.");
+                        "The current launcher has been kept. Windows protection has not been changed.");
             }
             finally
             {

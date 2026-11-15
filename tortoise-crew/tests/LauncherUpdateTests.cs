@@ -56,13 +56,16 @@ namespace TortoiseCrew
                 bool rejected = false;
                 try { ReleaseTrust.RequireTrusted(Assembly.GetExecutingAssembly().Location); }
                 catch (InvalidDataException) { rejected = true; }
-                Check(rejected, "unsigned update rejected before replacement");
+                Check(rejected, "strict signed-release validation rejects unsigned artifact");
+                ReleaseTrust.ValidateForLaunch(Assembly.GetExecutingAssembly().Location);
+                Console.WriteLine("PASS: unsigned local build delegates execution decision to Windows");
 
                 // Validate the native structure layout with a Windows-signed PE,
                 // then corrupt its hashed content to prove digest verification.
                 if (args.Length != 1) throw new ArgumentException("Pass a PE with an embedded Authenticode signature.");
                 string signed = args[0];
                 ReleaseTrust.RequireTrusted(signed);
+                ReleaseTrust.ValidateForLaunch(signed);
                 Console.WriteLine("PASS: valid Windows publisher signature accepted");
                 string tampered = Path.Combine(Path.GetTempPath(), "crew-signature-test-" + Guid.NewGuid().ToString("N") + ".exe");
                 try
@@ -74,6 +77,10 @@ namespace TortoiseCrew
                     try { ReleaseTrust.RequireTrusted(tampered); }
                     catch (InvalidDataException) { rejected = true; }
                     Check(rejected, "modified signed executable rejected");
+                    rejected = false;
+                    try { ReleaseTrust.ValidateForLaunch(tampered); }
+                    catch (InvalidDataException) { rejected = true; }
+                    Check(rejected, "invalid signature is not treated as an unsigned build");
                 }
                 finally { if (File.Exists(tampered)) File.Delete(tampered); }
                 return 0;

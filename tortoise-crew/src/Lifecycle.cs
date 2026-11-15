@@ -118,7 +118,7 @@ namespace TortoiseCrew
                 !Regex.IsMatch(expectedHash ?? "", "^[0-9a-fA-F]{64}$") ||
                 !String.Equals(GameDetector.HashOf(running), expectedHash, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Refusing an unverified or unexpected update.");
-            ReleaseTrust.RequireTrusted(running);
+            ReleaseTrust.ValidateForLaunch(running);
             if (SessionMonitor.IsSessionActive())
                 throw new InvalidOperationException("Close WoW before updating the launcher.");
 
@@ -156,7 +156,7 @@ namespace TortoiseCrew
                         File.Copy(running, staged, false);
                         if (!String.Equals(GameDetector.HashOf(staged), expectedHash, StringComparison.OrdinalIgnoreCase))
                             throw new InvalidDataException("Staged update failed the SHA-256 check.");
-                        ReleaseTrust.RequireTrusted(staged);
+                        ReleaseTrust.ValidateForLaunch(staged);
                         ReplaceWhenClosed(staged, target, backup);
                         if (!String.Equals(GameDetector.HashOf(target), expectedHash, StringComparison.OrdinalIgnoreCase))
                         {

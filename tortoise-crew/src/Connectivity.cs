@@ -287,7 +287,7 @@ namespace TortoiseCrew
                     File.Delete(candidate);
                     throw new InvalidDataException("SHA-256 verification failed. Update blocked.");
                 }
-                ReleaseTrust.RequireTrusted(candidate);
+                ReleaseTrust.ValidateForLaunch(candidate);
             });
             return candidate;
         }

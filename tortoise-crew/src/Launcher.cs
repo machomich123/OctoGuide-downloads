@@ -80,7 +80,7 @@ namespace TortoiseCrew
                         }
                         if (shouldCopy)
                         {
-                            ReleaseTrust.RequireTrusted(current);
+                            ReleaseTrust.ValidateForLaunch(current);
                             File.Copy(current, Paths.Executable, true);
                         }
                         DesktopShortcut.Create();
@@ -529,11 +529,11 @@ namespace TortoiseCrew
                                 return;
                             }
                             updateButton.Text = "DOWNLOADING...";
-                            feedMessage.Text = "Verifying update checksum and Windows publisher signature...";
+                            feedMessage.Text = "Verifying update integrity before Windows checks execution...";
                             string candidate = await RemoteUpdates.DownloadVerifiedUpdateAsync(manifest);
                             if (!File.Exists(candidate))
                                 throw new IOException("Update download was not saved.");
-                            Paths.WriteLog("SHA-256 and publisher signature verified. Starting independent updater.");
+                            Paths.WriteLog("SHA-256 verified; any present signature validated. Windows will assess updater execution.");
                             var helperStart = new ProcessStartInfo(candidate,
                                 "--replace \"" + Paths.Executable + "\" " + manifest.LauncherSha256 +
                                 " " + Process.GetCurrentProcess().Id)
