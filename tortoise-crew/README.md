@@ -1,8 +1,8 @@
-# Tortoise Crew Launcher v1.0.5
+# Tortoise Crew Launcher v1.0.6
 
 One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
-**[Download launcher v1.0.5 EXE](./TortoiseCrewLauncher.exe)** (latest executable). The previous v1.0.4 ZIP remains available for recovery. Updates are built from the Windows source. Existing clients update through the SHA-256-checked GitHub manifest.
+**[Download launcher v1.0.6 EXE](./TortoiseCrewLauncher.exe)** (latest executable). The previous v1.0.4 ZIP remains available for recovery. Updates are built from the Windows source. Existing clients update through the SHA-256-checked GitHub manifest.
 
 ## First-time setup and play
 
@@ -12,7 +12,9 @@ One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 4. Press **Play**. The launcher authenticates to the private Crew HTTPS service, starts local 3724/8085 game relays over TLS-protected WebSockets, configures WoW, and signs in with your locally encrypted personal password. No SSH key needs to be sent to Michael.
 
 
-## Addon Library (v1.0.5)
+## Addon Library (v1.0.6)
+
+**Maintenance update:** filenames such as `!OctoScope.toc` are now accepted, while traversal and reserved Windows names remain blocked. GitHub README details render as readable headings, paragraphs and clickable image thumbnails rather than raw Markdown. The Discover page supports 6–500 cards per page, filtering and sorting by stars, name, recency and download count where published. Most GitHub addons do not expose a reliable total-download figure, so unavailable download counts are not fabricated. Local addon/DLL/MPQ import now reports skipped files explicitly, preserves unique backups and can be tested without writing to a real WoW install.
 
 Open **ADDONS** in the left sidebar; use **BACK TO REALM** to return to the game page.
 
