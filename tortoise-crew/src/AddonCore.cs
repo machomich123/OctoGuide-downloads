@@ -188,6 +188,24 @@ namespace TortoiseCrew
             @"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // The Windows 1.18.1 client lives in a deep folder. Staging under
+        // Interface\AddOns adds another 60+ characters and used to exceed
+        // MAX_PATH even when the final installed addon would fit.
+        // Use Win32 extended-length paths for our own file operations.
+        // WoW itself is unchanged; paths beyond what the game can read
+        // should not be created by the importer.
+        internal static string IoPath(string path)
+        {
+            if (String.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("File path cannot be empty.", "path");
+            if (path.StartsWith(@"\\?\", StringComparison.Ordinal)) return path;
+            string absolute = Path.IsPathRooted(path) ? path : Path.GetFullPath(path);
+            if (absolute.Length < 240) return absolute;
+            if (absolute.StartsWith(@"\\", StringComparison.Ordinal))
+                return @"\\?\UNC\" + absolute.Substring(2);
+            return @"\\?\" + absolute;
+        }
+
         internal static string GameRoot(string wowExe)
         {
             if (!GameDetector.IsVerified(wowExe))
@@ -264,12 +282,12 @@ namespace TortoiseCrew
                 if (!seen.Add(item.Item1)) continue;
                 try
                 {
-                    foreach (var file in Directory.EnumerateFiles(item.Item1, "*.toc"))
-                        if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0)
+                    foreach (var file in Directory.EnumerateFiles(IoPath(item.Item1), "*.toc"))
+                        if ((File.GetAttributes(IoPath(file)) & FileAttributes.ReparsePoint) == 0)
                             found.Add(file);
-                    foreach (var dir in Directory.EnumerateDirectories(item.Item1))
+                    foreach (var dir in Directory.EnumerateDirectories(IoPath(item.Item1)))
                     {
-                        var info = new DirectoryInfo(dir);
+                        var info = new DirectoryInfo(IoPath(dir));
                         if ((info.Attributes & FileAttributes.ReparsePoint) != 0 ||
                             info.Name.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
                             info.Name.Equals(".crew-backups", StringComparison.OrdinalIgnoreCase) ||
@@ -307,7 +325,7 @@ namespace TortoiseCrew
             var jobs = new List<Tuple<string, string>>();
             foreach (var folder in folders)
             {
-                var toc = Directory.EnumerateFiles(folder, "*.toc", SearchOption.TopDirectoryOnly).FirstOrDefault();
+                var toc = Directory.EnumerateFiles(IoPath(folder), "*.toc", SearchOption.TopDirectoryOnly).FirstOrDefault();
                 if (toc == null) continue;
                 var name = Path.GetFileNameWithoutExtension(toc);
                 if (!IsSafeAddonName(name))
@@ -324,10 +342,10 @@ namespace TortoiseCrew
                 throw new InvalidDataException("Duplicate addon names; no files imported.");
             if (jobs.Count == 0) return 0;
 
-            Directory.CreateDirectory(destinationFull);
+            Directory.CreateDirectory(IoPath(destinationFull));
             string transaction = Path.Combine(destinationFull, ".crew-pending-" + Guid.NewGuid().ToString("N"));
             string staged = Path.Combine(transaction, "staged");
-            Directory.CreateDirectory(staged);
+            Directory.CreateDirectory(IoPath(staged));
             var ordered = jobs.OrderBy(j => j.Item2, StringComparer.OrdinalIgnoreCase).ToList();
             try
             {
@@ -336,7 +354,7 @@ namespace TortoiseCrew
                     CopyDirectory(job.Item1, Path.Combine(staged, job.Item2));
 
                 string backups = Path.Combine(destinationFull, ".crew-backups");
-                Directory.CreateDirectory(backups);
+                Directory.CreateDirectory(IoPath(backups));
                 var changed = new List<Tuple<string, string>>();
                 try
                 {
@@ -344,15 +362,15 @@ namespace TortoiseCrew
                     {
                         string destination = Path.Combine(destinationFull, job.Item2);
                         string original = null;
-                        if (Directory.Exists(destination))
+                        if (Directory.Exists(IoPath(destination)))
                         {
                             original = Path.Combine(backups, job.Item2 + "-" +
                                 DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" +
                                 Guid.NewGuid().ToString("N").Substring(0, 8));
-                            Directory.Move(destination, original);
+                            Directory.Move(IoPath(destination), IoPath(original));
                         }
                         changed.Add(Tuple.Create(destination, original));
-                        Directory.Move(Path.Combine(staged, job.Item2), destination);
+                        Directory.Move(IoPath(Path.Combine(staged, job.Item2)), IoPath(destination));
                     }
                     return changed.Count;
                 }
@@ -360,27 +378,27 @@ namespace TortoiseCrew
                 {
                     foreach (var item in changed.AsEnumerable().Reverse())
                     {
-                        if (Directory.Exists(item.Item1))
-                            Directory.Delete(item.Item1, true);
-                        if (item.Item2 != null && Directory.Exists(item.Item2))
-                            Directory.Move(item.Item2, item.Item1);
+                        if (Directory.Exists(IoPath(item.Item1)))
+                            Directory.Delete(IoPath(item.Item1), true);
+                        if (item.Item2 != null && Directory.Exists(IoPath(item.Item2)))
+                            Directory.Move(IoPath(item.Item2), IoPath(item.Item1));
                     }
                     throw;
                 }
             }
             finally
             {
-                if (Directory.Exists(transaction))
-                    Directory.Delete(transaction, true);
+                if (Directory.Exists(IoPath(transaction)))
+                    Directory.Delete(IoPath(transaction), true);
             }
         }
         private static void CopyDirectory(string from, string to, int depth = 0)
         {
             if (depth > 18) throw new InvalidDataException("Addon has too many nested folders.");
-            Directory.CreateDirectory(to);
-            foreach (var file in Directory.GetFiles(from))
+            Directory.CreateDirectory(IoPath(to));
+            foreach (var file in Directory.GetFiles(IoPath(from)))
             {
-                var info = new FileInfo(file);
+                var info = new FileInfo(IoPath(file));
                 if ((info.Attributes & FileAttributes.ReparsePoint) != 0) continue;
                 // Never treat executable payloads inside an addon as WoW UI files.
                 string extension = Path.GetExtension(info.Name);
@@ -391,11 +409,11 @@ namespace TortoiseCrew
                     Paths.WriteLog("Skipped executable inside addon: " + info.Name);
                     continue;
                 }
-                File.Copy(file, Path.Combine(to, Path.GetFileName(file)), true);
+                File.Copy(IoPath(file), IoPath(Path.Combine(to, Path.GetFileName(file))), true);
             }
-            foreach (var dir in Directory.GetDirectories(from))
+            foreach (var dir in Directory.GetDirectories(IoPath(from)))
             {
-                var info = new DirectoryInfo(dir);
+                var info = new DirectoryInfo(IoPath(dir));
                 if ((info.Attributes & FileAttributes.ReparsePoint) != 0 || info.Name == ".git") continue;
                 CopyDirectory(dir, Path.Combine(to, info.Name), depth + 1);
             }
