@@ -14,9 +14,9 @@ namespace TortoiseCrew
         private static void Addon(string source, string name, string marker)
         {
             string dir = Path.Combine(source, "Interface", "AddOns", name);
-            Directory.CreateDirectory(AddonFiles.IoPath(dir));
-            File.WriteAllText(AddonFiles.IoPath(Path.Combine(dir, name + ".toc")), "## Interface: 11801\n" + name + ".lua\n");
-            File.WriteAllText(AddonFiles.IoPath(Path.Combine(dir, name + ".lua")), marker);
+            LongPathFs.EnsureDirectory(dir);
+            LongPathFs.WriteText(Path.Combine(dir, name + ".toc"), "## Interface: 11801\n" + name + ".lua\n");
+            LongPathFs.WriteText(Path.Combine(dir, name + ".lua"), marker);
         }
         public static int Main()
         {
@@ -86,29 +86,29 @@ namespace TortoiseCrew
                 // path over MAX_PATH (260 chars), while its installed files are short.
                 string longTarget = Path.Combine(tmp, "target-" + new string('x', 85));
                 string longDest = Path.Combine(longTarget, "Interface", "AddOns");
-                Directory.CreateDirectory(AddonFiles.IoPath(longDest));
+                LongPathFs.EnsureDirectory(longDest);
                 Check(Path.Combine(longDest, ".crew-pending-" + new string('a', 32),
                     "staged", "CommunityA", "CommunityA.lua").Length > 260,
                     "Test must actually exceed classic Windows MAX_PATH");
                 int firstLong = AddonFiles.InstallFoldersInto(sourceAddons, longDest);
                 Check(firstLong == 3, "Long staging path can import community addons");
-                Check(File.Exists(AddonFiles.IoPath(Path.Combine(longDest,
+                Check(LongPathFs.FileExists(Path.Combine(longDest,
                     "CommunityA", "CommunityA.lua"))), "Long-path staging commits files");
                 int secondLong = AddonFiles.InstallFoldersInto(sourceAddons, longDest);
                 Check(secondLong == 3, "Repeated import with long backup paths works");
-                Check(Directory.EnumerateDirectories(AddonFiles.IoPath(
-                    Path.Combine(longDest, ".crew-backups")), "CommunityA-*").Any(),
+                Check(LongPathFs.GetDirectories(Path.Combine(longDest, ".crew-backups"))
+                    .Any(x => Path.GetFileName(x).StartsWith("CommunityA-", StringComparison.OrdinalIgnoreCase)),
                     "Long-path backup created");
                 Console.WriteLine("PASS: long staging and repeated backup paths");
 
                 // Regression: .toc discovery must traverse a long source path.
                 string nested = Path.Combine(sourceAddons, "Nested",
                     new string('a', 70), new string('b', 70), new string('c', 70), "DeepAddon");
-                Directory.CreateDirectory(AddonFiles.IoPath(nested));
+                LongPathFs.EnsureDirectory(nested);
                 string deepToc = Path.Combine(nested, "DeepAddon.toc");
                 Check(deepToc.Length > 260, "Long source fixture must exceed MAX_PATH");
-                File.WriteAllText(AddonFiles.IoPath(deepToc), "## Interface: 11801\nDeepAddon.lua\n");
-                File.WriteAllText(AddonFiles.IoPath(Path.Combine(nested, "DeepAddon.lua")), "deep-content");
+                LongPathFs.WriteText(deepToc, "## Interface: 11801\nDeepAddon.lua\n");
+                LongPathFs.WriteText(Path.Combine(nested, "DeepAddon.lua"), "deep-content");
                 int deepCount = AddonFiles.InstallFoldersInto(sourceAddons, dest);
                 Check(deepCount == 4, "Long source path discovered and imported");
                 Check(File.ReadAllText(Path.Combine(dest, "DeepAddon", "DeepAddon.lua"))
