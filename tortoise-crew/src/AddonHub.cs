@@ -533,7 +533,19 @@ namespace TortoiseCrew
                     if (page == "Installed") Render();
                 }
             }
-            catch (Exception ex) { if (!IsDisposed) Say("Import failed: " + ex.Message); }
+            catch (Exception ex)
+            {
+                Paths.WriteLog("Addon import failed: " + ex);
+                if (!IsDisposed)
+                {
+                    Say("Import failed. Full error details are shown in a dialog.");
+                    MessageBox.Show(FindForm(),
+                        "The addon import could not finish. No changes should be left from " +
+                        "a failed transaction.\n\n" + ex.ToString() +
+                        "\n\nYou can select and copy this error with Ctrl+C.",
+                        "Addon import error details", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
     }
 
