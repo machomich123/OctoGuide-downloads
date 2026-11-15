@@ -16,6 +16,9 @@ namespace TortoiseCrew
     {
         public string Name, Description, Url, Author, Source, IconUrl;
         public int Stars;
+        public DateTime Updated;
+        // No reliable total download count is provided by most GitHub repositories.
+        public long? Downloads;
         public bool IsPack;
     }
 
@@ -31,6 +34,16 @@ namespace TortoiseCrew
         private static string S(Dictionary<string, object> row, string key)
         {
             return Convert.ToString(Field(row, key) ?? "");
+        }
+        private static DateTime Date(Dictionary<string, object> row, string key)
+        {
+            DateTime date;
+            return DateTime.TryParse(S(row, key), out date) ? date : DateTime.MinValue;
+        }
+        private static long? DownloadCount(Dictionary<string, object> row)
+        {
+            long count;
+            return long.TryParse(S(row, "downloads"), out count) ? (long?)count : null;
         }
         private static int Number(Dictionary<string, object> row, string key)
         {
@@ -83,7 +96,9 @@ namespace TortoiseCrew
                         Author = S(row, "author"),
                         Source = "Turtle WoW Wiki / GitHub",
                         Url = url,
-                        Stars = Number(row, "stars")
+                        Stars = Number(row, "stars"),
+                        Downloads = DownloadCount(row),
+                        Updated = Date(row, "last_commit")
                     };
                     if (String.IsNullOrWhiteSpace(item.Description))
                         item.Description = "Community addon for the Vanilla / Turtle WoW client.";
@@ -119,6 +134,8 @@ namespace TortoiseCrew
                             Source = "GitHub search (compatibility not verified)",
                             Url = url,
                             Stars = Number(row, "stargazers_count"),
+                            Downloads = DownloadCount(row),
+                            Updated = Date(row, "pushed_at"),
                             IconUrl = Avatar(url)
                         });
                     }
