@@ -32,6 +32,8 @@ namespace TortoiseCrew
         private bool working;
         private readonly Button previous, next;
         private readonly Label pageNumber;
+        private readonly ComboBox sortControl;
+        private readonly NumericUpDown resultsPerPage;
 
         public AddonHub(Func<string> getPath, Action<string> report)
         {
@@ -95,12 +97,34 @@ namespace TortoiseCrew
                 BackColor = Bg, Padding = new Padding(0)
             };
             Controls.Add(gallery);
-            previous = Button("Previous", 31, 575, 110, 34);
-            next = Button("Next", 624, 575, 110, 34);
-            pageNumber = Label("", 172, 583, 417, 22, 9, Muted);
-            pageNumber.TextAlign = ContentAlignment.MiddleCenter;
-            previous.Click += (s, e) => { offset = Math.Max(0, offset - 12); Render(); };
-            next.Click += (s, e) => { offset += 12; Render(); };
+            previous = Button("Previous", 27, 575, 107, 34);
+            next = Button("Next", 628, 575, 107, 34);
+            sortControl = new ComboBox
+            {
+                Location = new Point(145, 576), Size = new Size(226, 31),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Color.FromArgb(34, 49, 67), ForeColor = TextColor
+            };
+            sortControl.Items.AddRange(new object[] {
+                "Popular (stars)", "Downloads (if known)", "Recently updated",
+                "Name A-Z", "Name Z-A", "Stars: lowest first"
+            });
+            sortControl.SelectedIndex = 0;
+            sortControl.SelectedIndexChanged += (s, e) => { offset = 0; Render(); };
+            Controls.Add(sortControl);
+            resultsPerPage = new NumericUpDown
+            {
+                Location = new Point(383, 576), Size = new Size(70, 31),
+                Minimum = 6, Maximum = 500, Increment = 12, Value = 24,
+                BackColor = Color.FromArgb(34, 49, 67), ForeColor = TextColor
+            };
+            resultsPerPage.ValueChanged += (s, e) => { offset = 0; Render(); };
+            Controls.Add(resultsPerPage);
+            Label("per page", 455, 583, 73, 22, 8, Muted);
+            pageNumber = Label("", 532, 583, 96, 22, 8, Muted);
+            pageNumber.TextAlign = ContentAlignment.MiddleRight;
+            previous.Click += (s, e) => { offset = Math.Max(0, offset - (int)resultsPerPage.Value); Render(); };
+            next.Click += (s, e) => { offset += (int)resultsPerPage.Value; Render(); };
 
             feedback = Label("Loading the Turtle WoW addon catalog...", 27, 621, 710, 22, 9, Muted);
             ShownLoad();
@@ -209,6 +233,8 @@ namespace TortoiseCrew
             scan.Visible = page != "Browse";
             previous.Visible = next.Visible = page == "Browse";
             pageNumber.Visible = page == "Browse";
+            sortControl.Visible = page == "Browse";
+            resultsPerPage.Visible = page == "Browse";
             if (page == "Installed")
             {
                 RenderInstalled();
@@ -220,14 +246,29 @@ namespace TortoiseCrew
                 if (page == "Browse" && provider.SelectedIndex == 0 && !String.IsNullOrWhiteSpace(search.Text))
                     list = list.Where(a => (a.Name + " " + a.Description + " " + a.Author)
                         .IndexOf(search.Text, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                if (page == "Browse")
+                {
+                    switch (sortControl.SelectedIndex)
+                    {
+                        case 1: list = list.OrderByDescending(a => a.Downloads.HasValue)
+                            .ThenByDescending(a => a.Downloads ?? -1).ThenByDescending(a => a.Stars).ToList(); break;
+                        case 2: list = list.OrderByDescending(a => a.Updated)
+                            .ThenByDescending(a => a.Stars).ToList(); break;
+                        case 3: list = list.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList(); break;
+                        case 4: list = list.OrderByDescending(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList(); break;
+                        case 5: list = list.OrderBy(a => a.Stars).ThenBy(a => a.Name).ToList(); break;
+                        default: list = list.OrderByDescending(a => a.Stars).ThenBy(a => a.Name).ToList(); break;
+                    }
+                }
                 int total = list.Count;
-                offset = Math.Min(offset, Math.Max(0, ((total - 1) / 12) * 12));
-                foreach (var item in list.Skip(offset).Take(page == "Packs" ? 40 : 12))
+                int size = (int)resultsPerPage.Value;
+                offset = Math.Min(offset, Math.Max(0, ((total - 1) / size) * size));
+                foreach (var item in list.Skip(offset).Take(page == "Packs" ? 40 : size))
                     AddCard(item);
                 pageNumber.Text = total == 0 ? "No results" :
-                    (offset + 1) + "–" + Math.Min(offset + 12, total) + " of " + total;
+                    (offset + 1) + "–" + Math.Min(offset + size, total) + "/" + total;
                 previous.Enabled = offset > 0;
-                next.Enabled = offset + 12 < total;
+                next.Enabled = offset + size < total;
             }
             gallery.ResumeLayout(true);
         }
@@ -275,7 +316,8 @@ namespace TortoiseCrew
             };
             var meta = new Label
             {
-                Text = entry.Source + (entry.Stars > 0 ? "  ·  ★ " + entry.Stars : ""),
+                Text = entry.Source + "  ·  ★ " + entry.Stars +
+                    (entry.Downloads.HasValue ? "  ·  ↓ " + entry.Downloads.Value.ToString("N0") : ""),
                 Location = new Point(97, 82), Size = new Size(390, 17),
                 Font = new Font("Segoe UI", 8), ForeColor = Mint, AutoEllipsis = true
             };
