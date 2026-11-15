@@ -165,6 +165,21 @@ namespace TortoiseCrew
         public string Name, Folder, Dependencies, MissingDependencies;
     }
 
+    internal sealed class ImportSummary
+    {
+        public int Addons;
+        public int ClientFiles;
+        public readonly List<string> Warnings = new List<string>();
+        public string Describe()
+        {
+            string result = "Imported " + Addons + " addon(s) and " + ClientFiles + " client file(s).";
+            if (Warnings.Count > 0)
+                result += " " + Warnings.Count + " item(s) skipped: " +
+                    String.Join("; ", Warnings.Take(3));
+            return result;
+        }
+    }
+
     internal static class AddonFiles
     {
         private static readonly Regex RepoPattern = new Regex(
@@ -435,81 +450,142 @@ namespace TortoiseCrew
             }
         }
 
+        internal static Task<ImportSummary> ImportLocalDetailedAsync(
+            string folder, string wowExe, bool includeClientMods)
+        {
+            return Task.Run(() => ImportLocalInto(folder, GameRoot(wowExe), includeClientMods));
+        }
         internal static Task<int> ImportLocalAsync(string folder, string wowExe, bool includeClientMods)
         {
-            return Task.Run(() =>
-            {
-                string game = GameRoot(wowExe);
-                string from = Path.GetFullPath(folder.TrimEnd('\\'));
-                if (!Directory.Exists(from)) throw new DirectoryNotFoundException(from);
-                if (String.Equals(from, game, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Source and destination must be different game folders.");
-                string addonSource = Path.Combine(from, "Interface", "AddOns");
-                if (!Directory.Exists(addonSource) &&
-                    (TocFiles(from).Count > 0 ||
-                     Directory.GetDirectories(from).Any(d => Directory.GetFiles(d, "*.toc", SearchOption.TopDirectoryOnly).Length > 0)))
-                    addonSource = from;
-                int count = Directory.Exists(addonSource) &&
-                    TocFiles(addonSource).Count > 0
-                    ? InstallFolders(addonSource, wowExe) : 0;
-                if (includeClientMods)
+            return Task.Run(() => ImportLocalInto(folder, GameRoot(wowExe), includeClientMods).Addons);
+        }
+        // Separable destination argument makes file operations testable with a
+        // throwaway directory, without requiring the real verified WoW.exe.
+        internal static ImportSummary ImportLocalInto(string folder, string gameRoot, bool includeClientMods)
+        {
+            string from = Path.GetFullPath(folder).TrimEnd('\\', '/');
+            string game = Path.GetFullPath(gameRoot).TrimEnd('\\', '/');
+            if (!Directory.Exists(from)) throw new DirectoryNotFoundException(from);
+            if (!Directory.Exists(game)) throw new DirectoryNotFoundException(game);
+            if (from.Equals(game, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Select a DIFFERENT game folder as the import source.");
+            if (game.StartsWith(from + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The target WoW client is inside the source folder.");
+            var result = new ImportSummary();
+
+            string addonSource = Path.Combine(from, "Interface", "AddOns");
+            if (!Directory.Exists(addonSource)) addonSource = from;
+            if (TocFiles(addonSource).Count > 0)
+                result.Addons = InstallFoldersInto(addonSource, Path.Combine(game, "Interface", "AddOns"));
+
+            if (!includeClientMods) return result;
+            var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                "nampower.dll", "superwow.dll", "unitxp.dll", "classicapi.dll",
+                "vanillafixes.exe", "dxgi.dll", "d3d9.dll"
+            };
+            string listFile = Path.Combine(from, "dlls.txt");
+            if (File.Exists(listFile))
+                foreach (string line in File.ReadAllLines(listFile))
                 {
-                    var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-                        "nampower.dll", "superwow.dll", "unitxp.dll", "classicapi.dll",
-                        "vanillafixes.exe", "dxgi.dll", "d3d9.dll" };
-                    string installedDllList = Path.Combine(from, "dlls.txt");
-                    if (File.Exists(installedDllList))
-                        foreach (string line in File.ReadAllLines(installedDllList))
-                        {
-                            string name = line.Trim();
-                            if (Regex.IsMatch(name, @"^[a-zA-Z0-9_.-]+\.dll$", RegexOptions.IgnoreCase))
-                                extensions.Add(name);
-                        }
-                    foreach (var file in Directory.GetFiles(from))
-                        if (extensions.Contains(Path.GetFileName(file)) && new FileInfo(file).Length < 50L * 1024 * 1024)
-                            BackupAndCopy(file, Path.Combine(game, Path.GetFileName(file)));
-                    string fromData = Path.Combine(from, "Data");
-                    string toData = Path.Combine(game, "Data");
-                    // An extracted pack can contain MPQ files directly, without a WoW/Data directory.
-                    var patchDirs = new List<string> { from };
-                    if (Directory.Exists(fromData)) patchDirs.Add(fromData);
-                    foreach (var patchDir in patchDirs)
-                        foreach (var file in Directory.GetFiles(patchDir, "*.mpq"))
-                        {
-                            string name = Path.GetFileName(file);
-                            if (name.StartsWith("patch-", StringComparison.OrdinalIgnoreCase) ||
-                                name.IndexOf("comfy", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                name.IndexOf("hd", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                Directory.CreateDirectory(toData);
-                                BackupAndCopy(file, Path.Combine(toData, name));
-                            }
-                        }
-                    string dlls = Path.Combine(from, "dlls.txt");
-                    if (File.Exists(dlls))
+                    string name = line.Trim();
+                    if (Regex.IsMatch(name, @"^[a-zA-Z0-9_.-]+\.dll$", RegexOptions.IgnoreCase))
+                        extensions.Add(name);
+                }
+            foreach (var file in Directory.EnumerateFiles(from))
+            {
+                string name = Path.GetFileName(file);
+                if (!extensions.Contains(name)) continue;
+                if (new FileInfo(file).Length > 50L * 1024 * 1024)
+                {
+                    result.Warnings.Add(name + " exceeds the 50 MB client file limit.");
+                    continue;
+                }
+                TryCopyClientFile(file, Path.Combine(game, name), result);
+            }
+
+            var dataDirectories = new List<string> { from };
+            string data = Path.Combine(from, "Data");
+            if (Directory.Exists(data)) dataDirectories.Add(data);
+            foreach (var folderPath in dataDirectories)
+                foreach (var file in Directory.EnumerateFiles(folderPath, "*.mpq"))
+                {
+                    string name = Path.GetFileName(file);
+                    if (!(name.StartsWith("patch-", StringComparison.OrdinalIgnoreCase) ||
+                          name.IndexOf("comfy", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          name.IndexOf("hd", StringComparison.OrdinalIgnoreCase) >= 0))
+                        continue;
+                    if (new FileInfo(file).Length > 2L * 1024 * 1024 * 1024)
                     {
-                        string output = Path.Combine(game, "dlls.txt");
-                        var lines = File.Exists(output) ? File.ReadAllLines(output).ToList() : new List<string>();
-                        foreach (var line in File.ReadAllLines(dlls))
+                        result.Warnings.Add(name + " exceeds 2 GB; copy manually after checking it.");
+                        continue;
+                    }
+                    string dest = Path.Combine(game, "Data", name);
+                    TryCopyClientFile(file, dest, result);
+                }
+
+            if (File.Exists(listFile))
+            {
+                try
+                {
+                    string target = Path.Combine(game, "dlls.txt");
+                    var lines = File.Exists(target) ? File.ReadAllLines(target).ToList() : new List<string>();
+                    int before = lines.Count;
+                    foreach (string line in File.ReadAllLines(listFile))
+                    {
+                        string name = line.Trim();
+                        if (!Regex.IsMatch(name, @"^[a-zA-Z0-9_.-]+\.dll$", RegexOptions.IgnoreCase))
+                            continue;
+                        if (!File.Exists(Path.Combine(game, name)))
                         {
-                            string trimmed = line.Trim();
-                            if (Regex.IsMatch(trimmed, @"^[a-zA-Z0-9_.-]+\.dll$", RegexOptions.IgnoreCase) &&
-                                File.Exists(Path.Combine(game, trimmed)) &&
-                                !lines.Any(l => l.Trim().Equals(trimmed, StringComparison.OrdinalIgnoreCase)))
-                                lines.Add(trimmed);
+                            result.Warnings.Add("DLL missing from source: " + name);
+                            continue;
                         }
-                        if (File.Exists(output)) File.Copy(output, output + ".crew-backup", true);
-                        File.WriteAllLines(output, lines);
+                        if (!lines.Any(existing => existing.Trim().Equals(name, StringComparison.OrdinalIgnoreCase)))
+                            lines.Add(name);
+                    }
+                    if (lines.Count > before)
+                    {
+                        if (File.Exists(target)) File.Copy(target, NextBackup(target));
+                        File.WriteAllLines(target, lines);
+                        result.ClientFiles++;
                     }
                 }
-                return count;
-            });
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    result.Warnings.Add("dlls.txt: " + ex.Message);
+                }
+            }
+            if (result.Addons == 0 && result.ClientFiles == 0)
+                result.Warnings.Add("No matching .toc addons or supported client patches were found.");
+            return result;
         }
-        private static void BackupAndCopy(string source, string destination)
+
+        private static string NextBackup(string destination)
         {
-            if (File.Exists(destination))
-                File.Copy(destination, destination + ".crew-backup", true);
-            File.Copy(source, destination, true);
+            return destination + ".crew-backup-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss") +
+                "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        }
+        private static void TryCopyClientFile(string source, string destination, ImportSummary result)
+        {
+            try
+            {
+                if (Path.GetFullPath(source).Equals(Path.GetFullPath(destination),
+                    StringComparison.OrdinalIgnoreCase)) return;
+                string parent = Path.GetDirectoryName(destination);
+                Directory.CreateDirectory(parent);
+                if (File.Exists(destination))
+                {
+                    // Never overwrite the last backup, including for repeated imports.
+                    if (GameDetector.HashOf(source) == GameDetector.HashOf(destination)) return;
+                    File.Copy(destination, NextBackup(destination));
+                }
+                File.Copy(source, destination, true);
+                result.ClientFiles++;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                result.Warnings.Add(Path.GetFileName(source) + ": " + ex.Message);
+            }
         }
         internal static Task<List<string>> FindClientsAsync(string wowExe)
         {
