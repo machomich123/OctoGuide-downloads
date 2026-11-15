@@ -520,115 +520,64 @@ namespace TortoiseCrew
             if (TocFiles(addonSource).Count > 0)
                 result.Addons = InstallFoldersInto(addonSource, Path.Combine(game, "Interface", "AddOns"));
 
-            if (!includeClientMods) return result;
-            var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-                "nampower.dll", "superwow.dll", "unitxp.dll", "classicapi.dll",
-                "vanillafixes.exe", "dxgi.dll", "d3d9.dll"
-            };
-            string listFile = Path.Combine(from, "dlls.txt");
-            if (File.Exists(listFile))
-                foreach (string line in File.ReadAllLines(listFile))
-                {
-                    string name = line.Trim();
-                    if (Regex.IsMatch(name, @"^[a-zA-Z0-9_.-]+\.dll$", RegexOptions.IgnoreCase))
-                        extensions.Add(name);
-                }
-            foreach (var file in Directory.EnumerateFiles(from))
-            {
-                string name = Path.GetFileName(file);
-                if (!extensions.Contains(name)) continue;
-                if (new FileInfo(file).Length > 50L * 1024 * 1024)
-                {
-                    result.Warnings.Add(name + " exceeds the 50 MB client file limit.");
-                    continue;
-                }
-                TryCopyClientFile(file, Path.Combine(game, name), result);
-            }
-
-            var dataDirectories = new List<string> { from };
-            string data = Path.Combine(from, "Data");
-            if (Directory.Exists(data)) dataDirectories.Add(data);
-            foreach (var folderPath in dataDirectories)
-                foreach (var file in Directory.EnumerateFiles(folderPath, "*.mpq"))
-                {
-                    string name = Path.GetFileName(file);
-                    if (!(name.StartsWith("patch-", StringComparison.OrdinalIgnoreCase) ||
-                          name.IndexOf("comfy", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                          name.IndexOf("hd", StringComparison.OrdinalIgnoreCase) >= 0))
-                        continue;
-                    if (new FileInfo(file).Length > 2L * 1024 * 1024 * 1024)
-                    {
-                        result.Warnings.Add(name + " exceeds 2 GB; copy manually after checking it.");
-                        continue;
-                    }
-                    string dest = Path.Combine(game, "Data", name);
-                    TryCopyClientFile(file, dest, result);
-                }
-
-            if (File.Exists(listFile))
-            {
-                try
-                {
-                    string target = Path.Combine(game, "dlls.txt");
-                    var lines = File.Exists(target) ? File.ReadAllLines(target).ToList() : new List<string>();
-                    int before = lines.Count;
-                    foreach (string line in File.ReadAllLines(listFile))
-                    {
-                        string name = line.Trim();
-                        if (!Regex.IsMatch(name, @"^[a-zA-Z0-9_.-]+\.dll$", RegexOptions.IgnoreCase))
-                            continue;
-                        if (!File.Exists(Path.Combine(game, name)))
-                        {
-                            result.Warnings.Add("DLL missing from source: " + name);
-                            continue;
-                        }
-                        if (!lines.Any(existing => existing.Trim().Equals(name, StringComparison.OrdinalIgnoreCase)))
-                            lines.Add(name);
-                    }
-                    if (lines.Count > before)
-                    {
-                        if (File.Exists(target)) File.Copy(target, NextBackup(target));
-                        File.WriteAllLines(target, lines);
-                        result.ClientFiles++;
-                    }
-                }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-                {
-                    result.Warnings.Add("dlls.txt: " + ex.Message);
-                }
-            }
-            if (result.Addons == 0 && result.ClientFiles == 0)
-                result.Warnings.Add("No matching .toc addons or supported client patches were found.");
+            // Matching client build numbers do not establish DLL/MPQ compatibility.
+            // Scan always imports ordinary addons, and inventories client mods for
+            // review instead of copying binaries into the currently working game.
+            if (includeClientMods)
+                InventoryClientMods(from, game, result);
             return result;
         }
 
-        private static string NextBackup(string destination)
+        private static void InventoryClientMods(string source, string game, ImportSummary result)
         {
-            return destination + ".crew-backup-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss") +
-                "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
-        }
-        private static void TryCopyClientFile(string source, string destination, ImportSummary result)
-        {
+            var lines = new List<string> {
+                "# Client modifications awaiting compatibility verification",
+                "Original client: " + source,
+                "Target client: " + game,
+                "No MPQ, DLL, DXVK wrapper or executable was installed or enabled.",
+                "These files require independent client-specific testing before activation.",
+                ""
+            };
+            string[] roots = { source, Path.Combine(source, "Data") };
+            foreach (string root in roots.Where(Directory.Exists))
+            {
+                foreach (string file in Directory.EnumerateFiles(root))
+                {
+                    var info = new FileInfo(file);
+                    if ((info.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                    string name = info.Name;
+                    bool clientMod = name.Equals("dlls.txt", StringComparison.OrdinalIgnoreCase) ||
+                        name.Equals("VanillaFixes.exe", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".asi", StringComparison.OrdinalIgnoreCase) ||
+                        (name.EndsWith(".mpq", StringComparison.OrdinalIgnoreCase) &&
+                         (name.StartsWith("patch-", StringComparison.OrdinalIgnoreCase) ||
+                          name.IndexOf("hd", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                          name.IndexOf("comfy", StringComparison.OrdinalIgnoreCase) >= 0));
+                    if (!clientMod) continue;
+                    result.StagedMods++;
+                    lines.Add(file + " | bytes=" + info.Length);
+                }
+            }
+            if (result.StagedMods == 0) return;
             try
             {
-                if (Path.GetFullPath(source).Equals(Path.GetFullPath(destination),
-                    StringComparison.OrdinalIgnoreCase)) return;
-                string parent = Path.GetDirectoryName(destination);
-                Directory.CreateDirectory(parent);
-                if (File.Exists(destination))
-                {
-                    // Never overwrite the last backup, including for repeated imports.
-                    if (GameDetector.HashOf(source) == GameDetector.HashOf(destination)) return;
-                    File.Copy(destination, NextBackup(destination));
-                }
-                File.Copy(source, destination, true);
-                result.ClientFiles++;
+                // Inventory outside WoW.exe's directory. No multi-GB duplicate archives.
+                string parent = Path.GetDirectoryName(game);
+                string review = Path.Combine(parent, "_Crew_Mod_Review");
+                Directory.CreateDirectory(review);
+                string output = Path.Combine(review, "review-" +
+                    DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" +
+                    Guid.NewGuid().ToString("N").Substring(0, 8) + ".txt");
+                File.WriteAllLines(output, lines);
+                result.Warnings.Add(result.StagedMods + " client mod(s) require compatibility review: " + output);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                result.Warnings.Add(Path.GetFileName(source) + ": " + ex.Message);
+                result.Warnings.Add("Could not write client-mod review: " + ex.Message);
             }
         }
+
         internal static Task<List<string>> FindClientsAsync(string wowExe)
         {
             return Task.Run(() =>
