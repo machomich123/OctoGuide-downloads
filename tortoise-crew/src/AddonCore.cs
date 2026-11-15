@@ -358,7 +358,13 @@ namespace TortoiseCrew
                 if (String.Equals(from, game, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("Source and destination must be different game folders.");
                 string addonSource = Path.Combine(from, "Interface", "AddOns");
-                int count = Directory.Exists(addonSource) ? InstallFolders(addonSource, wowExe) : 0;
+                if (!Directory.Exists(addonSource) &&
+                    (Directory.GetFiles(from, "*.toc", SearchOption.TopDirectoryOnly).Length > 0 ||
+                     Directory.GetDirectories(from).Any(d => Directory.GetFiles(d, "*.toc", SearchOption.TopDirectoryOnly).Length > 0)))
+                    addonSource = from;
+                int count = Directory.Exists(addonSource) &&
+                    Directory.GetFiles(addonSource, "*.toc", SearchOption.AllDirectories).Length > 0
+                    ? InstallFolders(addonSource, wowExe) : 0;
                 if (includeClientMods)
                 {
                     var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -369,8 +375,11 @@ namespace TortoiseCrew
                             BackupAndCopy(file, Path.Combine(game, Path.GetFileName(file)));
                     string fromData = Path.Combine(from, "Data");
                     string toData = Path.Combine(game, "Data");
-                    if (Directory.Exists(fromData))
-                        foreach (var file in Directory.GetFiles(fromData, "*.mpq"))
+                    // An extracted pack can contain MPQ files directly, without a WoW/Data directory.
+                    var patchDirs = new List<string> { from };
+                    if (Directory.Exists(fromData)) patchDirs.Add(fromData);
+                    foreach (var patchDir in patchDirs)
+                        foreach (var file in Directory.GetFiles(patchDir, "*.mpq"))
                         {
                             string name = Path.GetFileName(file);
                             if (name.StartsWith("patch-", StringComparison.OrdinalIgnoreCase) ||
