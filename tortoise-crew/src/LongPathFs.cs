@@ -109,10 +109,22 @@ namespace TortoiseCrew
             return (attr & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
         }
 
+        // Path.GetDirectoryName itself applies MAX_PATH in .NET Framework 4.x,
+        // even when only parsing a string. Extract the parent without invoking it.
+        internal static string Parent(string path)
+        {
+            string trimmed = path.TrimEnd('\\', '/');
+            int separator = Math.Max(trimmed.LastIndexOf('\\'), trimmed.LastIndexOf('/'));
+            if (separator < 0) return null;
+            if (separator == 2 && trimmed.Length >= 3 && trimmed[1] == ':')
+                return trimmed.Substring(0, 3);
+            return trimmed.Substring(0, separator);
+        }
+
         internal static void EnsureDirectory(string path)
         {
             if (DirectoryExists(path)) return;
-            string parent = Path.GetDirectoryName(path.TrimEnd('\\', '/'));
+            string parent = Parent(path);
             if (String.IsNullOrEmpty(parent) || parent == path)
                 throw new IOException("Invalid directory: " + path);
             EnsureDirectory(parent);
