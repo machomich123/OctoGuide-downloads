@@ -1,0 +1,44 @@
+name: Test safe WoW addon migration
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tortoise-crew/src/**'
+      - 'tortoise-crew/tests/**'
+      - '.github/workflows/test-addon-import.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tortoise-crew/src/**'
+      - 'tortoise-crew/tests/**'
+      - '.github/workflows/test-addon-import.yml'
+permissions:
+  contents: read
+jobs:
+  addon-import-tests:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile offline import regression tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $csc = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
+          if (-not (Test-Path -LiteralPath $csc)) { throw 'Roslyn C# compiler missing' }
+          New-Item -ItemType Directory -Force -Path 'out' | Out-Null
+          $src = @(Get-ChildItem 'tortoise-crew\src\*.cs' | ForEach-Object FullName)
+          $tests = 'tortoise-crew\tests\AddonImportSafetyTests.cs'
+          $refs = @('/reference:System.dll','/reference:System.Core.dll',
+            '/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll',
+            '/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll',
+            '/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll',
+            '/reference:Microsoft.CSharp.dll','/reference:System.Security.dll')
+          $args = @('/nologo','/langversion:latest','/target:exe','/platform:anycpu','/optimize+','/main:TortoiseCrew.AddonImportSafetyTests','/out:out\AddonImportSafetyTests.exe') + $refs + $src + $tests
+          & $csc @args
+          if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed' }
+      - name: Run addon-import regression suite
+        shell: pwsh
+        run: |
+          & 'out\AddonImportSafetyTests.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Addon-import tests failed' }

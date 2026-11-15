@@ -451,7 +451,7 @@ namespace TortoiseCrew
         {
             if (working) return;
             working = true;
-            Say("Scanning drives for existing OctoWoW / Turtle WoW installations...");
+            Say("Scanning clients (read-only; no files will be changed until you confirm import)...");
             try
             {
                 var clients = await AddonFiles.FindClientsAsync(wowPath());
@@ -509,17 +509,20 @@ namespace TortoiseCrew
                 Say("Close WoW before importing mods.");
                 return;
             }
-            string prompt = "Import addons from:\n" + folder +
-                "\n\nAddon folders are backed up before replacement.\n\n" +
-                "Also copy recognized client DLLs, VanillaFixes and MPQ/HD patches? These can make an older/modified client crash.";
-            var result = MessageBox.Show(prompt, "Import addons and client extensions",
-                MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
-            if (result == DialogResult.Cancel) return;
-            Say("Importing existing addons and optional client files...");
+            string prompt = "Import compatible UI addons from:\n" + folder +
+                "\n\nThis will NEVER replace Blizzard_/Turtle_ built-in addons." +
+                "\nExisting community addons are backed up, and the batch rolls back on failure." +
+                "\n\nDLL, DXVK and MPQ/HD modifications from another client are inventoried " +
+                "outside the game, NOT activated. They can crash WoW or corrupt its graphics." +
+                "\n\nContinue with safe addon import?";
+            var result = MessageBox.Show(prompt, "Safe import from another WoW client",
+                MessageBoxButtons.OKCancel, MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button2);
+            if (result != DialogResult.OK) return;
+            Say("Importing community addons; checking client mods without activating them...");
             try
             {
-                var summary = await AddonFiles.ImportLocalDetailedAsync(folder, wowPath(),
-                    result == DialogResult.Yes);
+                var summary = await AddonFiles.ImportLocalDetailedAsync(folder, wowPath(), true);
                 if (!IsDisposed)
                 {
                     Say(summary.Describe() + " Restart WoW to load new addons.");
