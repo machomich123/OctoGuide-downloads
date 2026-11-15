@@ -317,7 +317,7 @@ namespace TortoiseCrew
             if (sourceFull.Equals(destinationFull, StringComparison.OrdinalIgnoreCase) ||
                 destinationFull.StartsWith(sourceFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Destination cannot be inside the source folder.");
-            var folders = TocFiles(source).Select(Path.GetDirectoryName)
+            var folders = TocFiles(source).Select(LongPathFs.Parent)
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (folders.Count == 0) throw new InvalidDataException("No addon folders containing .toc files found.");
             if (folders.Count > 500) throw new InvalidDataException("Too many addons to import at once (500 maximum).");
