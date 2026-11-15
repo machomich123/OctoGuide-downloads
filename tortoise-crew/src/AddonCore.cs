@@ -136,7 +136,7 @@ namespace TortoiseCrew
             return new List<AddonEntry>
             {
                 new AddonEntry { Name="Comfy Atmosphere", Description="Import an existing atmosphere/visual patch pack (.MPQ) from OctoWoW or a local archive.", Source="Local game patch", IsPack=true },
-                new AddonEntry { Name="HD Switch / HD Pack", Description="Import locally installed HD patches. MPQ packs can conflict with the verified 1.18.1 client.", Source="Local game patch", IsPack=true },
+                new AddonEntry { Name="HD Switch / HD Pack", Description="OctoWoW HD Switch is OctoWoW-realm-only. Import existing HD/MPQ patches cautiously; they may not work on this private realm.", Source="OctoWoW-only / local patch", Url="https://github.com/fmustafayaman/OctoWoW-HD-Switch", IconUrl=Avatar("https://github.com/fmustafayaman/OctoWoW-HD-Switch"), IsPack=true },
                 new AddonEntry { Name="Nampower & client DLLs", Description="Import compatible local DLLs and merge dlls.txt without erasing existing entries.", Source="Local client extension", IsPack=true },
                 new AddonEntry { Name="VanillaFixes", Description="Import an existing VanillaFixes.exe into the game folder (not launched automatically).", Source="Local client extension", IsPack=true }
             };
