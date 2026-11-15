@@ -96,6 +96,8 @@ namespace TortoiseCrew
                 AutoScroll = true, WrapContents = false, FlowDirection = FlowDirection.TopDown,
                 BackColor = Bg, Padding = new Padding(0)
             };
+            gallery.Scroll += (s, e) => LoadVisibleImages();
+            gallery.Resize += (s, e) => LoadVisibleImages();
             Controls.Add(gallery);
             previous = Button("Previous", 27, 575, 107, 34);
             next = Button("Next", 628, 575, 107, 34);
@@ -110,7 +112,14 @@ namespace TortoiseCrew
                 "Name A-Z", "Name Z-A", "Stars: lowest first"
             });
             sortControl.SelectedIndex = 0;
-            sortControl.SelectedIndexChanged += (s, e) => { offset = 0; Render(); };
+            sortControl.SelectedIndexChanged += (s, e) =>
+            {
+                offset = 0;
+                Render();
+                if (sortControl.SelectedIndex == 1 && !addons.Any(a => a.Downloads.HasValue) &&
+                    !githubResults.Any(a => a.Downloads.HasValue))
+                    Say("Download totals are not published for these addons. Showing star popularity instead.");
+            };
             Controls.Add(sortControl);
             resultsPerPage = new NumericUpDown
             {
@@ -227,7 +236,12 @@ namespace TortoiseCrew
         {
             if (IsDisposed) return;
             gallery.SuspendLayout();
-            gallery.Controls.Clear();
+            while (gallery.Controls.Count > 0)
+            {
+                var obsolete = gallery.Controls[0];
+                gallery.Controls.RemoveAt(0);
+                obsolete.Dispose();
+            }
             search.Visible = page == "Browse";
             provider.Visible = page == "Browse";
             scan.Visible = page != "Browse";
@@ -272,6 +286,23 @@ namespace TortoiseCrew
                 next.Enabled = offset + size < total;
             }
             gallery.ResumeLayout(true);
+            LoadVisibleImages();
+        }
+        private void LoadVisibleImages()
+        {
+            if (gallery.IsDisposed) return;
+            foreach (Panel card in gallery.Controls.OfType<Panel>())
+            {
+                if (card.Bottom < -120 || card.Top > gallery.ClientSize.Height + 150)
+                    continue;
+                foreach (PictureBox picture in card.Controls.OfType<PictureBox>())
+                {
+                    var uri = picture.Tag as string;
+                    if (String.IsNullOrWhiteSpace(uri)) continue;
+                    picture.Tag = null;
+                    try { picture.LoadAsync(uri); } catch { /* Keep the placeholder. */ }
+                }
+            }
         }
         private static PictureBox Art(string uri, int x, int y, int w, int h)
         {
@@ -290,11 +321,10 @@ namespace TortoiseCrew
                     g.DrawString("✦", f, brush, new PointF(w / 3f, h / 4f));
             }
             p.Image = bmp;
-            if (!String.IsNullOrWhiteSpace(uri) && uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                // LoadAsync is non-blocking; a missing image leaves the placeholder.
-                try { p.LoadAsync(uri); } catch { }
-            }
+            // Only fetch thumbnails as cards approach the visible scroll viewport.
+            if (!String.IsNullOrWhiteSpace(uri) && uri.StartsWith("https://",
+                StringComparison.OrdinalIgnoreCase))
+                p.Tag = uri;
             return p;
         }
         private void AddCard(AddonEntry entry)
