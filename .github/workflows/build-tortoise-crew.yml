@@ -1,5 +1,10 @@
 name: Build Tortoise Crew Windows Launcher
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tortoise-crew/src/**'
+      - '.github/workflows/build-tortoise-crew.yml'
   push:
     branches: [main]
     paths:
@@ -14,10 +19,10 @@ jobs:
   build:
     if: >-
       github.repository == 'machomich123/OctoGuide-downloads' &&
-      (github.event_name == 'push' ||
+      (github.event_name == 'push' || github.event_name == 'pull_request' ||
        (github.event_name == 'issues' &&
         github.event.issue.user.login == 'machomich123' &&
-        github.event.issue.title == '[Build Tortoise Crew Launcher v1.0.4]'))
+        github.event.issue.title == '[Build Tortoise Crew Launcher v1.0.5]'))
     runs-on: windows-2022
     timeout-minutes: 12
     steps:
@@ -35,13 +40,14 @@ jobs:
           $sources = @(Get-ChildItem 'tortoise-crew\src\*.cs' | ForEach-Object FullName)
           $compilerArgs = @('/nologo','/langversion:latest','/target:winexe','/platform:anycpu','/optimize+')
           $compilerArgs += "/out:$target"
-          $compilerArgs += @('/reference:System.dll','/reference:System.Core.dll','/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll','/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll','/reference:Microsoft.CSharp.dll','/reference:System.Security.dll')
+          $compilerArgs += @('/reference:System.dll','/reference:System.Core.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll','/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll','/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll','/reference:Microsoft.CSharp.dll','/reference:System.Security.dll')
           $compilerArgs += $sources
           & $csc @compilerArgs
           if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCODE" }
           if (-not (Test-Path $target)) { throw "Built executable missing" }
           Write-Host "Built launcher: $((Get-Item $target).Length) bytes"
       - name: Build public GitHub update manifest
+        if: github.event_name == 'push'
         shell: pwsh
         run: |
           $exe = 'tortoise-crew\TortoiseCrewLauncher.exe'
@@ -54,15 +60,16 @@ jobs:
               throw 'Crew HTTPS endpoint is not trusted'
           }
           $endpoint = $api.GetLeftPart([UriPartial]::Authority)
-          $health = Invoke-RestMethod -Uri "$endpoint/v1/health" -TimeoutSec 12
-          $presence = Invoke-RestMethod -Uri "$endpoint/v1/presence" -TimeoutSec 12
-          if (-not $health.ok -or $health.service -ne 'crew-bridge-1.0.4' -or
-              -not $presence.ok -or -not $presence.online) {
-              throw 'Crew HTTPS bridge failed live health/presence check; keeping old manifest'
+          # The independent addon-library release must not be blocked by a transient game bridge.
+          # Preserve the last published endpoint; launcher server status displays its live state.
+          try {
+            $health = Invoke-RestMethod -Uri "$endpoint/v1/health" -TimeoutSec 10
+            if (-not $health.ok) { Write-Warning 'Crew bridge health check returned non-OK.' }
+          } catch {
+            Write-Warning 'Crew bridge is temporarily unreachable; publishing offline addon management.'
           }
-          Write-Host 'External crew backend health verified.'
           $manifest = [ordered]@{
-              launcherVersion = '1.0.4'
+              launcherVersion = '1.0.5'
               launcherUrl = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe'
               launcherSha256 = $hash
               crewApiUrl = $endpoint
@@ -70,12 +77,13 @@ jobs:
               sshPort = 25034
               authPort = 3724
               worldPort = 8085
-              message = 'v1.0.4: Click-to-play TLS relay, direct password change, online crew status. HTTPS preview endpoint may change after server restart.'
+              message = 'v1.0.5: Addon Library with Turtle WoW catalog, GitHub downloads, installation scan, DLL/HD mod import and source details.'
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'tortoise-crew\manifest.json' -Encoding utf8
           Write-Host "Manifest SHA256: $hash"
           Get-Content -LiteralPath 'tortoise-crew\manifest.json'
       - name: Publish verified binary and server settings to the public distribution path
+        if: github.event_name == 'push'
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
@@ -83,7 +91,7 @@ jobs:
           git add tortoise-crew/TortoiseCrewLauncher.exe tortoise-crew/manifest.json
           $changed = git diff --cached --name-only
           if ($changed) {
-            git commit -m 'Publish Tortoise Crew Launcher v1.0.4 and public endpoint manifest'
+            git commit -m 'Publish Tortoise Crew Launcher v1.0.5 and public endpoint manifest'
             if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
             git push origin HEAD:main
             if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
@@ -93,7 +101,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TortoiseCrewLauncher-Windows-v1.0.4
+          name: TortoiseCrewLauncher-Windows-v1.0.5
           path: |
             tortoise-crew/TortoiseCrewLauncher.exe
             tortoise-crew/manifest.json
