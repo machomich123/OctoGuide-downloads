@@ -31,6 +31,11 @@ namespace TortoiseCrew
                     SafeUpdater.ReplaceInstalled(args[1], args[2]);
                     return;
                 }
+                if (args.Length == 4 && args[0] == "--replace")
+                {
+                    SafeUpdater.ReplaceInstalled(args[1], args[2], int.Parse(args[3]));
+                    return;
+                }
                 if (args.Length == 2 && args[0] == "--replace")
                 {
                     // Backwards-compatible update from v1.0.0/v1.0.1:
@@ -45,29 +50,54 @@ namespace TortoiseCrew
                     return;
                 }
 
-                string current = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
-                if (!String.Equals(current, Paths.Executable, StringComparison.OrdinalIgnoreCase))
+                string readyMarker = null;
+                if (args.Length == 2 && args[0] == "--updated")
                 {
-                    bool shouldCopy = true;
-                    if (File.Exists(Paths.Executable))
+                    Guid startupId;
+                    if (!Guid.TryParseExact(args[1], "N", out startupId))
+                        throw new InvalidDataException("Invalid update startup token.");
+                    readyMarker = Path.Combine(Paths.Root, "update-started-" + startupId.ToString("N") + ".ready");
+                }
+                bool launchInstalled = false;
+                using (var instance = LauncherInstance.Acquire(0))
+                {
+                    if (instance == null)
                     {
-                        try
+                        LauncherInstance.ActivateExisting();
+                        return;
+                    }
+                    string current = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
+                    if (!String.Equals(current, Paths.Executable, StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool shouldCopy = true;
+                        if (File.Exists(Paths.Executable))
                         {
                             var oldVersion = AssemblyName.GetAssemblyName(Paths.Executable).Version;
                             var incoming = Assembly.GetExecutingAssembly().GetName().Version;
-                            shouldCopy = oldVersion == null || oldVersion <= incoming;
+                            shouldCopy = oldVersion < incoming || (oldVersion == incoming &&
+                                !String.Equals(GameDetector.HashOf(current), GameDetector.HashOf(Paths.Executable),
+                                    StringComparison.OrdinalIgnoreCase));
                         }
-                        catch { }
+                        if (shouldCopy)
+                        {
+                            ReleaseTrust.RequireTrusted(current);
+                            File.Copy(current, Paths.Executable, true);
+                        }
+                        DesktopShortcut.Create();
+                        launchInstalled = true;
                     }
-                    if (shouldCopy) File.Copy(current, Paths.Executable, true);
-                    DesktopShortcut.Create();
-                    Process.Start(new ProcessStartInfo(Paths.Executable) { WorkingDirectory = Paths.Root });
-                    return;
+                    else
+                    {
+                        DesktopShortcut.Create();
+                        Application.EnableVisualStyles();
+                        Application.SetCompatibleTextRenderingDefault(false);
+                        Application.Run(new LauncherForm(readyMarker));
+                    }
                 }
-
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new LauncherForm());
+                // Release the UI mutex before starting the installed copy.
+                if (launchInstalled)
+                    Process.Start(new ProcessStartInfo(Paths.Executable) {
+                        WorkingDirectory = Paths.Root, UseShellExecute = true });
             }
             catch (Exception ex)
             {
@@ -85,6 +115,7 @@ namespace TortoiseCrew
             try
             {
                 string dir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                Directory.CreateDirectory(dir);
                 string link = Path.Combine(dir, "Tortoise Crew Launcher.lnk");
                 Type shellType = Type.GetTypeFromProgID("WScript.Shell");
                 if (shellType == null) return;
@@ -118,8 +149,10 @@ namespace TortoiseCrew
         private bool starting, checking, searching, updating, handedOffSession, closingForUpdate, presenceChecking;
         private readonly Dictionary<string, Label> crewPresence = new Dictionary<string, Label>();
         private System.Windows.Forms.Timer crewRefresh;
+        private System.Windows.Forms.Timer activationTimer;
+        private EventWaitHandle activationSignal;
 
-        public LauncherForm()
+        public LauncherForm(string readyMarker = null)
         {
             settings = Paths.Load();
             Text = "Tortoise Crew · Realm Launcher";
@@ -134,9 +167,21 @@ namespace TortoiseCrew
             DoubleBuffered = true;
             Icon = SystemIcons.Application;
             BuildLayout();
+            activationSignal = new EventWaitHandle(false, EventResetMode.AutoReset, LauncherInstance.ActivationName);
+            activationTimer = new System.Windows.Forms.Timer { Interval = 150 };
+            activationTimer.Tick += (s, e) => {
+                if (!activationSignal.WaitOne(0)) return;
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                Show();
+                Activate();
+                BringToFront();
+            };
+            activationTimer.Start();
+            FormClosed += (s, e) => { activationTimer.Dispose(); activationSignal.Dispose(); };
             FormClosing += OnClosing;
             Shown += async (s, e) =>
             {
+                if (readyMarker != null) File.WriteAllText(readyMarker, Paths.Version);
                 await InitializeAsync();
             };
         }
@@ -484,13 +529,14 @@ namespace TortoiseCrew
                                 return;
                             }
                             updateButton.Text = "DOWNLOADING...";
-                            feedMessage.Text = "Downloading and verifying the signed-off update...";
+                            feedMessage.Text = "Verifying update checksum and Windows publisher signature...";
                             string candidate = await RemoteUpdates.DownloadVerifiedUpdateAsync(manifest);
                             if (!File.Exists(candidate))
                                 throw new IOException("Update download was not saved.");
-                            Paths.WriteLog("SHA-256 verified. Starting safe, independent updater.");
+                            Paths.WriteLog("SHA-256 and publisher signature verified. Starting independent updater.");
                             var helperStart = new ProcessStartInfo(candidate,
-                                "--replace \"" + Paths.Executable + "\" " + manifest.LauncherSha256)
+                                "--replace \"" + Paths.Executable + "\" " + manifest.LauncherSha256 +
+                                " " + Process.GetCurrentProcess().Id)
                             {
                                 WorkingDirectory = Paths.Root,
                                 UseShellExecute = false,
@@ -511,17 +557,20 @@ namespace TortoiseCrew
                 else
                 {
                     updateButton.Text = "↻  Update";
-                    feedMessage.Text = routingChanged ? "Server settings updated from GitHub." :
-                        "Launcher and server settings are up to date.";
-                    if (userRequested) Notice("You are using the latest launcher.");
+                    feedMessage.Text = manifest.UpdatesPaused ? manifest.Message :
+                        (routingChanged ? "Server settings updated from GitHub." :
+                        "Launcher and server settings are up to date.");
+                    if (userRequested) Notice(manifest.UpdatesPaused ? manifest.Message :
+                        "You are using the latest launcher.");
                 }
             }
             catch (Exception ex)
             {
                 updateButton.Text = "↻  Update";
-                feedMessage.Text = "GitHub is unavailable. Using saved server settings.";
-                Paths.WriteLog("Manifest fetch: " + ex.GetType().Name + ": " + ex.Message);
-                if (userRequested) Notice("Couldn't check updates. Please try again.");
+                feedMessage.Text = "Update was not installed. Your current launcher has been kept.";
+                Paths.WriteLog("Update check/install: " + ex.GetType().Name + ": " + ex.Message);
+                if (userRequested) MessageBox.Show(this, ex.Message, "Launcher update",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally
             {

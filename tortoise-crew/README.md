@@ -1,8 +1,22 @@
-# Tortoise Crew Launcher v1.0.6
+# Tortoise Crew Launcher v1.0.9 (source candidate; not released)
 
 One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
-**[Download launcher v1.0.6 EXE](./TortoiseCrewLauncher.exe)** (latest executable). The previous v1.0.4 ZIP remains available for recovery. Updates are built from the Windows source. Existing clients update through the SHA-256-checked GitHub manifest.
+**Downloads and automatic launcher updates are paused.** The existing public EXE is the withdrawn, unsigned v1.0.8; do not install it as a fix for Windows Smart App Control. The v1.0.9 source is a release candidate, not a signed public release. Server routing remains available through the manifest.
+
+v1.0.9 reads the version from the compiled assembly (v1.0.8 incorrectly reported v1.0.6), treats 1.0.9 and 1.0.9.0 equally, verifies Authenticode trust as well as SHA-256 before updating, waits for the old process/file to close, and serializes desktop launches with installation. Reopening the desktop shortcut activates the existing launcher. An updater records success only after the new process opens a window. Errors keep their actual cause instead of reporting every install failure as a GitHub outage.
+
+The manifest deliberately advertises `0.0.0` while `updatesPaused` is true: older launchers do not understand the pause flag but also never offer a lower version. This does not downgrade an installed launcher. The EXE checksum is retained for traceability; it is not an installation recommendation.
+
+## Signed release setup
+
+Windows Smart App Control accepted earlier builds but blocked the v1.0.8 pending update on one PC. A successful compile, GitHub commit signature, SHA-256 match, or a self-signed certificate does not establish Windows publisher trust. No release can promise acceptance under every administrator policy or antivirus product.
+
+The build workflow compiles and runs regression tests without publishing its unsigned artifact. To enable public releases, the project owner must provision a trusted signing service. MIT-licensed open-source projects may apply to the [SignPath Foundation](https://signpath.org/); acceptance is external and not automatic. A traditional Windows-trusted code-signing provider is another option. See [Microsoft's signing options](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options).
+
+The workflow supports SignPath once the owner has configured its GitHub connector, an EXE artifact configuration, and signing policy. Add repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`, and secret `SIGNPATH_API_TOKEN` through the provider's normal account setup. Do not commit keys or tokens. The signed artifact must include an embedded, timestamped, Windows-trusted code-signing signature. `scripts/Prepare-Release.ps1` verifies this before changing the public EXE or manifest. Only a successful signed release restores the advertised version to 1.0.9 and unpauses updates.
+
+For local builds, use `scripts/Build.ps1 -Compiler <Roslyn-csc.exe>` and `scripts/Test.ps1`. Do not install or distribute the unsigned `out` artifact on Smart App Control-protected machines. After signing through a trusted provider, `scripts/Prepare-Release.ps1 -Executable <signed-exe>` prepares the EXE/manifest pair for one atomic Git commit. Local tests cover versions, concurrent launch ownership, unsigned-file rejection, a valid embedded signature, tamper detection, and addon migration.
 
 ## First-time setup and play
 

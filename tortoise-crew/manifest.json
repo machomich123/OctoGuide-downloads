@@ -1,11 +1,12 @@
 {
-  "launcherVersion": "1.0.8",
+  "launcherVersion": "0.0.0",
+  "updatesPaused": true,
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
   "launcherSha256": "CE4FFB0142631736FA94BB652E892C1D4D78DAC042B2A24B2F28FBD1347093CF",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.8: Fix Windows long file paths during addon import, with tested rollback, protected UI, and complete error dialogs.",
+  "message": "Launcher updates are temporarily paused pending a Windows-trusted, signed v1.0.9 release. Existing server settings remain available.",
   "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com"
 }

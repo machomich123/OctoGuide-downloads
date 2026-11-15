@@ -1,108 +1,99 @@
-name: Build Tortoise Crew Windows Launcher
+name: Build and gate Tortoise Crew Windows Launcher
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'tortoise-crew/src/**'
-      - '.github/workflows/build-tortoise-crew.yml'
+    paths: ['tortoise-crew/**', '.github/workflows/build-tortoise-crew.yml']
   push:
-    branches: [main]
-    paths:
-      - 'tortoise-crew/src/**'
-      - '.github/workflows/build-tortoise-crew.yml'
-  issues:
-    types: [opened]
+    branches: [main, 'fix/crew-v1.0.9']
+    paths: ['tortoise-crew/**', '.github/workflows/build-tortoise-crew.yml']
+  workflow_dispatch:
 permissions:
-  contents: write
-  issues: write
+  contents: read
+concurrency:
+  group: tortoise-crew-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
-    if: >-
-      github.repository == 'machomich123/OctoGuide-downloads' &&
-      (github.event_name == 'push' || github.event_name == 'pull_request' ||
-       (github.event_name == 'issues' &&
-        github.event.issue.user.login == 'machomich123' &&
-        github.event.issue.title == '[Build Tortoise Crew Launcher v1.0.8]'))
     runs-on: windows-2022
-    timeout-minutes: 12
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
-      - name: Compile standalone WinForms launcher (.NET Framework 4.8)
+      - name: Compile launcher and regression suites
+        shell: pwsh
+        run: ./tortoise-crew/scripts/Build.ps1
+      - name: Run update and addon regression suites
+        shell: pwsh
+        run: ./tortoise-crew/scripts/Test.ps1
+      - name: Test real desktop shortcut on the disposable runner
+        shell: pwsh
+        run: ./tortoise-crew/scripts/Test-DesktopLaunch.ps1
+      - name: Prove unsigned builds cannot change the public release
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $csc = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\Roslyn\csc.exe'
-          if (-not (Test-Path -LiteralPath $csc)) {
-              $csc = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\2022' -Recurse -Filter 'csc.exe' -ErrorAction SilentlyContinue | Where-Object FullName -Match '\\Roslyn\\csc.exe$' | Select-Object -First 1).FullName
+          $beforeExe = (Get-FileHash tortoise-crew/TortoiseCrewLauncher.exe).Hash
+          $beforeManifest = (Get-FileHash tortoise-crew/manifest.json).Hash
+          $blocked = $false
+          try { ./tortoise-crew/scripts/Prepare-Release.ps1 -Executable out/TortoiseCrewLauncher.exe }
+          catch {
+            if ($_.Exception.Message -notlike 'Release blocked: Windows-trusted*') { throw }
+            $blocked = $true
           }
-          if (-not $csc) { throw 'Missing Visual Studio Roslyn csc.exe' }
-          $target = 'tortoise-crew\TortoiseCrewLauncher.exe'
-          $sources = @(Get-ChildItem 'tortoise-crew\src\*.cs' | ForEach-Object FullName)
-          $compilerArgs = @('/nologo','/langversion:latest','/target:winexe','/platform:anycpu','/optimize+')
-          $compilerArgs += "/out:$target"
-          $compilerArgs += @('/reference:System.dll','/reference:System.Core.dll','/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll','/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll','/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll','/reference:Microsoft.CSharp.dll','/reference:System.Security.dll')
-          $compilerArgs += $sources
-          & $csc @compilerArgs
-          if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCODE" }
-          if (-not (Test-Path $target)) { throw "Built executable missing" }
-          Write-Host "Built launcher: $((Get-Item $target).Length) bytes"
-      - name: Build public GitHub update manifest
-        if: github.event_name == 'push'
+          if (-not $blocked) { throw 'Unsigned build passed the publication gate.' }
+          if ($beforeExe -ne (Get-FileHash tortoise-crew/TortoiseCrewLauncher.exe).Hash -or
+              $beforeManifest -ne (Get-FileHash tortoise-crew/manifest.json).Hash) {
+            throw 'Failed release modified public distribution files.'
+          }
+      - name: Upload build for signing (UNSIGNED - do not install)
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: TortoiseCrewLauncher-v1.0.9-UNSIGNED-DO-NOT-INSTALL
+          path: out/TortoiseCrewLauncher.exe
+          retention-days: 7
+      - name: Sign through the configured trusted publisher
+        id: sign
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          github.event_name != 'pull_request' &&
+          vars.SIGNPATH_ORGANIZATION_ID != '' &&
+          vars.SIGNPATH_PROJECT_SLUG != '' &&
+          vars.SIGNPATH_SIGNING_POLICY_SLUG != ''
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Verify signed release before changing manifest
+        if: steps.sign.outcome == 'success'
         shell: pwsh
-        run: |
-          $exe = 'tortoise-crew\TortoiseCrewLauncher.exe'
-          $hash = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToUpperInvariant()
-          $existing = Get-Content -LiteralPath 'tortoise-crew\manifest.json' -Raw | ConvertFrom-Json
-          if (-not $existing.crewApiUrl) { throw 'Crew HTTPS endpoint not configured; refusing to publish' }
-          $api = [Uri]$existing.crewApiUrl
-          if ($api.Scheme -ne 'https' -or $api.Port -ne 443 -or
-              -not $api.Host.EndsWith('.trycloudflare.com', [StringComparison]::OrdinalIgnoreCase)) {
-              throw 'Crew HTTPS endpoint is not trusted'
-          }
-          $endpoint = $api.GetLeftPart([UriPartial]::Authority)
-          # The independent addon-library release must not be blocked by a transient game bridge.
-          # Preserve the last published endpoint; launcher server status displays its live state.
-          try {
-            $health = Invoke-RestMethod -Uri "$endpoint/v1/health" -TimeoutSec 10
-            if (-not $health.ok) { Write-Warning 'Crew bridge health check returned non-OK.' }
-          } catch {
-            Write-Warning 'Crew bridge is temporarily unreachable; publishing offline addon management.'
-          }
-          $manifest = [ordered]@{
-              launcherVersion = '1.0.8'
-              launcherUrl = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe'
-              launcherSha256 = $hash
-              crewApiUrl = $endpoint
-              host = 'us-iad01.altare.global'
-              sshPort = 25034
-              authPort = 3724
-              worldPort = 8085
-              message = 'v1.0.8: Windows long-path addon import fix, regression tests, full error details and safe rollback.'
-          }
-          $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'tortoise-crew\manifest.json' -Encoding utf8
-          Write-Host "Manifest SHA256: $hash"
-          Get-Content -LiteralPath 'tortoise-crew\manifest.json'
-      - name: Publish verified binary and server settings to the public distribution path
-        if: github.event_name == 'push'
+        run: ./tortoise-crew/scripts/Prepare-Release.ps1 -Executable signed/TortoiseCrewLauncher.exe
+      - name: Publish signed EXE and matching manifest together
+        if: steps.sign.outcome == 'success'
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tortoise-crew/TortoiseCrewLauncher.exe tortoise-crew/manifest.json
-          $changed = git diff --cached --name-only
-          if ($changed) {
-            git commit -m 'Publish Tortoise Crew Launcher v1.0.8 and public endpoint manifest'
-            if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
+          if (git diff --cached --name-only) {
+            git commit -m 'Publish Windows-trusted Tortoise Crew Launcher v1.0.9'
+            if ($LASTEXITCODE -ne 0) { throw 'Release commit failed.' }
             git push origin HEAD:main
-            if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
-          } else {
-            Write-Host 'No change to public binary and manifest.'
+            if ($LASTEXITCODE -ne 0) { throw 'Release push failed; no force push attempted.' }
           }
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: TortoiseCrewLauncher-Windows-v1.0.8
-          path: |
-            tortoise-crew/TortoiseCrewLauncher.exe
-            tortoise-crew/manifest.json
-          retention-days: 30
+      - name: Report release state
+        shell: pwsh
+        env:
+          SIGNING_OUTCOME: ${{ steps.sign.outcome }}
+        run: |
+          if ($env:SIGNING_OUTCOME -eq 'success') {
+            'Signed v1.0.9 was published with its SHA-256 manifest.' >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            'v1.0.9 source compiled and passed tests. NOT RELEASED: trusted signing is not configured. Public launcher updates remain paused.' >> $env:GITHUB_STEP_SUMMARY
+          }

@@ -104,107 +104,112 @@ namespace TortoiseCrew
         }
     }
 
-    // A standalone update helper, invoked from the hash-verified downloaded EXE.
-    // Only a verified binary in the app's own folder is allowed to replace the installed
-    // launcher. File.Replace keeps the previous version as a recoverable backup.
+    // The helper verifies trust before replacing anything, waits for the old UI,
+    // and serializes installation with both other helpers and desktop launches.
     internal static class SafeUpdater
     {
-        internal static void ReplaceInstalled(string requestedTarget, string expectedHash)
+        internal static void ReplaceInstalled(string requestedTarget, string expectedHash, int parentPid = 0)
         {
             string target = Path.GetFullPath(requestedTarget);
             string running = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
             string source = Path.GetFullPath(Path.Combine(Paths.Root, "pending-update.exe"));
-
             if (!String.Equals(target, Paths.Executable, StringComparison.OrdinalIgnoreCase) ||
                 !String.Equals(running, source, StringComparison.OrdinalIgnoreCase) ||
                 !Regex.IsMatch(expectedHash ?? "", "^[0-9a-fA-F]{64}$") ||
                 !String.Equals(GameDetector.HashOf(running), expectedHash, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Refusing an unverified or unexpected update.");
-
+            ReleaseTrust.RequireTrusted(running);
             if (SessionMonitor.IsSessionActive())
                 throw new InvalidOperationException("Close WoW before updating the launcher.");
 
-            Directory.CreateDirectory(Paths.Root);
+            if (parentPid > 0)
+            {
+                Process parent = null;
+                try { parent = Process.GetProcessById(parentPid); }
+                catch (ArgumentException) { } // The old UI already exited.
+                if (parent != null)
+                {
+                    using (parent)
+                    {
+                        if (!String.Equals(parent.MainModule.FileName, target, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidOperationException("Unexpected update parent process.");
+                        if (!parent.WaitForExit(20000))
+                            throw new IOException("The old launcher is still running. Close it before updating.");
+                    }
+                }
+            }
+
             string staged = Path.Combine(Paths.Root, "update-ready-" + Guid.NewGuid().ToString("N") + ".exe");
             string backup = Path.Combine(Paths.Root, "launcher-previous.exe");
-            File.Copy(running, staged, false);
-            if (!String.Equals(GameDetector.HashOf(staged), expectedHash, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Staged update failed the SHA-256 check.");
-
-            // Update helper and launcher must never start separate concurrent swaps.
             using (var updateMutex = new Mutex(false, @"Local\TortoiseCrewUpdater"))
             {
-                if (!updateMutex.WaitOne(0))
-                    throw new InvalidOperationException("Another launcher update is already running.");
+                bool acquired;
+                try { acquired = updateMutex.WaitOne(0); }
+                catch (AbandonedMutexException) { acquired = true; }
+                if (!acquired) throw new InvalidOperationException("Another launcher update is already running.");
                 try
                 {
-                    Exception lastError = null;
-                    for (int i = 0; i < 80; i++)
+                    using (var instance = LauncherInstance.Acquire(20000))
                     {
-                        try
+                        if (instance == null)
+                            throw new IOException("The launcher is still open. Close it before updating.");
+                        File.Copy(running, staged, false);
+                        if (!String.Equals(GameDetector.HashOf(staged), expectedHash, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidDataException("Staged update failed the SHA-256 check.");
+                        ReleaseTrust.RequireTrusted(staged);
+                        ReplaceWhenClosed(staged, target, backup);
+                        if (!String.Equals(GameDetector.HashOf(target), expectedHash, StringComparison.OrdinalIgnoreCase))
                         {
-                            if (File.Exists(target))
-                            {
-                                // NTFS atomic replacement, preserving last working EXE.
-                                File.Replace(staged, target, backup, true);
-                            }
-                            else
-                                File.Move(staged, target);
-
-                            if (!String.Equals(GameDetector.HashOf(target), expectedHash,
-                                                StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (File.Exists(backup)) File.Copy(backup, target, true);
-                                throw new InvalidDataException("Installed update checksum mismatch.");
-                            }
-                            try
-                            {
-                                Process.Start(new ProcessStartInfo(target)
-                                {
-                                    WorkingDirectory = Paths.Root,
-                                    UseShellExecute = true
-                                });
-                            }
-                            catch (Exception startError)
-                            {
-                                // A fully downloaded binary can still be unable to launch.
-                                // Restore the previous working version from the atomic backup.
-                                Paths.WriteLog("Updated launcher failed to start; restoring backup: " +
-                                               startError.GetType().Name);
-                                if (File.Exists(backup))
-                                {
-                                    File.Copy(backup, target, true);
-                                    try
-                                    {
-                                        Process.Start(new ProcessStartInfo(target)
-                                        {
-                                            WorkingDirectory = Paths.Root,
-                                            UseShellExecute = true
-                                        });
-                                    }
-                                    catch (Exception rollbackError)
-                                    {
-                                        Paths.WriteLog("Backup relaunch failed: " + rollbackError.GetType().Name);
-                                    }
-                                }
-                                throw new InvalidOperationException("Update could not launch. Previous version was restored.", startError);
-                            }
-                            Paths.WriteLog("Launcher update installed successfully: " + expectedHash);
-                            return;
-                        }
-                        catch (IOException ex)
-                        {
-                            lastError = ex;
-                            Thread.Sleep(200);
-                        }
-                        catch (UnauthorizedAccessException ex)
-                        {
-                            lastError = ex;
-                            Thread.Sleep(200);
+                            if (File.Exists(backup)) File.Copy(backup, target, true);
+                            throw new InvalidDataException("Installed update checksum mismatch.");
                         }
                     }
-                    throw new IOException("Could not replace the launcher after the previous instance closed.",
-                                          lastError);
+                    // The new UI must be able to acquire its mutex before we wait for it.
+                    string startupId = Guid.NewGuid().ToString("N");
+                    string readyMarker = Path.Combine(Paths.Root, "update-started-" + startupId + ".ready");
+                    try
+                    {
+                        using (var launched = Process.Start(new ProcessStartInfo(target, "--updated " + startupId) {
+                            WorkingDirectory = Paths.Root, UseShellExecute = true }))
+                        {
+                            if (launched == null) throw new IOException("Windows did not start the updated launcher.");
+                            bool ready = false;
+                            for (int attempt = 0; attempt < 100; attempt++)
+                            {
+                                if (launched.HasExited) break;
+                                if (File.Exists(readyMarker)) { ready = true; break; }
+                                Thread.Sleep(100);
+                            }
+                            if (!ready)
+                                throw new IOException("The updated launcher did not open a window. No success was recorded.");
+                        }
+                    }
+                    catch (Exception error)
+                    {
+                        Paths.WriteLog("Updated launcher startup failed: " + error.Message);
+                        // Do not overwrite a still-running new process. Keep the backup
+                        // for recovery; never hide policy failures behind a retry loop.
+                        using (var instance = LauncherInstance.Acquire(0))
+                        {
+                            if (instance != null && File.Exists(backup))
+                            {
+                                try
+                                {
+                                    using (File.Open(target, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+                                    File.Copy(backup, target, true);
+                                    Paths.WriteLog("Previous launcher restored; manual restart is required.");
+                                }
+                                catch (IOException restoreError) { Paths.WriteLog("Backup retained: " + restoreError.Message); }
+                            }
+                        }
+                        throw new InvalidOperationException("The update could not open. The previous version or its backup was kept. " +
+                            error.Message, error);
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(readyMarker)) File.Delete(readyMarker); } catch { }
+                    }
+                    Paths.WriteLog("Launcher update opened successfully: " + expectedHash);
                 }
                 finally
                 {
@@ -212,6 +217,30 @@ namespace TortoiseCrew
                     updateMutex.ReleaseMutex();
                 }
             }
+        }
+
+        private static void ReplaceWhenClosed(string staged, string target, string backup)
+        {
+            Exception lastError = null;
+            for (int attempt = 0; attempt < 80; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(target))
+                    {
+                        // File.Replace alone may succeed while an EXE is mapped by an
+                        // old process. Require exclusive access before the atomic swap.
+                        using (File.Open(target, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+                        File.Replace(staged, target, backup, true);
+                    }
+                    else File.Move(staged, target);
+                    return;
+                }
+                catch (IOException ex) { lastError = ex; }
+                catch (UnauthorizedAccessException ex) { lastError = ex; }
+                Thread.Sleep(200);
+            }
+            throw new IOException("The old launcher has not released its program file. The current version was kept.", lastError);
         }
     }
 }

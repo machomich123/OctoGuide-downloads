@@ -229,9 +229,17 @@ namespace TortoiseCrew
 
         public static bool IsNewer(RealmManifest manifest)
         {
+            if (manifest == null || manifest.UpdatesPaused) return false;
             Version current, remote;
             return Version.TryParse(Paths.Version, out current) &&
-                Version.TryParse(manifest.LauncherVersion, out remote) && remote > current;
+                Version.TryParse(manifest.LauncherVersion, out remote) &&
+                NormalizeVersion(remote) > NormalizeVersion(current);
+        }
+
+        private static Version NormalizeVersion(Version value)
+        {
+            return new Version(value.Major, value.Minor, Math.Max(0, value.Build),
+                Math.Max(0, value.Revision));
         }
 
         public static void ApplyRouting(LauncherSettings settings, RealmManifest manifest)
@@ -279,6 +287,7 @@ namespace TortoiseCrew
                     File.Delete(candidate);
                     throw new InvalidDataException("SHA-256 verification failed. Update blocked.");
                 }
+                ReleaseTrust.RequireTrusted(candidate);
             });
             return candidate;
         }
