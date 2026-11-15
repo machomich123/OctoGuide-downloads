@@ -31,7 +31,7 @@ namespace TortoiseCrew
         private int offset;
         private bool working;
         private readonly Button previous, next;
-        private readonly Label pageNumber;
+        private readonly Label pageNumber, perPageLabel;
         private readonly ComboBox sortControl;
         private readonly NumericUpDown resultsPerPage;
 
@@ -120,7 +120,7 @@ namespace TortoiseCrew
             };
             resultsPerPage.ValueChanged += (s, e) => { offset = 0; Render(); };
             Controls.Add(resultsPerPage);
-            Label("per page", 455, 583, 73, 22, 8, Muted);
+            perPageLabel = Label("per page", 455, 583, 73, 22, 8, Muted);
             pageNumber = Label("", 532, 583, 96, 22, 8, Muted);
             pageNumber.TextAlign = ContentAlignment.MiddleRight;
             previous.Click += (s, e) => { offset = Math.Max(0, offset - (int)resultsPerPage.Value); Render(); };
@@ -235,6 +235,7 @@ namespace TortoiseCrew
             pageNumber.Visible = page == "Browse";
             sortControl.Visible = page == "Browse";
             resultsPerPage.Visible = page == "Browse";
+            perPageLabel.Visible = page == "Browse";
             if (page == "Installed")
             {
                 RenderInstalled();
@@ -487,10 +488,17 @@ namespace TortoiseCrew
             Say("Importing existing addons and optional client files...");
             try
             {
-                int count = await AddonFiles.ImportLocalAsync(folder, wowPath(), result == DialogResult.Yes);
-                if (!IsDisposed) { Say("Imported " + count + " addons. Client extensions " +
-                    (result == DialogResult.Yes ? "included" : "skipped") + ". Restart WoW.");
-                    if (page == "Installed") Render(); }
+                var summary = await AddonFiles.ImportLocalDetailedAsync(folder, wowPath(),
+                    result == DialogResult.Yes);
+                if (!IsDisposed)
+                {
+                    Say(summary.Describe() + " Restart WoW to load new addons.");
+                    if (summary.Warnings.Count > 0)
+                        MessageBox.Show(String.Join(Environment.NewLine, summary.Warnings),
+                            "Import completed with skipped items", MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    if (page == "Installed") Render();
+                }
             }
             catch (Exception ex) { if (!IsDisposed) Say("Import failed: " + ex.Message); }
         }
