@@ -22,7 +22,7 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'pull_request' ||
        (github.event_name == 'issues' &&
         github.event.issue.user.login == 'machomich123' &&
-        github.event.issue.title == '[Build Tortoise Crew Launcher v1.0.5]'))
+        github.event.issue.title == '[Build Tortoise Crew Launcher v1.0.6]'))
     runs-on: windows-2022
     timeout-minutes: 12
     steps:
@@ -69,7 +69,7 @@ jobs:
             Write-Warning 'Crew bridge is temporarily unreachable; publishing offline addon management.'
           }
           $manifest = [ordered]@{
-              launcherVersion = '1.0.5'
+              launcherVersion = '1.0.6'
               launcherUrl = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe'
               launcherSha256 = $hash
               crewApiUrl = $endpoint
@@ -77,7 +77,7 @@ jobs:
               sshPort = 25034
               authPort = 3724
               worldPort = 8085
-              message = 'v1.0.5: Addon Library with Turtle WoW catalog, GitHub downloads, installation scan, DLL/HD mod import and source details.'
+              message = 'v1.0.6: Addon Library with Turtle WoW catalog, GitHub downloads, installation scan, DLL/HD mod import and source details.'
           }
           $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath 'tortoise-crew\manifest.json' -Encoding utf8
           Write-Host "Manifest SHA256: $hash"
@@ -91,7 +91,7 @@ jobs:
           git add tortoise-crew/TortoiseCrewLauncher.exe tortoise-crew/manifest.json
           $changed = git diff --cached --name-only
           if ($changed) {
-            git commit -m 'Publish Tortoise Crew Launcher v1.0.5 and public endpoint manifest'
+            git commit -m 'Publish Tortoise Crew Launcher v1.0.6 and public endpoint manifest'
             if ($LASTEXITCODE -ne 0) { throw 'Commit failed' }
             git push origin HEAD:main
             if ($LASTEXITCODE -ne 0) { throw 'Push failed' }
@@ -101,7 +101,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TortoiseCrewLauncher-Windows-v1.0.5
+          name: TortoiseCrewLauncher-Windows-v1.0.6
           path: |
             tortoise-crew/TortoiseCrewLauncher.exe
             tortoise-crew/manifest.json

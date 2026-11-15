@@ -31,7 +31,9 @@ namespace TortoiseCrew
         private int offset;
         private bool working;
         private readonly Button previous, next;
-        private readonly Label pageNumber;
+        private readonly Label pageNumber, perPageLabel;
+        private readonly ComboBox sortControl;
+        private readonly NumericUpDown resultsPerPage;
 
         public AddonHub(Func<string> getPath, Action<string> report)
         {
@@ -94,13 +96,44 @@ namespace TortoiseCrew
                 AutoScroll = true, WrapContents = false, FlowDirection = FlowDirection.TopDown,
                 BackColor = Bg, Padding = new Padding(0)
             };
+            gallery.Scroll += (s, e) => LoadVisibleImages();
+            gallery.Resize += (s, e) => LoadVisibleImages();
             Controls.Add(gallery);
-            previous = Button("Previous", 31, 575, 110, 34);
-            next = Button("Next", 624, 575, 110, 34);
-            pageNumber = Label("", 172, 583, 417, 22, 9, Muted);
-            pageNumber.TextAlign = ContentAlignment.MiddleCenter;
-            previous.Click += (s, e) => { offset = Math.Max(0, offset - 12); Render(); };
-            next.Click += (s, e) => { offset += 12; Render(); };
+            previous = Button("Previous", 27, 575, 107, 34);
+            next = Button("Next", 628, 575, 107, 34);
+            sortControl = new ComboBox
+            {
+                Location = new Point(145, 576), Size = new Size(226, 31),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Color.FromArgb(34, 49, 67), ForeColor = TextColor
+            };
+            sortControl.Items.AddRange(new object[] {
+                "Popular (stars)", "Downloads (if known)", "Recently updated",
+                "Name A-Z", "Name Z-A", "Stars: lowest first"
+            });
+            sortControl.SelectedIndex = 0;
+            sortControl.SelectedIndexChanged += (s, e) =>
+            {
+                offset = 0;
+                Render();
+                if (sortControl.SelectedIndex == 1 && !addons.Any(a => a.Downloads.HasValue) &&
+                    !githubResults.Any(a => a.Downloads.HasValue))
+                    Say("Download totals are not published for these addons. Showing star popularity instead.");
+            };
+            Controls.Add(sortControl);
+            resultsPerPage = new NumericUpDown
+            {
+                Location = new Point(383, 576), Size = new Size(70, 31),
+                Minimum = 6, Maximum = 500, Increment = 12, Value = 24,
+                BackColor = Color.FromArgb(34, 49, 67), ForeColor = TextColor
+            };
+            resultsPerPage.ValueChanged += (s, e) => { offset = 0; Render(); };
+            Controls.Add(resultsPerPage);
+            perPageLabel = Label("per page", 455, 583, 73, 22, 8, Muted);
+            pageNumber = Label("", 532, 583, 96, 22, 8, Muted);
+            pageNumber.TextAlign = ContentAlignment.MiddleRight;
+            previous.Click += (s, e) => { offset = Math.Max(0, offset - (int)resultsPerPage.Value); Render(); };
+            next.Click += (s, e) => { offset += (int)resultsPerPage.Value; Render(); };
 
             feedback = Label("Loading the Turtle WoW addon catalog...", 27, 621, 710, 22, 9, Muted);
             ShownLoad();
@@ -203,12 +236,20 @@ namespace TortoiseCrew
         {
             if (IsDisposed) return;
             gallery.SuspendLayout();
-            gallery.Controls.Clear();
+            while (gallery.Controls.Count > 0)
+            {
+                var obsolete = gallery.Controls[0];
+                gallery.Controls.RemoveAt(0);
+                obsolete.Dispose();
+            }
             search.Visible = page == "Browse";
             provider.Visible = page == "Browse";
             scan.Visible = page != "Browse";
             previous.Visible = next.Visible = page == "Browse";
             pageNumber.Visible = page == "Browse";
+            sortControl.Visible = page == "Browse";
+            resultsPerPage.Visible = page == "Browse";
+            perPageLabel.Visible = page == "Browse";
             if (page == "Installed")
             {
                 RenderInstalled();
@@ -220,16 +261,48 @@ namespace TortoiseCrew
                 if (page == "Browse" && provider.SelectedIndex == 0 && !String.IsNullOrWhiteSpace(search.Text))
                     list = list.Where(a => (a.Name + " " + a.Description + " " + a.Author)
                         .IndexOf(search.Text, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                if (page == "Browse")
+                {
+                    switch (sortControl.SelectedIndex)
+                    {
+                        case 1: list = list.OrderByDescending(a => a.Downloads.HasValue)
+                            .ThenByDescending(a => a.Downloads ?? -1).ThenByDescending(a => a.Stars).ToList(); break;
+                        case 2: list = list.OrderByDescending(a => a.Updated)
+                            .ThenByDescending(a => a.Stars).ToList(); break;
+                        case 3: list = list.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList(); break;
+                        case 4: list = list.OrderByDescending(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList(); break;
+                        case 5: list = list.OrderBy(a => a.Stars).ThenBy(a => a.Name).ToList(); break;
+                        default: list = list.OrderByDescending(a => a.Stars).ThenBy(a => a.Name).ToList(); break;
+                    }
+                }
                 int total = list.Count;
-                offset = Math.Min(offset, Math.Max(0, ((total - 1) / 12) * 12));
-                foreach (var item in list.Skip(offset).Take(page == "Packs" ? 40 : 12))
+                int size = (int)resultsPerPage.Value;
+                offset = Math.Min(offset, Math.Max(0, ((total - 1) / size) * size));
+                foreach (var item in list.Skip(offset).Take(page == "Packs" ? 40 : size))
                     AddCard(item);
                 pageNumber.Text = total == 0 ? "No results" :
-                    (offset + 1) + "–" + Math.Min(offset + 12, total) + " of " + total;
+                    (offset + 1) + "–" + Math.Min(offset + size, total) + "/" + total;
                 previous.Enabled = offset > 0;
-                next.Enabled = offset + 12 < total;
+                next.Enabled = offset + size < total;
             }
             gallery.ResumeLayout(true);
+            LoadVisibleImages();
+        }
+        private void LoadVisibleImages()
+        {
+            if (gallery.IsDisposed) return;
+            foreach (Panel card in gallery.Controls.OfType<Panel>())
+            {
+                if (card.Bottom < -120 || card.Top > gallery.ClientSize.Height + 150)
+                    continue;
+                foreach (PictureBox picture in card.Controls.OfType<PictureBox>())
+                {
+                    var uri = picture.Tag as string;
+                    if (String.IsNullOrWhiteSpace(uri)) continue;
+                    picture.Tag = null;
+                    try { picture.LoadAsync(uri); } catch { /* Keep the placeholder. */ }
+                }
+            }
         }
         private static PictureBox Art(string uri, int x, int y, int w, int h)
         {
@@ -248,11 +321,10 @@ namespace TortoiseCrew
                     g.DrawString("✦", f, brush, new PointF(w / 3f, h / 4f));
             }
             p.Image = bmp;
-            if (!String.IsNullOrWhiteSpace(uri) && uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                // LoadAsync is non-blocking; a missing image leaves the placeholder.
-                try { p.LoadAsync(uri); } catch { }
-            }
+            // Only fetch thumbnails as cards approach the visible scroll viewport.
+            if (!String.IsNullOrWhiteSpace(uri) && uri.StartsWith("https://",
+                StringComparison.OrdinalIgnoreCase))
+                p.Tag = uri;
             return p;
         }
         private void AddCard(AddonEntry entry)
@@ -275,7 +347,8 @@ namespace TortoiseCrew
             };
             var meta = new Label
             {
-                Text = entry.Source + (entry.Stars > 0 ? "  ·  ★ " + entry.Stars : ""),
+                Text = entry.Source + "  ·  ★ " + entry.Stars +
+                    (entry.Downloads.HasValue ? "  ·  ↓ " + entry.Downloads.Value.ToString("N0") : ""),
                 Location = new Point(97, 82), Size = new Size(390, 17),
                 Font = new Font("Segoe UI", 8), ForeColor = Mint, AutoEllipsis = true
             };
@@ -445,10 +518,17 @@ namespace TortoiseCrew
             Say("Importing existing addons and optional client files...");
             try
             {
-                int count = await AddonFiles.ImportLocalAsync(folder, wowPath(), result == DialogResult.Yes);
-                if (!IsDisposed) { Say("Imported " + count + " addons. Client extensions " +
-                    (result == DialogResult.Yes ? "included" : "skipped") + ". Restart WoW.");
-                    if (page == "Installed") Render(); }
+                var summary = await AddonFiles.ImportLocalDetailedAsync(folder, wowPath(),
+                    result == DialogResult.Yes);
+                if (!IsDisposed)
+                {
+                    Say(summary.Describe() + " Restart WoW to load new addons.");
+                    if (summary.Warnings.Count > 0)
+                        MessageBox.Show(String.Join(Environment.NewLine, summary.Warnings),
+                            "Import completed with skipped items", MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    if (page == "Installed") Render();
+                }
             }
             catch (Exception ex) { if (!IsDisposed) Say("Import failed: " + ex.Message); }
         }
@@ -464,8 +544,8 @@ namespace TortoiseCrew
         {
             entry = selected;
             Text = selected.Name + " · Addon details";
-            Size = new Size(830, 680);
-            MinimumSize = new Size(650, 540);
+            Size = new Size(900, 750);
+            MinimumSize = new Size(760, 650);
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Color.FromArgb(12, 18, 28);
             ForeColor = Color.White;
@@ -487,7 +567,7 @@ namespace TortoiseCrew
             Controls.Add(blurb);
             readme = new RichTextBox
             {
-                Location = new Point(23, 146), Size = new Size(765, 250),
+                Location = new Point(23, 143), Size = new Size(835, 315),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.FromArgb(24, 36, 50), ForeColor = Color.White,
                 BorderStyle = BorderStyle.None, ReadOnly = true,
@@ -496,14 +576,14 @@ namespace TortoiseCrew
             Controls.Add(readme);
             screenshots = new FlowLayoutPanel
             {
-                Location = new Point(23, 413), Size = new Size(765, 160),
+                Location = new Point(23, 483), Size = new Size(835, 151),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
                 AutoScroll = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight
             };
             Controls.Add(screenshots);
             var install = new Button
             {
-                Text = "Install addon", Location = new Point(23, 581), Size = new Size(230, 43),
+                Text = "Install addon", Location = new Point(23, 654), Size = new Size(230, 43),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
                 BackColor = Color.FromArgb(98, 232, 190), ForeColor = Color.Black,
                 FlatStyle = FlatStyle.Flat
@@ -517,14 +597,14 @@ namespace TortoiseCrew
             Controls.Add(install);
             var source = new Button
             {
-                Text = "Open original website", Location = new Point(265, 581), Size = new Size(230, 43),
+                Text = "Open original website", Location = new Point(265, 654), Size = new Size(230, 43),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
                 BackColor = Color.FromArgb(42, 63, 82), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
             };
             source.Click += (s, e) => { if (entry.Url.StartsWith("https://"))
                 Process.Start(new ProcessStartInfo(entry.Url) { UseShellExecute = true }); };
             Controls.Add(source);
-            note = new Label { Text = "", Location = new Point(23, 625), Size = new Size(740, 18),
+            note = new Label { Text = "", Location = new Point(23, 704), Size = new Size(830, 18),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 ForeColor = Color.FromArgb(163, 185, 203) };
             Controls.Add(note);
@@ -532,55 +612,89 @@ namespace TortoiseCrew
         }
         private async Task LoadReadmeAsync()
         {
-            var match = Regex.Match(entry.Url ?? "", @"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$",
-                RegexOptions.IgnoreCase);
+            var match = Regex.Match(entry.Url ?? "",
+                @"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", RegexOptions.IgnoreCase);
             if (!match.Success)
             {
-                readme.Text = entry.Description + "\n\nOpen the original website for full documentation.";
+                AddonMarkdown.Render(readme, entry.Description +
+                    "\n\nFull documentation is available on the original website.");
+                note.Text = "This source does not have a supported GitHub README.";
                 return;
             }
             string owner = match.Groups[1].Value, repo = match.Groups[2].Value;
             try
             {
-                var content = await Task.Run(() =>
+                var data = await Task.Run(() =>
                 {
+                    string branch = "main";
                     using (var web = AddonCatalog.NewClient())
                     {
+                        try
+                        {
+                            var metadata = new System.Web.Script.Serialization.JavaScriptSerializer()
+                                .DeserializeObject(web.DownloadString(
+                                    "https://api.github.com/repos/" + owner + "/" + repo))
+                                    as Dictionary<string, object>;
+                            object value;
+                            if (metadata != null && metadata.TryGetValue("default_branch", out value))
+                                branch = Convert.ToString(value);
+                        }
+                        catch (WebException) { /* README fetch below can still work. */ }
                         web.Headers[HttpRequestHeader.Accept] = "application/vnd.github.raw+json";
-                        var md = web.DownloadString("https://api.github.com/repos/" + owner + "/" + repo + "/readme");
-                        return md;
+                        string markdown = web.DownloadString(
+                            "https://api.github.com/repos/" + owner + "/" + repo + "/readme");
+                        if (markdown.TrimStart().StartsWith("{") && markdown.Contains("\"encoding\""))
+                        {
+                            // GitHub may serve JSON despite the raw Accept header.
+                            var obj = new System.Web.Script.Serialization.JavaScriptSerializer()
+                                .DeserializeObject(markdown) as Dictionary<string, object>;
+                            object value;
+                            if (obj != null && obj.TryGetValue("encoding", out value) &&
+                                Convert.ToString(value) == "base64" && obj.TryGetValue("content", out value))
+                                markdown = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(
+                                    Convert.ToString(value).Replace("\r", "").Replace("\n", "")));
+                        }
+                        return Tuple.Create(markdown,
+                            "https://raw.githubusercontent.com/" + owner + "/" + repo + "/" + branch + "/");
                     }
                 });
                 if (IsDisposed) return;
-                readme.Text = content.Length > 45000 ? content.Substring(0, 45000) : content;
-                var images = new List<string>();
-                foreach (Match m in Regex.Matches(content, @"!\[[^\]]*\]\(([^)\s]+)", RegexOptions.IgnoreCase))
-                    images.Add(m.Groups[1].Value);
-                foreach (Match m in Regex.Matches(content, "<img[^>]+src=[\"']([^\"']+)", RegexOptions.IgnoreCase))
-                    images.Add(m.Groups[1].Value);
-                foreach (var src in images.Distinct().Take(25))
+                string markdown = data.Item1.Length > 50000 ? data.Item1.Substring(0, 50000) : data.Item1;
+                AddonMarkdown.Render(readme, markdown);
+                var images = AddonMarkdown.ImageUrls(data.Item1, data.Item2);
+                screenshots.Controls.Clear();
+                foreach (var uri in images)
                 {
-                    string uri = src;
-                    if (src.StartsWith("./")) uri = src.Substring(2);
-                    if (!uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                        uri = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/HEAD/" + uri.TrimStart('/');
-                    if (!Uri.IsWellFormedUriString(uri, UriKind.Absolute) || !uri.StartsWith("https://")) continue;
                     var pic = new PictureBox
                     {
-                        Size = new Size(225, 132), SizeMode = PictureBoxSizeMode.Zoom,
-                        BackColor = Color.FromArgb(40, 57, 72), Cursor = Cursors.Hand
+                        Size = new Size(228, 140), SizeMode = PictureBoxSizeMode.Zoom,
+                        BackColor = Color.FromArgb(40, 57, 72), Cursor = Cursors.Hand,
+                        Margin = new Padding(0, 0, 9, 5)
                     };
-                    pic.Click += (s, e) => Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+                    string link = uri;
+                    pic.Click += (s, e) => Process.Start(
+                        new ProcessStartInfo(link) { UseShellExecute = true });
+                    pic.LoadCompleted += (s, e) =>
+                    {
+                        if (e.Error != null || e.Cancelled)
+                        {
+                            pic.Image = null;
+                            pic.BackColor = Color.FromArgb(58, 70, 79);
+                        }
+                    };
                     screenshots.Controls.Add(pic);
                     try { pic.LoadAsync(uri); } catch { }
                 }
-                note.Text = images.Count == 0 ? "No README screenshots available for this addon." :
-                    "Screenshots from the author's README. Click an image for full size.";
+                note.Text = images.Count == 0
+                    ? "No screenshots in the project's README."
+                    : images.Count + " screenshots from GitHub README. Click to open the original image.";
             }
             catch (Exception ex)
             {
-                if (!IsDisposed) { readme.Text = entry.Description;
-                    note.Text = "README unavailable: " + ex.Message; }
+                if (IsDisposed) return;
+                AddonMarkdown.Render(readme, entry.Description +
+                    "\n\nOpen the original website to read the full documentation.");
+                note.Text = "README could not be loaded: " + ex.Message;
             }
         }
     }
