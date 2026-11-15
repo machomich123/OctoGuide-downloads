@@ -111,7 +111,8 @@ namespace TortoiseCrew
         private RealmManifest currentManifest;
         private Label status, statusDescription, gamePath, information, feedMessage, versionLabel;
         private ComboBox username;
-        private Button playButton, updateButton, browseButton, keyButton, settingsButton, accountButton;
+        private Button playButton, updateButton, browseButton, keyButton, settingsButton, accountButton, addonsButton;
+        private AddonHub addonPage;
         private CheckBox loginToggle;
         private Process activeSsh, activeWow;
         private bool starting, checking, searching, updating, handedOffSession, closingForUpdate, presenceChecking;
@@ -246,6 +247,18 @@ namespace TortoiseCrew
             crewRefresh = new System.Windows.Forms.Timer { Interval = 15000 };
             crewRefresh.Tick += async (s,e) => await RefreshCrewStatusAsync();
             crewRefresh.Start();
+            addonsButton = MakeButton("ADDONS", 30, 468, 178, 43, false);
+            addonsButton.Click += (s, e) =>
+            {
+                if (addonPage == null)
+                {
+                    addonPage = new AddonHub(() => settings.WowPath, message => Paths.WriteLog("Addons: " + message));
+                    Controls.Add(addonPage);
+                }
+                addonPage.Visible = !addonPage.Visible;
+                if (addonPage.Visible) addonPage.BringToFront();
+                addonsButton.Text = addonPage.Visible ? "BACK TO REALM" : "ADDONS";
+            };
             TextLabel("One launcher. One realm.", 28, 584, 192, 22, 9, muted);
             versionLabel = TextLabel("Launcher v" + Paths.Version, 28, 611, 193, 20, 9, muted);
 
