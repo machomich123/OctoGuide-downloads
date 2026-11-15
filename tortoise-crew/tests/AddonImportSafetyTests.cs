@@ -93,7 +93,7 @@ namespace TortoiseCrew
                 int firstLong = AddonFiles.InstallFoldersInto(sourceAddons, longDest);
                 Check(firstLong == 3, "Long staging path can import community addons");
                 Check(LongPathFs.FileExists(Path.Combine(longDest,
-                    "CommunityA", "CommunityA.lua"))), "Long-path staging commits files");
+                    "CommunityA", "CommunityA.lua")), "Long-path staging commits files");
                 int secondLong = AddonFiles.InstallFoldersInto(sourceAddons, longDest);
                 Check(secondLong == 3, "Repeated import with long backup paths works");
                 Check(LongPathFs.GetDirectories(Path.Combine(longDest, ".crew-backups"))
