@@ -254,6 +254,7 @@ namespace TortoiseCrew
                 {
                     addonPage = new AddonHub(() => settings.WowPath, message => Paths.WriteLog("Addons: " + message));
                     Controls.Add(addonPage);
+                    addonPage.Visible = false;
                 }
                 addonPage.Visible = !addonPage.Visible;
                 if (addonPage.Visible) addonPage.BringToFront();
