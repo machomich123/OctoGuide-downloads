@@ -145,7 +145,7 @@ namespace TortoiseCrew
 
     internal sealed class InstalledAddon
     {
-        public string Name, Folder, Dependencies;
+        public string Name, Folder, Dependencies, MissingDependencies;
     }
 
     internal static class AddonFiles
@@ -174,6 +174,7 @@ namespace TortoiseCrew
                 var tocs = Directory.GetFiles(dir, "*.toc", SearchOption.TopDirectoryOnly);
                 if (tocs.Length == 0) continue;
                 var deps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var required = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var toc in tocs)
                 foreach (var line in File.ReadAllLines(toc))
                 {
@@ -181,13 +182,20 @@ namespace TortoiseCrew
                         RegexOptions.IgnoreCase);
                     if (match.Success)
                         foreach (var dep in match.Groups[1].Value.Split(','))
-                            if (!String.IsNullOrWhiteSpace(dep)) deps.Add(dep.Trim());
+                            if (!String.IsNullOrWhiteSpace(dep))
+                            {
+                                deps.Add(dep.Trim());
+                                if (line.IndexOf("OptionalDeps", StringComparison.OrdinalIgnoreCase) < 0)
+                                    required.Add(dep.Trim());
+                            }
                 }
                 list.Add(new InstalledAddon
                 {
                     Name = Path.GetFileName(dir),
                     Folder = dir,
-                    Dependencies = String.Join(", ", deps)
+                    Dependencies = String.Join(", ", deps),
+                    MissingDependencies = String.Join(", ", required.Where(dep =>
+                        !Directory.Exists(Path.Combine(root, dep))))
                 });
             }
             return list.OrderBy(a => a.Name).ToList();
@@ -370,8 +378,16 @@ namespace TortoiseCrew
                     var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
                         "nampower.dll", "superwow.dll", "unitxp.dll", "classicapi.dll",
                         "vanillafixes.exe", "dxgi.dll", "d3d9.dll" };
+                    string installedDllList = Path.Combine(from, "dlls.txt");
+                    if (File.Exists(installedDllList))
+                        foreach (string line in File.ReadAllLines(installedDllList))
+                        {
+                            string name = line.Trim();
+                            if (Regex.IsMatch(name, @"^[a-zA-Z0-9_.-]+.dll$", RegexOptions.IgnoreCase))
+                                extensions.Add(name);
+                        }
                     foreach (var file in Directory.GetFiles(from))
-                        if (extensions.Contains(Path.GetFileName(file)))
+                        if (extensions.Contains(Path.GetFileName(file)) && new FileInfo(file).Length < 50L * 1024 * 1024)
                             BackupAndCopy(file, Path.Combine(game, Path.GetFileName(file)));
                     string fromData = Path.Combine(from, "Data");
                     string toData = Path.Combine(game, "Data");
