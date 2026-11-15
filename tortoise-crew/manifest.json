@@ -1,11 +1,11 @@
 {
-  "launcherVersion": "1.0.7",
+  "launcherVersion": "1.0.8",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "5D7BCA90AF5D43E2BED0B93DFC352E991D2636696D63AD6F2B1E42145693C6D2",
+  "launcherSha256": "CE4FFB0142631736FA94BB652E892C1D4D78DAC042B2A24B2F28FBD1347093CF",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.7: Safe addon import with core UI protection, rollback, and quarantine review of external DLL/HD/MPQ mods.",
+  "message": "v1.0.8: Fix Windows long file paths during addon import, with tested rollback, protected UI, and complete error dialogs.",
   "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com"
 }
