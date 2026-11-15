@@ -1,11 +1,11 @@
 {
-  "launcherVersion": "1.0.5",
+  "launcherVersion": "1.0.6",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "1DF37E8A25530967E2F7BCA8FAE9BBC23F368A53B50041D245C61EE767861C7E",
+  "launcherSha256": "1AB7C65ECD39FEDE9E1F52950F49FD27ABBAB1E9F7A94900E2CCDB217087A7EB",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.5: Addon Library with Turtle WoW catalog, GitHub addon installation, local OctoWoW addon/client mod import, HD packs, details and screenshots. Existing game connection configuration retained.",
+  "message": "v1.0.6: Import fixes for valid !-prefixed addon names, readable Markdown details and screenshot gallery, configurable page size, sorts, and safer DLL/MPQ migration. Existing game settings preserved.",
   "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com"
 }
