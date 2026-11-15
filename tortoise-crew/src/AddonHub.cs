@@ -47,6 +47,8 @@ namespace TortoiseCrew
             Button tabBrowse = Button("Discover", 26, 108, 111, 34, true);
             Button tabInstalled = Button("Installed", 145, 108, 104, 34);
             Button tabPacks = Button("Packs & DLLs", 257, 108, 132, 34);
+            Button sitesButton = Button("Addon sites", 609, 108, 130, 34);
+            sitesButton.Click += (s, e) => ShowSites();
             tabBrowse.Click += (s, e) => { page = "Browse"; Render(); };
             tabInstalled.Click += (s, e) => { page = "Installed"; Render(); };
             tabPacks.Click += (s, e) => { page = "Packs"; Render(); };
@@ -58,6 +60,14 @@ namespace TortoiseCrew
                 BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 11)
             };
             search.TextChanged += (s, e) => { offset = 0; if (page != "Installed") Render(); };
+            search.KeyDown += async (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter && provider.SelectedIndex == 1)
+                {
+                    e.SuppressKeyPress = true;
+                    await SearchGithubAsync();
+                }
+            };
             Controls.Add(search);
             provider = new ComboBox
             {
@@ -160,6 +170,35 @@ namespace TortoiseCrew
             finally { working = false; }
         }
         private List<AddonEntry> githubResults = new List<AddonEntry>();
+        private void ShowSites()
+        {
+            var sites = new Dictionary<string, string>
+            {
+                { "Turtle WoW addon wiki (our catalog)", "https://turtle-wow.fandom.com/wiki/Addons" },
+                { "GitHub · Turtle WoW addons", "https://github.com/topics/turtle-wow-addon" },
+                { "OctoWoW modding forum", "https://octowow.st/forum/viewforum.php?f=9" },
+                { "Legacy WoW · Vanilla addons", "https://legacy-wow.com/vanilla-addons/" },
+                { "CurseForge · WoW addons (version differs)", "https://www.curseforge.com/wow/addons" }
+            };
+            using (var d = new Form { Text = "Addon source websites", Size = new Size(630, 380),
+                StartPosition = FormStartPosition.CenterParent, BackColor = Bg, ForeColor = TextColor })
+            {
+                var note = new Label { Text = "The catalog installs compatible GitHub addon ZIPs directly. Other sites open in your browser; many downloads target newer WoW versions.",
+                    Location = new Point(18, 15), Size = new Size(580, 54), ForeColor = Muted };
+                d.Controls.Add(note);
+                int y = 77;
+                foreach (var site in sites)
+                {
+                    var button = new Button { Text = site.Key, Location = new Point(18, y), Size = new Size(575, 40),
+                        FlatStyle = FlatStyle.Flat, ForeColor = TextColor, BackColor = Card };
+                    string url = site.Value;
+                    button.Click += (s, e) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                    d.Controls.Add(button);
+                    y += 46;
+                }
+                d.ShowDialog(FindForm());
+            }
+        }
         private void Render()
         {
             if (IsDisposed) return;
@@ -247,7 +286,7 @@ namespace TortoiseCrew
             details.Click += (s, e) =>
             {
                 if (entry.IsPack)
-                    MessageBox.Show(entry.Description + "\n\nUse Import to select a local installation or pack.",
+                    MessageBox.Show(entry.Description + "\n\nUse Import to select a local installation or pack." + (String.IsNullOrEmpty(entry.Url) ? "" : "\nSource: " + entry.Url),
                         entry.Name, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 else
                     using (var view = new AddonDetails(entry, () => InstallAsync(entry)))
@@ -296,8 +335,9 @@ namespace TortoiseCrew
                     });
                     c.Controls.Add(new Label
                     {
-                        Text = String.IsNullOrEmpty(item.Dependencies) ? "Installed · No declared dependencies" :
-                            "Dependencies: " + item.Dependencies,
+                        Text = !String.IsNullOrEmpty(item.MissingDependencies) ? "Missing required addons: " + item.MissingDependencies :
+                            (String.IsNullOrEmpty(item.Dependencies) ? "Installed · No declared dependencies" :
+                            "Dependencies: " + item.Dependencies),
                         Location = new Point(15, 36), Size = new Size(635, 25),
                         ForeColor = Muted, AutoEllipsis = true
                     });
