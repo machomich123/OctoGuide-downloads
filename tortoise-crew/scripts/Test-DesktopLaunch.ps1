@@ -8,8 +8,13 @@ $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $root = Join-Path $env:LOCALAPPDATA 'TortoiseCrewLauncher'
 $desktop = [Environment]::GetFolderPath('DesktopDirectory')
 $shortcut = Join-Path $desktop 'Tortoise Crew Launcher.lnk'
-if ((Test-Path -LiteralPath $root) -or (Test-Path -LiteralPath $shortcut)) {
+if ((Test-Path -LiteralPath (Join-Path $root 'TortoiseCrewLauncher.exe')) -or
+    (Test-Path -LiteralPath $shortcut)) {
     throw 'Refusing to replace an existing launcher fixture.'
+}
+if ((Test-Path -LiteralPath $root) -and
+    @(Get-ChildItem -LiteralPath $root -Force | Where-Object Name -ne 'launcher.log').Count -ne 0) {
+    throw 'Unexpected existing data in launcher fixture.'
 }
 New-Item -ItemType Directory -Path $root -Force | Out-Null
 $exe = Join-Path $root 'TortoiseCrewLauncher.exe'
@@ -30,6 +35,9 @@ try {
     Start-Process -FilePath $exe -ArgumentList @('--updated', $startupId) | Out-Null
     $first = Wait-ForLauncher
     $marker = Join-Path $root "update-started-$startupId.ready"
+    for ($attempt = 0; $attempt -lt 20 -and -not (Test-Path -LiteralPath $marker); $attempt++) {
+        Start-Sleep -Milliseconds 100
+    }
     if (-not (Test-Path -LiteralPath $marker)) { throw 'Real UI did not acknowledge updater startup.' }
     if (-not (Test-Path -LiteralPath $shortcut)) { throw 'Desktop shortcut was not created.' }
     $shell = New-Object -ComObject WScript.Shell
