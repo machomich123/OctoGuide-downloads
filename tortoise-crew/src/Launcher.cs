@@ -144,7 +144,7 @@ namespace TortoiseCrew
         private ComboBox username;
         private Button playButton, updateButton, browseButton, keyButton, settingsButton, accountButton, addonsButton;
         private AddonHub addonPage;
-        private CheckBox loginToggle;
+        private Label loginToggle;
         private Process activeSsh, activeWow;
         private bool starting, checking, searching, updating, handedOffSession, closingForUpdate, presenceChecking;
         private readonly Dictionary<string, Label> crewPresence = new Dictionary<string, Label>();
@@ -328,17 +328,12 @@ namespace TortoiseCrew
             username.TextChanged += (s, e) => SaveUsername();
             Controls.Add(username);
 
-            loginToggle = new CheckBox
+            loginToggle = new Label
             {
-                Text = "Auto-login with my saved password",
+                Text = "Enter your password inside WoW",
                 Location = new Point(603, 327), Size = new Size(333, 27),
-                Checked = settings.AutoLogin, ForeColor = white, BackColor = surface,
+                ForeColor = white, BackColor = surface,
                 Font = new Font("Segoe UI", 9f)
-            };
-            loginToggle.CheckedChanged += (s, e) =>
-            {
-                settings.AutoLogin = loginToggle.Checked;
-                Paths.Save(settings);
             };
             Controls.Add(loginToggle);
 
@@ -627,6 +622,7 @@ namespace TortoiseCrew
             playButton.Enabled = false;
             playButton.Text = "CONNECTING...";
             CrewBridge bridge = null;
+            FailureStage stage = FailureStage.AccountConnection;
             try
             {
                 string session;
@@ -638,20 +634,24 @@ namespace TortoiseCrew
                     password = PasswordVault.ReadForLogin(account);
                     session = await CrewApi.LoginAsync(settings, account, password);
                 }
+                stage = FailureStage.RelayConnection;
                 bridge = new CrewBridge(settings, session);
                 bridge.Start();
                 GameDetector.Configure(settings.WowPath, account);
-                activeWow = await GameLogin.StartAsync(settings, account, password);
+                stage = FailureStage.GameStartup;
+                activeWow = await GameLogin.StartAsync(settings);
                 if (activeWow == null) throw new InvalidOperationException("WoW.exe could not start.");
                 Hide();
                 while (!activeWow.HasExited) await Task.Delay(1000);
+                if (activeWow.ExitCode != 0)
+                    FailureDiagnostics.Record(FailureStage.GameExit, null, activeWow.ExitCode);
                 handedOffSession = true;
                 Close();
             }
             catch (Exception ex)
             {
-                Paths.WriteLog("Crew play: " + ex.GetType().Name);
-                MessageBox.Show(ex.Message, "Unable to launch WoW",
+                string report = FailureDiagnostics.Record(stage, ex);
+                MessageBox.Show(FailureDiagnostics.UserMessage(ex, report), "Unable to launch WoW",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally
@@ -749,7 +749,7 @@ namespace TortoiseCrew
                             error = activeSsh.StandardError.ReadToEnd();
                     }
                     catch { }
-                    Paths.WriteLog("SSH tunnel failed: " + error);
+                    FailureDiagnostics.Record(FailureStage.RelayConnection, new TimeoutException());
                     if (error.IndexOf("Permission denied", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         error.IndexOf("publickey", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
@@ -766,7 +766,7 @@ namespace TortoiseCrew
                     return;
                 }
 
-                activeWow = await GameLogin.StartAsync(settings, account, password);
+                activeWow = await GameLogin.StartAsync(settings);
                 if (activeWow == null) throw new InvalidOperationException("WoW.exe could not be started.");
                 Notice("WoW launched. The private tunnel stays connected while you play.");
                 playButton.Text = "GAME RUNNING...";
@@ -780,8 +780,8 @@ namespace TortoiseCrew
             }
             catch (Exception ex)
             {
-                Paths.WriteLog("Play failed: " + ex);
-                MessageBox.Show(ex.Message + "\n\nLog: " + Paths.Log, "Launch failed",
+                string report = FailureDiagnostics.Record(FailureStage.LaunchSession, ex);
+                MessageBox.Show(FailureDiagnostics.UserMessage(ex, report), "Launch failed",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally

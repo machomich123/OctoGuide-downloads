@@ -19,27 +19,28 @@ namespace TortoiseCrew
             {
                 Check(Paths.Version == Assembly.GetExecutingAssembly().GetName().Version.ToString(3),
                     "UI/update version follows compiled assembly");
-                Check(Paths.Version == "1.0.10", "release candidate is 1.0.10");
-                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.10" }),
+                Check(Paths.Version == "1.0.11", "release candidate is 1.0.11");
+                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.11" }),
                     "same version does not repeat update");
-                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.10.0" }),
+                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.11.0" }),
                     "three-part and four-part versions compare equally");
                 Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.8" }),
                     "older version does not downgrade");
-                Check(RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.11" }),
+                Check(RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.12" }),
                     "newer version is detected");
-                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.11", UpdatesPaused = true }),
+                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.12", UpdatesPaused = true }),
                     "paused release is never offered");
                 Check(!RemoteUpdates.IsNewer(null) &&
                     !RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "invalid" }),
                     "invalid release information cannot trigger update");
 
+                string testMutex = @"Local\TortoiseCrewUiTest-" + Guid.NewGuid().ToString("N");
                 bool secondBlocked = false;
-                using (var first = LauncherInstance.Acquire(0))
+                using (var first = LauncherInstance.Acquire(0, testMutex))
                 {
                     Check(first != null, "first desktop launch acquires UI ownership");
                     var worker = new Thread(() => {
-                        using (var second = LauncherInstance.Acquire(100)) secondBlocked = second == null;
+                        using (var second = LauncherInstance.Acquire(100, testMutex)) secondBlocked = second == null;
                     });
                     worker.Start();
                     worker.Join();
@@ -47,7 +48,7 @@ namespace TortoiseCrew
                 }
                 bool acquiredAfterClose = false;
                 var retry = new Thread(() => {
-                    using (var instance = LauncherInstance.Acquire(100)) acquiredAfterClose = instance != null;
+                    using (var instance = LauncherInstance.Acquire(100, testMutex)) acquiredAfterClose = instance != null;
                 });
                 retry.Start();
                 retry.Join();

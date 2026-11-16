@@ -71,13 +71,22 @@ namespace TortoiseCrew
                     {
                         Task upstream = ToWebSocket(stream, ws, linked.Token);
                         Task downstream = ToTcp(ws, stream, linked.Token);
-                        await Task.WhenAny(upstream, downstream);
+                        Task finished = await Task.WhenAny(upstream, downstream);
+                        try { await finished; }
+                        finally
+                        {
+                            linked.Cancel();
+                            ws.Abort();
+                            // Framework NetworkStream reads may ignore cancellation until closed.
+                            stream.Close();
+                            try { await Task.WhenAll(upstream, downstream); } catch { }
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
                     if (!stop.IsCancellationRequested)
-                        Paths.WriteLog("Game bridge connection ended: " + ex.GetType().Name);
+                        FailureDiagnostics.Record(FailureStage.RelayConnection, ex);
                 }
                 finally
                 {

@@ -4,7 +4,7 @@ on:
     branches: [main]
     paths: ['tortoise-crew/**', '.github/workflows/build-tortoise-crew.yml']
   push:
-    branches: [main, 'fix/crew-login-1.0.10']
+    branches: [main, 'fix/play-failure-diagnostics-20261116']
     paths: ['tortoise-crew/**', '.github/workflows/build-tortoise-crew.yml']
   workflow_dispatch:
 permissions:
@@ -50,7 +50,7 @@ jobs:
         id: unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: TortoiseCrewLauncher-v1.0.10-UNSIGNED-DO-NOT-INSTALL
+          name: TortoiseCrewLauncher-v1.0.11-UNSIGNED-DO-NOT-INSTALL
           path: out/TortoiseCrewLauncher.exe
           retention-days: 7
       - name: Sign through the configured trusted publisher
@@ -82,7 +82,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tortoise-crew/TortoiseCrewLauncher.exe tortoise-crew/manifest.json
           if (git diff --cached --name-only) {
-            git commit -m 'Publish Windows-trusted Tortoise Crew Launcher v1.0.10'
+            git commit -m 'Publish Windows-trusted Tortoise Crew Launcher v1.0.11'
             if ($LASTEXITCODE -ne 0) { throw 'Release commit failed.' }
             git push origin HEAD:main
             if ($LASTEXITCODE -ne 0) { throw 'Release push failed; no force push attempted.' }
@@ -93,12 +93,12 @@ jobs:
           SIGNING_OUTCOME: ${{ steps.sign.outcome }}
         run: |
           if ($env:SIGNING_OUTCOME -eq 'success') {
-            'Signed v1.0.10 was published with its SHA-256 manifest.' >> $env:GITHUB_STEP_SUMMARY
+            'Signed v1.0.11 was published with its SHA-256 manifest.' >> $env:GITHUB_STEP_SUMMARY
           } else {
             $public = Get-Content tortoise-crew/manifest.json -Raw | ConvertFrom-Json
-            if (-not $public.updatesPaused -and $public.launcherVersion -eq '1.0.10') {
-              "Public v1.0.10 is available ($($public.releaseSignature)). This CI build was tested but was not substituted for the published artifact." >> $env:GITHUB_STEP_SUMMARY
+            if (-not $public.updatesPaused -and $public.launcherVersion -eq '1.0.11') {
+              "Public v1.0.11 is available ($($public.releaseSignature)). This CI build was tested but was not substituted for the published artifact." >> $env:GITHUB_STEP_SUMMARY
             } else {
-              'v1.0.10 source compiled and passed tests. This unsigned CI artifact was not published; the public release manifest was preserved.' >> $env:GITHUB_STEP_SUMMARY
+              'v1.0.11 source compiled and passed tests. This unsigned CI artifact was not published; the public release manifest was preserved.' >> $env:GITHUB_STEP_SUMMARY
             }
           }

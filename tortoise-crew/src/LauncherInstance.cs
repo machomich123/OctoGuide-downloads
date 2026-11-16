@@ -11,9 +11,9 @@ namespace TortoiseCrew
 
         private LauncherInstance(Mutex value) { mutex = value; }
 
-        internal static LauncherInstance Acquire(int timeoutMilliseconds)
+        internal static LauncherInstance Acquire(int timeoutMilliseconds, string mutexName = MutexName)
         {
-            var value = new Mutex(false, MutexName);
+            var value = new Mutex(false, mutexName);
             bool acquired;
             try { acquired = value.WaitOne(timeoutMilliseconds); }
             catch (AbandonedMutexException) { acquired = true; }

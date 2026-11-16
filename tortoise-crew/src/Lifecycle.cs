@@ -87,6 +87,7 @@ namespace TortoiseCrew
                     File.WriteAllText(marker, "active");
                     Paths.WriteLog("Session monitor attached to WoW process " + wowPid + " and SSH " + sshPid);
                     game.WaitForExit();
+                    if (game.ExitCode != 0) FailureDiagnostics.Record(FailureStage.GameExit, null, game.ExitCode);
                 }
                 finally
                 {

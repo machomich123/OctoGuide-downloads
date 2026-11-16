@@ -28,7 +28,7 @@ namespace TortoiseCrew
             Username = "";
             WowPath = "";
             KeyPath = "";
-            AutoLogin = true;
+            AutoLogin = false;
             Host = "us-iad01.altare.global";
             CrewApiUrl = "";
             SshPort = 25034;
@@ -86,6 +86,7 @@ namespace TortoiseCrew
                         if (obj.SshPort < 1 || obj.SshPort > 65535) obj.SshPort = 25034;
                         if (obj.AuthPort < 1 || obj.AuthPort > 65535) obj.AuthPort = 3724;
                         if (obj.WorldPort < 1 || obj.WorldPort > 65535) obj.WorldPort = 8085;
+                        obj.AutoLogin = false;
                         return obj;
                     }
                 }
