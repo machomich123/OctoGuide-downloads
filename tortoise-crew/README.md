@@ -2,6 +2,8 @@
 
 ## Current unsigned release policy
 
+New research: [launcher architecture alternatives](LAUNCHER-ARCHITECTURE-OPTIONS.md) includes an official Node.js runtime capability check that passed on the affected PC with Smart App Control and Defender still enabled. A browser UI plus local Node backend is a viable candidate for a new implementation; no replacement launcher has been installed. Ordinary packaged Electron remains subject to Windows application control.
+
 The owner has explicitly chosen no mandatory signing and no Microsoft submissions. Nothing was submitted. See [research into other projects](WINDOWS-BLOCK-RESEARCH.md) for the current evidence, limitations and durable guidance. The earlier submission proposal in UNSIGNED-WINDOWS-RELEASE.md is not authorized.
 
 Version 1.0.12 is still paused because Smart App Control blocked its exact executable on the affected PC. Installed 1.0.11 is preserved. Microsoft review is an available unsigned route, not a guaranteed approval. CI startup alone is not sufficient release evidence. The release tool permits unsigned publication only with provenance and a recorded successful test of that exact hash on the affected PC, with protection unchanged. No signing subscription is required by this policy.
