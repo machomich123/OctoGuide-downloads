@@ -1,14 +1,15 @@
 {
-  "launcherVersion": "1.0.9",
+  "launcherVersion": "1.0.10",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "D7F8CB07BECB7551323CA3E3C2112342DD72E814B45C0A5C4230178A4AA66B4E",
+  "launcherSha256": "E6159A8781E55FCFDBC1F8C30BEE54836B6C086D626A769A16B083F52DF5E6AB",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.9: corrected version detection, safe update handoff and desktop activation. Windows decides whether unsigned builds may run.",
+  "message": "v1.0.10: login when the game UI is ready, exact password characters and password verification when switching accounts.",
   "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
-  "locallyTestedSha256": "D7F8CB07BECB7551323CA3E3C2112342DD72E814B45C0A5C4230178A4AA66B4E"
+  "windowsTestedSha256": "E6159A8781E55FCFDBC1F8C30BEE54836B6C086D626A769A16B083F52DF5E6AB",
+  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43847483392"
 }
