@@ -1,5 +1,23 @@
 # Tortoise Crew Launcher v1.0.9
 
+## Upcoming v1.0.10 (not published)
+
+The login fix replaces timed SendKeys with a one-shot DPAPI-protected handoff to
+the verified client's login UI. It submits as soon as that UI is ready, preserving
+password symbols without keyboard-layout or foreground assumptions. Passwords
+never enter command lines, logs, XML or plaintext temporary files.
+
+Only the last verified account on this Windows profile can use its saved password.
+Switching accounts requires the selected account's current password, even if it
+has an older vault entry; further launches of the same account are automatic.
+Existing users verify once after upgrading. This does not distinguish people
+sharing the same unlocked Windows profile; separate Windows users provide that
+boundary. See [native login design](native/README.md).
+
+Source compilation and automated Windows tests do not establish that Smart App
+Control will accept these exact new binaries on a user's PC. This candidate is
+not substituted for the published release without release validation.
+
 One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
 **[Download launcher v1.0.9](./TortoiseCrewLauncher.exe)**. This is an unsigned release. The published artifact was opened normally on Windows 11 with Smart App Control **On**, Microsoft Defender Antivirus enabled, and real-time protection enabled. Its installed window showed v1.0.9, a verified game client, and an online realm. Opening the desktop shortcut retained the same launcher instance. This is evidence for the exact published file on the tested PC, not a promise that every Windows device will accept it.

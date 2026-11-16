@@ -17,7 +17,7 @@ the temporary directory after consumption or timeout. The environment contains
 only the random directory path. Lua strings cannot be securely zeroed; the Lua
 password reference is dropped immediately after DefaultServerLogin.
 
-`vendor/` contains wowreeb 3.5's x86 loader EXE, DLL and its GPLv3 license, copied
+`vendor/` contains wowreeb 3.5's x86 loader EXE, DLL and its MIT license, copied
 without modification from the upstream release archive:
 https://github.com/namreeb/wowreeb/releases/download/3.5/wowreeb-3.5.zip
 Archive SHA-256: A6CEB3782AD8E67DD7CA4E2EDC4D0029C0A1A8175FE99311EE940B5E85550DEB.
