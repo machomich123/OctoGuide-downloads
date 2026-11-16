@@ -282,9 +282,12 @@ namespace TortoiseCrew
                 if (!seen.Add(item.Item1)) continue;
                 try
                 {
-                    foreach (var file in LongPathFs.GetFiles(item.Item1, "*.toc"))
-                        if (!LongPathFs.IsReparsePoint(file))
-                            found.Add(file);
+                    var manifests = LongPathFs.GetFiles(item.Item1, "*.toc")
+                        .Where(file => !LongPathFs.IsReparsePoint(file)).ToList();
+                    found.AddRange(manifests);
+                    // Bundled libraries may have their own TOCs. They belong to
+                    // this addon, not additional top-level installations.
+                    if (manifests.Count > 0) continue;
                     foreach (var dir in LongPathFs.GetDirectories(item.Item1))
                     {
                         string dirname = Path.GetFileName(dir.TrimEnd('\\', '/'));

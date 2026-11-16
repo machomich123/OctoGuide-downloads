@@ -122,7 +122,11 @@ namespace TortoiseCrew
                 File.WriteAllText(Path.Combine(mixed, "pfQuest.toc"), "## Interface: 11200\n");
                 Check(Path.GetFileName(AddonRepair.SelectManifest(mixed)) == "pfQuest.toc", "Vanilla selected from multi-client package");
                 string mixedDest = Path.Combine(tmp, "mixed-dest");
-                AddonFiles.InstallFoldersInto(Path.GetDirectoryName(mixed), mixedDest);
+                string library = Path.Combine(mixed, "libs", "EmbeddedLibrary");
+                Directory.CreateDirectory(library);
+                File.WriteAllText(Path.Combine(library, "EmbeddedLibrary.toc"), "## Interface: 11200\n");
+                Check(AddonFiles.InstallFoldersInto(Path.GetDirectoryName(mixed), mixedDest) == 1 &&
+                    !Directory.Exists(Path.Combine(mixedDest, "EmbeddedLibrary")), "Bundled library stays inside its addon");
                 Check(Directory.Exists(Path.Combine(mixedDest, "pfQuest")) &&
                     !Directory.Exists(Path.Combine(mixedDest, "pfQuest-tbc")), "Import uses correct canonical folder");
                 File.Delete(Path.Combine(mixed, "pfQuest.toc"));
