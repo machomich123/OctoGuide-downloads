@@ -17,7 +17,7 @@ $launcher = Join-Path $out 'TortoiseCrewLauncher.exe'
 & $Compiler @base /target:winexe "/out:$launcher"
 if ($LASTEXITCODE -ne 0) { throw 'Launcher compilation failed.' }
 $version = [Reflection.AssemblyName]::GetAssemblyName($launcher).Version.ToString()
-if ($version -ne '1.0.11.0') { throw "Unexpected assembly version: $version" }
+if ($version -ne '1.0.12.0') { throw "Unexpected assembly version: $version" }
 foreach ($test in @('LauncherUpdateTests', 'AddonImportSafetyTests', 'LoginRegressionTests')) {
     $testSource = Join-Path $repo "tortoise-crew\tests\$test.cs"
     & $Compiler @base /target:exe "/main:TortoiseCrew.$test" "/out:$out\$test.exe" $testSource

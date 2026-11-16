@@ -114,6 +114,49 @@ namespace TortoiseCrew
                 Check(File.ReadAllText(Path.Combine(dest, "DeepAddon", "DeepAddon.lua"))
                     == "deep-content", "Deep source content copied");
                 Console.WriteLine("PASS: long source discovery and copy");
+                // A multi-client package must use its Vanilla manifest even when
+                // the TBC file was created/enumerated first.
+                string mixed = Path.Combine(tmp, "mixed", "pfQuest-main");
+                Directory.CreateDirectory(mixed);
+                File.WriteAllText(Path.Combine(mixed, "pfQuest-tbc.toc"), "## Interface: 20400\n");
+                File.WriteAllText(Path.Combine(mixed, "pfQuest.toc"), "## Interface: 11200\n");
+                Check(Path.GetFileName(AddonRepair.SelectManifest(mixed)) == "pfQuest.toc", "Vanilla selected from multi-client package");
+                string mixedDest = Path.Combine(tmp, "mixed-dest");
+                AddonFiles.InstallFoldersInto(Path.GetDirectoryName(mixed), mixedDest);
+                Check(Directory.Exists(Path.Combine(mixedDest, "pfQuest")) &&
+                    !Directory.Exists(Path.Combine(mixedDest, "pfQuest-tbc")), "Import uses correct canonical folder");
+                File.Delete(Path.Combine(mixed, "pfQuest.toc"));
+                bool rejected = false;
+                try { AddonFiles.InstallFoldersInto(Path.GetDirectoryName(mixed), mixedDest); }
+                catch (InvalidDataException) { rejected = true; }
+                Check(rejected && File.Exists(Path.Combine(mixedDest, "pfQuest", "pfQuest.toc")), "TBC-only package rejected before changing destination");
+                File.WriteAllText(Path.Combine(mixed, "pfQuest.toc"), "## Interface: 11200\n");
+                File.WriteAllText(Path.Combine(mixed, "other.toc"), "## Interface: 11200\n");
+                rejected = false;
+                try { AddonRepair.SelectManifest(mixed); } catch (InvalidDataException) { rejected = true; }
+                Check(rejected, "Ambiguous Vanilla manifests rejected");
+
+                string repairGame = Path.Combine(tmp, "repair");
+                string repairRoot = Path.Combine(repairGame, "Interface", "AddOns");
+                string repairAddon = Path.Combine(repairRoot, "pfQuest-tbc");
+                Directory.CreateDirectory(repairAddon);
+                File.WriteAllText(Path.Combine(repairAddon, "pfQuest.toc"), "## Interface: 11200\n");
+                File.WriteAllText(Path.Combine(repairAddon, "pfQuest-tbc.toc"), "## Interface: 20400\n");
+                Directory.CreateDirectory(Path.Combine(repairGame, "WTF"));
+                string config = Path.Combine(repairGame, "WTF", "Config.wtf");
+                string original = "SET gxResolution \"1920x1080\"\r\nSET scriptMemory \"49152\"\r\n";
+                File.WriteAllText(config, original);
+                var repaired = AddonRepair.Repair(repairGame);
+                Check(Directory.Exists(Path.Combine(repairRoot, "pfQuest")), "Repair corrects old TBC name");
+                Check(File.ReadAllText(config).Contains("SET scriptMemory \"0\"") &&
+                    File.ReadAllText(config).Contains("1920x1080"), "Repair removes memory cap and preserves other settings");
+                string backupDir = Directory.GetDirectories(Path.Combine(repairGame, "WTF"), "CrewRepair-*").Single();
+                Check(File.ReadAllText(Path.Combine(backupDir, "Config.wtf")) == original, "Original configuration backed up exactly");
+                Check(AddonRepair.Repair(repairGame).Contains("Repaired 0"), "Repeat repair is idempotent");
+                Directory.CreateDirectory(repairAddon);
+                File.WriteAllText(Path.Combine(repairAddon, "pfQuest.toc"), "## Interface: 11200\n");
+                Check(AddonRepair.Repair(repairGame).Contains("Name conflict") && Directory.Exists(repairAddon), "Repair preserves conflicting addon folders");
+                Console.WriteLine("PASS: client manifest selection, memory repair, backups, idempotence and conflicts");
                 return 0;
             }
             catch (Exception ex)

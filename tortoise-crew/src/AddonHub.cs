@@ -50,6 +50,8 @@ namespace TortoiseCrew
             Button tabInstalled = Button("Installed", 145, 108, 104, 34);
             Button tabPacks = Button("Packs & DLLs", 257, 108, 132, 34);
             Button sitesButton = Button("Addon sites", 609, 108, 130, 34);
+            var repair = Button("Repair addons", 401, 108, 158, 34);
+            repair.Click += async (s, e) => await RepairAsync();
             sitesButton.Click += (s, e) => ShowSites();
             tabBrowse.Click += (s, e) => { page = "Browse"; Render(); };
             tabInstalled.Click += (s, e) => { page = "Installed"; Render(); };
@@ -447,6 +449,28 @@ namespace TortoiseCrew
             catch (Exception ex) { if (!IsDisposed) Say("Install failed: " + ex.Message); }
             finally { working = false; }
         }
+        private async Task RepairAsync()
+        {
+            if (working) return;
+            try
+            {
+                AddonRepair.RequireClosed();
+                string game = AddonFiles.GameRoot(wowPath());
+                if (MessageBox.Show("Repair addon folder names for Vanilla/Turtle, remove the 48 MB script-memory limit and check dependencies?\n\nA configuration backup and rename record will be saved in WTF/CrewRepair-*. Profiles are preserved. Conflicts and incompatible addons are reported without overwriting them. No DLL or game executable is changed.",
+                    "Repair addons", MessageBoxButtons.OKCancel, MessageBoxIcon.Information,
+                    MessageBoxDefaultButton.Button2) != DialogResult.OK) return;
+                working = true;
+                Say("Repairing addons...");
+                string result = await Task.Run(() => AddonRepair.Repair(game));
+                if (IsDisposed) return;
+                Say("Repair complete. Restart WoW to load the repaired addons.");
+                MessageBox.Show(FindForm(), result, "Addon repair results", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (page == "Installed") Render();
+            }
+            catch (Exception ex) { if (!IsDisposed) Say("Repair failed: " + ex.Message); }
+            finally { working = false; }
+        }
+
         private async Task ScanAsync()
         {
             if (working) return;
@@ -509,9 +533,10 @@ namespace TortoiseCrew
                 Say("Close WoW before importing mods.");
                 return;
             }
-            string prompt = "Import compatible UI addons from:\n" + folder +
+            string prompt = "Import Vanilla/Turtle UI addons from:\n" + folder +
                 "\n\nThis will NEVER replace Blizzard_/Turtle_ built-in addons." +
                 "\nExisting community addons are backed up, and the batch rolls back on failure." +
+                "\nProfiles, saved variables and addon-memory settings are not imported. Use Repair addons afterwards." +
                 "\n\nDLL, DXVK and MPQ/HD modifications from another client are inventoried " +
                 "outside the game, NOT activated. They can crash WoW or corrupt its graphics." +
                 "\n\nContinue with safe addon import?";

@@ -152,10 +152,10 @@ namespace TortoiseCrew
         {
             return new List<AddonEntry>
             {
-                new AddonEntry { Name="Comfy Atmosphere", Description="Import an existing atmosphere/visual patch pack (.MPQ) from OctoWoW or a local archive.", Source="Local game patch", IsPack=true },
+                new AddonEntry { Name="Comfy Atmosphere", Description="Inventory local atmosphere/MPQ files for review; client patches are not installed.", Source="Local game patch", IsPack=true },
                 new AddonEntry { Name="HD Switch / HD Pack", Description="OctoWoW HD Switch is OctoWoW-realm-only. Import existing HD/MPQ patches cautiously; they may not work on this private realm.", Source="OctoWoW-only / local patch", Url="https://github.com/fmustafayaman/OctoWoW-HD-Switch", IconUrl=Avatar("https://github.com/fmustafayaman/OctoWoW-HD-Switch"), IsPack=true },
-                new AddonEntry { Name="Nampower & client DLLs", Description="Import compatible local DLLs and merge dlls.txt without erasing existing entries.", Source="Local client extension", IsPack=true },
-                new AddonEntry { Name="VanillaFixes", Description="Import an existing VanillaFixes.exe into the game folder (not launched automatically).", Source="Local client extension", IsPack=true }
+                new AddonEntry { Name="Nampower & client DLLs", Description="Inventory local client extensions for compatibility review; no DLLs are installed or enabled.", Source="Local client extension", IsPack=true },
+                new AddonEntry { Name="VanillaFixes", Description="Review a local client installation; executable helpers are not copied or launched.", Source="Local client extension", IsPack=true }
             };
         }
     }
@@ -325,8 +325,8 @@ namespace TortoiseCrew
             var jobs = new List<Tuple<string, string>>();
             foreach (var folder in folders)
             {
-                var toc = LongPathFs.GetFiles(folder, "*.toc").FirstOrDefault();
-                if (toc == null) continue;
+                if (IsProtectedClientAddon(Path.GetFileName(folder))) continue;
+                var toc = AddonRepair.SelectManifest(folder);
                 var name = Path.GetFileNameWithoutExtension(toc);
                 if (!IsSafeAddonName(name))
                     throw new InvalidDataException("Unsupported addon filename: " + name + ". No files were changed.");
