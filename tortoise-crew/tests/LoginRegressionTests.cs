@@ -24,7 +24,9 @@ namespace TortoiseCrew
                 var info = GameLogin.StartInfo(@"C:\Games & Mods\WoW.exe");
                 Check(info.Arguments == "" && !info.UseShellExecute && info.FileName == @"C:\Games & Mods\WoW.exe", "direct startup without password or loader arguments");
                 Check(!new LauncherSettings().AutoLogin, "manual login default");
-                Check(typeof(GameLogin).Assembly.GetManifestResourceNames().Length == 0, "no embedded loader");
+                var resources = typeof(GameLogin).Assembly.GetManifestResourceNames();
+                Check(resources.Length == 1 && resources[0] == "CrewNextBundle" &&
+                    NextBridge.TestEmbeddedBundle(), "only the Node UI source bundle is embedded, no native login loader");
                 string root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
                 try {
                     string file = FailureDiagnostics.Write(root, FailureStage.GameStartup, new System.ComponentModel.Win32Exception(1260, "PASSWORD_SENTINEL"));

@@ -49,7 +49,7 @@ if ($signature.Status -eq 'NotSigned' -and $AllowUnsigned) {
         }
         $temporary = Join-Path ([IO.Path]::GetTempPath()) ('crew-release-proof-' + [guid]::NewGuid().ToString('N'))
         try {
-            & gh run download $WindowsCiRunId --repo $repository --name 'TortoiseCrewLauncher-v1.0.12-UNSIGNED-DO-NOT-INSTALL' --dir $temporary
+        & gh run download $WindowsCiRunId --repo $repository --name 'TortoiseCrewLauncher-v1.0.13-UNSIGNED-DO-NOT-INSTALL' --dir $temporary
             if ($LASTEXITCODE -ne 0 -or
                 (Get-FileHash -LiteralPath (Join-Path $temporary 'TortoiseCrewLauncher.exe') -Algorithm SHA256).Hash -ne $hash) {
                 throw 'Release blocked: executable differs from the Windows-tested CI artifact.'
@@ -70,7 +70,7 @@ if ($signature.Status -eq 'NotSigned' -and $AllowUnsigned) {
     throw "Release blocked: Windows-trusted Authenticode signature required ($($signature.Status)). Public files unchanged."
 }
 $version = [Reflection.AssemblyName]::GetAssemblyName($Executable).Version
-if ($version.ToString() -ne '1.0.12.0') { throw "Release blocked: expected 1.0.12.0, got $version" }
+if ($version.ToString() -ne '1.0.13.0') { throw "Release blocked: expected 1.0.13.0, got $version" }
 if ($signatureMode -eq 'signed') {
     $eku = @($signature.SignerCertificate.EnhancedKeyUsageList | ForEach-Object { [string]$_.ObjectId })
     if ('1.3.6.1.5.5.7.3.3' -notin $eku) { throw 'Release certificate does not permit code signing.' }
@@ -83,7 +83,7 @@ if ($manifest.launcherUrl -ne 'https://raw.githubusercontent.com/machomich123/Oc
 }
 $manifest.launcherVersion = $version.ToString(3)
 $manifest.launcherSha256 = $hash
-$manifest.message = 'v1.0.12: correct Vanilla/Turtle addon import and Repair addons with backups and dependency checks.'
+$manifest.message = 'v1.0.13: migrate to Tortoise Crew Next with local Node UI and guarded shortcuts; keep the previous launcher for recovery.'
 $manifest | Add-Member -NotePropertyName updatesPaused -NotePropertyValue $false -Force
 $manifest | Add-Member -NotePropertyName releaseSignature -NotePropertyValue $signatureMode -Force
 if ($signatureMode -eq 'unsigned') {
