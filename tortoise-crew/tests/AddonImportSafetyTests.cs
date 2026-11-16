@@ -146,11 +146,19 @@ namespace TortoiseCrew
                 string config = Path.Combine(repairGame, "WTF", "Config.wtf");
                 string original = "SET gxResolution \"1920x1080\"\r\nSET scriptMemory \"49152\"\r\n";
                 File.WriteAllText(config, original);
+                bool repairFailed = false;
+                using (var hold = new FileStream(config, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    try { AddonRepair.Repair(repairGame); } catch (IOException) { repairFailed = true; }
+                }
+                Check(repairFailed && Directory.Exists(repairAddon) &&
+                    !Directory.Exists(Path.Combine(repairRoot, "pfQuest")) && File.ReadAllText(config) == original,
+                    "Failed configuration commit rolls back addon renames");
                 var repaired = AddonRepair.Repair(repairGame);
                 Check(Directory.Exists(Path.Combine(repairRoot, "pfQuest")), "Repair corrects old TBC name");
                 Check(File.ReadAllText(config).Contains("SET scriptMemory \"0\"") &&
                     File.ReadAllText(config).Contains("1920x1080"), "Repair removes memory cap and preserves other settings");
-                string backupDir = Directory.GetDirectories(Path.Combine(repairGame, "WTF"), "CrewRepair-*").Single();
+                string backupDir = Directory.GetDirectories(Path.Combine(repairGame, "WTF"), "CrewRepair-*").First();
                 Check(File.ReadAllText(Path.Combine(backupDir, "Config.wtf")) == original, "Original configuration backed up exactly");
                 Check(AddonRepair.Repair(repairGame).Contains("Repaired 0"), "Repeat repair is idempotent");
                 Directory.CreateDirectory(repairAddon);
