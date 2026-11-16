@@ -1,0 +1,39 @@
+name: Test Tortoise Crew Next Preview
+on:
+  pull_request:
+    paths:
+      - 'tortoise-crew/next/**'
+      - '.github/workflows/test-tortoise-crew-next.yml'
+  push:
+    branches: [main, 'feat/tortoise-crew-next-preview']
+    paths:
+      - 'tortoise-crew/next/**'
+      - '.github/workflows/test-tortoise-crew-next.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  node-preview:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+      - name: Validate source syntax and run Node regression tests
+        shell: pwsh
+        run: |
+          Get-ChildItem tortoise-crew/next/src -Filter '*.mjs' | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Invalid source: $($_.Name)" }
+          }
+          node --test tortoise-crew/next/test/*.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Next launcher tests failed.' }
+      - name: Probe loopback UI without touching existing launcher
+        shell: pwsh
+        run: |
+          $env:CREW_NEXT_DATA_DIR = Join-Path $env:RUNNER_TEMP 'crew-next-probe'
+          $env:CREW_LEGACY_DATA_DIR = Join-Path $env:RUNNER_TEMP 'crew-no-legacy'
+          node tortoise-crew/next/src/main.mjs --health-probe
+          if ($LASTEXITCODE -ne 0) { throw 'Next loopback UI did not start.' }

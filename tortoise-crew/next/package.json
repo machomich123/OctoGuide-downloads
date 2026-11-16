@@ -1,0 +1,14 @@
+{
+  "name": "tortoise-crew-next",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "Local-only browser launcher prototype, no third-party runtime dependencies",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node src/main.mjs"
+  },
+  "engines": {
+    "node": ">=26.0.0"
+  }
+}
