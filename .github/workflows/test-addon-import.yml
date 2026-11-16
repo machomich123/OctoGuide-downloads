@@ -29,7 +29,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path 'out' | Out-Null
           $src = @(Get-ChildItem 'tortoise-crew\src\*.cs' | ForEach-Object FullName)
           $tests = 'tortoise-crew\tests\AddonImportSafetyTests.cs'
-          $refs = @('/reference:System.dll','/reference:System.Core.dll',
+          $refs = @('/reference:System.Xml.dll','/reference:System.dll','/reference:System.Core.dll',
             '/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll',
             '/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll',
             '/reference:System.Web.Extensions.dll','/reference:System.Net.Http.dll',

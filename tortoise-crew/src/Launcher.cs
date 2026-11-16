@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -319,7 +319,7 @@ namespace TortoiseCrew
             username = new ComboBox
             {
                 Location = new Point(290, 319), Size = new Size(296, 32),
-                DropDownStyle = ComboBoxStyle.DropDown, FlatStyle = FlatStyle.Flat,
+                DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(36, 51, 69), ForeColor = white,
                 Font = new Font("Segoe UI", 12f)
             };
@@ -609,11 +609,11 @@ namespace TortoiseCrew
 
         private async Task PlayViaCrewBridgeAsync(string account)
         {
-            string password = PasswordVault.Read(account);
+            string password = PasswordVault.ReadForLogin(account);
             if (!CrewEnrollment.ValidExistingPassword(password))
             {
                 if (!AccountSetup.Show(this, settings, account, true)) return;
-                password = PasswordVault.Read(account);
+                password = PasswordVault.ReadForLogin(account);
             }
             if (SshSupport.PortOpen("127.0.0.1", 3724, 200) ||
                 SshSupport.PortOpen("127.0.0.1", 8085, 200))
@@ -635,19 +635,14 @@ namespace TortoiseCrew
                 {
                     Notice("Verify your current game account password.");
                     if (!AccountSetup.Show(this, settings, account, true)) return;
-                    password = PasswordVault.Read(account);
+                    password = PasswordVault.ReadForLogin(account);
                     session = await CrewApi.LoginAsync(settings, account, password);
                 }
                 bridge = new CrewBridge(settings, session);
                 bridge.Start();
                 GameDetector.Configure(settings.WowPath, account);
-                activeWow = Process.Start(new ProcessStartInfo(settings.WowPath)
-                {
-                    WorkingDirectory = Path.GetDirectoryName(settings.WowPath),
-                    UseShellExecute = true
-                });
+                activeWow = await GameLogin.StartAsync(settings, account, password);
                 if (activeWow == null) throw new InvalidOperationException("WoW.exe could not start.");
-                if (settings.AutoLogin) await AutoLogin.TryLoginAsync(activeWow, account, password);
                 Hide();
                 while (!activeWow.HasExited) await Task.Delay(1000);
                 handedOffSession = true;
@@ -677,8 +672,22 @@ namespace TortoiseCrew
         private async Task PlayAsync()
         {
             if (starting || searching) return;
+            starting = true;
+            username.Enabled = accountButton.Enabled = browseButton.Enabled = settingsButton.Enabled = false;
+            playButton.Enabled = false;
+            try { await PlaySelectedAccountAsync(); }
+            finally
+            {
+                starting = false;
+                if (!IsDisposed && !Disposing)
+                    username.Enabled = accountButton.Enabled = browseButton.Enabled = settingsButton.Enabled = playButton.Enabled = true;
+            }
+        }
+
+        private async Task PlaySelectedAccountAsync()
+        {
             string account = (username.Text ?? "").Trim().ToUpperInvariant();
-            if (!System.Text.RegularExpressions.Regex.IsMatch(account, "^[A-Z0-9]{2,24}$"))
+            if (!AccountLoginPolicy.ValidAccount(account))
             {
                 MessageBox.Show("Choose MICHAEL, JAYKE, BERNARD, or AUGUST first.",
                     "Account", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -696,11 +705,11 @@ namespace TortoiseCrew
                 await PlayViaCrewBridgeAsync(account);
                 return;
             }
-            string password = PasswordVault.Read(account);
+            string password = PasswordVault.ReadForLogin(account);
             if (!CrewEnrollment.ValidExistingPassword(password))
             {
                 if (!AccountSetup.Show(this, settings, account, true)) return;
-                password = PasswordVault.Read(account);
+                password = PasswordVault.ReadForLogin(account);
                 if (!CrewEnrollment.ValidExistingPassword(password)) return;
             }
             if (SshSupport.PortOpen("127.0.0.1", 3724, 200) ||
@@ -757,17 +766,10 @@ namespace TortoiseCrew
                     return;
                 }
 
-                var gameStart = new ProcessStartInfo(settings.WowPath)
-                {
-                    WorkingDirectory = Path.GetDirectoryName(settings.WowPath),
-                    UseShellExecute = true
-                };
-                activeWow = Process.Start(gameStart);
+                activeWow = await GameLogin.StartAsync(settings, account, password);
                 if (activeWow == null) throw new InvalidOperationException("WoW.exe could not be started.");
                 Notice("WoW launched. The private tunnel stays connected while you play.");
                 playButton.Text = "GAME RUNNING...";
-                if (settings.AutoLogin)
-                    await AutoLogin.TryLoginAsync(activeWow, account, password);
                 if (!await SessionMonitor.HandOffAsync(activeWow.Id, activeSsh.Id))
                     throw new InvalidOperationException(
                         "The background game-session monitor could not start; the launcher will keep the tunnel until you retry.");

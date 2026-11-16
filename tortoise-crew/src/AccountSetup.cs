@@ -62,7 +62,7 @@ namespace TortoiseCrew
                 dialog.Controls.Add(save);
                 newLabel.Visible = desired.Visible = !initial;
                 confirmLabel.Visible = confirm.Visible = !initial;
-                detail.Text = initial ? "Enter the account password once." :
+                detail.Text = initial ? "Verify this account once. Switching accounts requires its password again." :
                     "Updates your WoW account immediately, without in-game commands.";
                 save.Text = initial ? "SAVE PASSWORD" : "DONE";
                 bool result = false;
@@ -74,12 +74,14 @@ namespace TortoiseCrew
                     }
                     if (initial)
                     {
+                        string enteredPassword = current.Text;
                         save.Enabled = false;
+                        current.Enabled = false;
                         try
                         {
                             if (!String.IsNullOrEmpty(settings.CrewApiUrl))
-                                await CrewApi.LoginAsync(settings, username, current.Text);
-                            PasswordVault.Save(username, current.Text);
+                                await CrewApi.LoginAsync(settings, username, enteredPassword);
+                            PasswordVault.Save(username, enteredPassword);
                             result = true;
                             dialog.DialogResult = DialogResult.OK;
                             dialog.Close();
@@ -90,7 +92,7 @@ namespace TortoiseCrew
                         }
                         finally
                         {
-                            if (!dialog.IsDisposed) save.Enabled = true;
+                            if (!dialog.IsDisposed) { save.Enabled = true; current.Enabled = true; }
                         }
                         return;
                     }
@@ -102,13 +104,21 @@ namespace TortoiseCrew
                     }
                     try
                     {
-                        await CrewApi.ChangePasswordAsync(settings, username, current.Text, desired.Text);
-                        PasswordVault.Save(username, desired.Text);
+                        string oldPassword = current.Text;
+                        string newPassword = desired.Text;
+                        save.Enabled = current.Enabled = desired.Enabled = confirm.Enabled = false;
+                        await CrewApi.ChangePasswordAsync(settings, username, oldPassword, newPassword);
+                        PasswordVault.Save(username, newPassword);
                     }
                     catch (Exception ex)
                     {
                         detail.Text = "Password was not changed: " + ex.Message;
                         return;
+                    }
+                    finally
+                    {
+                        if (!dialog.IsDisposed)
+                            save.Enabled = current.Enabled = desired.Enabled = confirm.Enabled = true;
                     }
                     result = true;
                     dialog.DialogResult = DialogResult.OK;

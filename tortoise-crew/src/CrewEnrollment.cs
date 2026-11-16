@@ -15,6 +15,25 @@ namespace TortoiseCrew
     {
         private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("TortoiseCrew/DPAPI/v1");
 
+        // Only the most recently verified account is eligible for automatic use.
+        // Old per-account vault entries do not authorize switching to that account.
+        public static string ReadForLogin(string username)
+        {
+            try
+            {
+                var path = Path.Combine(Paths.Root, "verified-account-v2.bin");
+                if (!File.Exists(path)) return "";
+                byte[] account = ProtectedData.Unprotect(File.ReadAllBytes(path), Entropy, DataProtectionScope.CurrentUser);
+                try
+                {
+                    if (AccountLoginPolicy.RequiresVerification(Encoding.UTF8.GetString(account), username)) return "";
+                }
+                finally { Array.Clear(account, 0, account.Length); }
+                return Read(username);
+            }
+            catch { return ""; }
+        }
+
         private static string FileFor(string username)
         {
             if (!Regex.IsMatch(username ?? "", "^(MICHAEL|JAYKE|BERNARD|AUGUST)$"))
@@ -59,6 +78,14 @@ namespace TortoiseCrew
                 string file = FileFor(username);
                 File.WriteAllBytes(file, encrypted);
                 TryRestrictToCurrentWindowsUser(file);
+                byte[] account = Encoding.UTF8.GetBytes(username);
+                try
+                {
+                    string verified = Path.Combine(Paths.Root, "verified-account-v2.bin");
+                    File.WriteAllBytes(verified, ProtectedData.Protect(account, Entropy, DataProtectionScope.CurrentUser));
+                    TryRestrictToCurrentWindowsUser(verified);
+                }
+                finally { Array.Clear(account, 0, account.Length); }
             }
             finally { Array.Clear(raw, 0, raw.Length); }
         }

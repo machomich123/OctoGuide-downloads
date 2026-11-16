@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory)][string]$Executable,
     [switch]$AllowUnsigned,
     [string]$LocallyTestedSha256
@@ -22,7 +22,7 @@ if ($signature.Status -eq 'NotSigned' -and $AllowUnsigned) {
     throw "Release blocked: Windows-trusted Authenticode signature required ($($signature.Status)). Public files unchanged."
 }
 $version = [Reflection.AssemblyName]::GetAssemblyName($Executable).Version
-if ($version.ToString() -ne '1.0.9.0') { throw "Release blocked: expected 1.0.9.0, got $version" }
+if ($version.ToString() -ne '1.0.10.0') { throw "Release blocked: expected 1.0.10.0, got $version" }
 if ($signatureMode -eq 'signed') {
     $eku = @($signature.SignerCertificate.EnhancedKeyUsageList | ForEach-Object { [string]$_.ObjectId })
     if ('1.3.6.1.5.5.7.3.3' -notin $eku) { throw 'Release certificate does not permit code signing.' }
@@ -35,7 +35,7 @@ if ($manifest.launcherUrl -ne 'https://raw.githubusercontent.com/machomich123/Oc
 }
 $manifest.launcherVersion = $version.ToString(3)
 $manifest.launcherSha256 = $hash
-$manifest.message = 'v1.0.9: corrected version detection, safe update handoff and desktop activation. Windows decides whether unsigned builds may run.'
+$manifest.message = 'v1.0.10: corrected version detection, safe update handoff and desktop activation. Windows decides whether unsigned builds may run.'
 $manifest | Add-Member -NotePropertyName updatesPaused -NotePropertyValue $false -Force
 $manifest | Add-Member -NotePropertyName releaseSignature -NotePropertyValue $signatureMode -Force
 if ($signatureMode -eq 'unsigned') {

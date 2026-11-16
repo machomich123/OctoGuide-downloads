@@ -1,0 +1,16 @@
+name: Test login UI state machine
+on:
+  push:
+    branches: [main, 'fix/crew-login-1.0.10']
+    paths: ['tortoise-crew/native/**', 'tortoise-crew/tests/login-ui.lua', '.github/workflows/test-login-ui.yml']
+  pull_request:
+    paths: ['tortoise-crew/native/**', 'tortoise-crew/tests/login-ui.lua', '.github/workflows/test-login-ui.yml']
+permissions:
+  contents: read
+jobs:
+  lua:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.1
+      - run: lua5.1 tortoise-crew/tests/login-ui.lua tortoise-crew/native/CrewLogin.lua
