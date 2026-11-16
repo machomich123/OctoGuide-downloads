@@ -110,6 +110,9 @@ async function initial() {
     return;
   }
   const state = await run('state', {}, 'Load preferences');
+  // Migration must see a real browser-to-backend handshake promptly.
+  // Slow external realm-status requests must not cause a false rollback.
+  await api('handshake');
   $('account').replaceChildren();
   for (const user of state.accounts) {
     const option = new Option(user, user, false, user === state.settings.username);
@@ -126,7 +129,6 @@ async function initial() {
     $('serviceStatus').textContent = '○ Realm service unavailable';
   }
   await updatePresence();
-  await api('handshake');
   message('Tortoise Crew preview ready. Your v1.0.11 installation has not been changed.');
 }
 initial().catch(error => message(error.message, true));

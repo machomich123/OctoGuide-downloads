@@ -21,6 +21,14 @@ namespace TortoiseCrew
             try
             {
                 Directory.CreateDirectory(Paths.Root);
+                if (args.Length == 1 && args[0] == "--migration-probe")
+                {
+                    // The exact downloaded transition EXE can be tested under
+                    // Windows policy without modifying any installed launcher.
+                    try { NextBridge.TestEmbeddedBundle(); Environment.Exit(0); }
+                    catch { Environment.Exit(2); }
+                    return;
+                }
                 if (args.Length == 4 && args[0] == "--watch")
                 {
                     SessionMonitor.Watch(int.Parse(args[1]), int.Parse(args[2]), args[3]);
@@ -91,7 +99,11 @@ namespace TortoiseCrew
                         DesktopShortcut.Create();
                         Application.EnableVisualStyles();
                         Application.SetCompatibleTextRenderingDefault(false);
-                        Application.Run(new LauncherForm(readyMarker));
+                        var launcher = new LauncherForm(readyMarker);
+                        if (readyMarker != null)
+                            launcher.Shown += async (s, e) =>
+                                await NextBridge.MigrateAfterUpdateAsync(launcher);
+                        Application.Run(launcher);
                     }
                 }
                 // Release the UI mutex before starting the installed copy.

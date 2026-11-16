@@ -51,8 +51,11 @@ export function migrationPaths(env = process.env, home = os.homedir()) {
     oldRoot: legacyDir(env),
     app: path.join(root, 'app'),
     desktop: path.join(home, 'Desktop', 'Tortoise Crew Launcher.lnk'),
+    classicDesktop: path.join(home, 'Desktop', 'Tortoise Crew Classic.lnk'),
     start: path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'),
       'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Tortoise Crew Launcher.lnk'),
+    classicStart: path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'),
+      'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Tortoise Crew Classic.lnk'),
   };
 }
 
@@ -117,6 +120,20 @@ export function migrate(options = {}) {
         fs.copyFileSync(shortcut, backup);
         shortcutBackups.push({ shortcut, backup });
       } else shortcutBackups.push({ shortcut, backup: null });
+      if (options.pilot) {
+        // Keep a usable shortcut to the existing launcher for the first actual
+        // realm test. Revert these files as well if the migration fails.
+        const classic = shortcut === plan.desktop ? plan.classicDesktop : plan.classicStart;
+        const classicBackup = path.join(plan.root,
+          (shortcut === plan.desktop ? 'classic-desktop' : 'classic-start') +
+          '-previous-' + stamp + '.lnk');
+        if (fs.existsSync(classic)) {
+          fs.copyFileSync(classic, classicBackup);
+          shortcutBackups.push({ shortcut: classic, backup: classicBackup });
+        } else shortcutBackups.push({ shortcut: classic, backup: null });
+        if (fs.existsSync(shortcut)) fs.copyFileSync(shortcut, classic);
+        else nativeShortcut(classic, plan.oldLauncher, '', plan.oldRoot, plan.oldLauncher);
+      }
       nativeShortcut(shortcut, plan.node, path.join(plan.app, 'src', 'main.mjs'), plan.app,
         path.join(plan.app, 'crew.ico'));
     }
@@ -126,7 +143,9 @@ export function migrate(options = {}) {
       cwd: plan.app, windowsHide: true, detached: true, stdio: 'ignore',
     });
     child.unref();
-    const until = Date.now() + 9000;
+    // A first-start browser or a slow Windows user profile may need more than
+    // nine seconds. The handshake still must come from the real local UI.
+    const until = Date.now() + 25000;
     let ready = false;
     while (Date.now() < until) {
       if (fs.existsSync(marker)) {
@@ -139,10 +158,12 @@ export function migrate(options = {}) {
     writeJsonAtomic(path.join(plan.root, 'migration.json'), {
       completedUtc: new Date().toISOString(), oldLauncher: plan.oldLauncher,
       previousApp: replaced ? oldApp : null, oldShortcutBackups: shortcutBackups,
-      cleanupPendingFirstVerifiedGameStart: true,
+      cleanupPendingFirstVerifiedGameStart: !options.pilot,
+      pilot: options.pilot === true,
     });
     return { migrated: true, startedPid: child.pid,
-      oldLauncherPreservedUntilGameWorks: true, desktop: plan.desktop, start: plan.start };
+      oldLauncherPreservedUntilGameWorks: true, desktop: plan.desktop, start: plan.start,
+      pilot: options.pilot === true };
   } catch (error) {
     for (const { shortcut, backup } of shortcutBackups.reverse()) {
       if (backup) fs.copyFileSync(backup, shortcut);
@@ -158,7 +179,8 @@ export function migrate(options = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const result = migrate({ apply: process.argv.includes('--apply') });
+    const result = migrate({ apply: process.argv.includes('--apply'),
+      pilot: process.argv.includes('--pilot') });
     console.log(JSON.stringify(result, null, 2));
   } catch (error) {
     console.error(error.message);
