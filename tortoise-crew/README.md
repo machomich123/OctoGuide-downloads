@@ -1,8 +1,29 @@
-# Tortoise Crew Launcher v1.0.9
+# Tortoise Crew Launcher v1.0.10
+
+## Login and account-switch update
+
+The login fix replaces timed SendKeys with a one-shot DPAPI-protected handoff to
+the verified client's login UI. It submits as soon as that UI is ready, preserving
+password symbols without keyboard-layout or foreground assumptions. Passwords
+never enter command lines, logs, XML or plaintext temporary files.
+
+Only the last verified account on this Windows profile can use its saved password.
+Switching accounts requires the selected account's current password, even if it
+has an older vault entry; further launches of the same account are automatic.
+Existing users verify once after upgrading. This does not distinguish people
+sharing the same unlocked Windows profile; separate Windows users provide that
+boundary. See [native login design](native/README.md).
+
+The published EXE is the exact artifact from the successful
+[Windows build, native login tests and real desktop startup test](https://github.com/machomich123/OctoGuide-downloads/actions/runs/43847483392).
+Its SHA-256 is `E6159A8781E55FCFDBC1F8C30BEE54836B6C086D626A769A16B083F52DF5E6AB`.
+Login UI state-machine tests also passed. A real game login on the user's PC has
+not been exercised with this release. Automated Windows tests do not establish
+that Smart App Control will accept these unsigned binaries on every user's PC.
 
 One Windows launcher for **MICHAEL, JAYKE, BERNARD and AUGUST**.
 
-**[Download launcher v1.0.9](./TortoiseCrewLauncher.exe)**. This is an unsigned release. The published artifact was opened normally on Windows 11 with Smart App Control **On**, Microsoft Defender Antivirus enabled, and real-time protection enabled. Its installed window showed v1.0.9, a verified game client, and an online realm. Opening the desktop shortcut retained the same launcher instance. This is evidence for the exact published file on the tested PC, not a promise that every Windows device will accept it.
+**[Download launcher v1.0.10](./TortoiseCrewLauncher.exe)**. This is an unsigned release, validated on Windows CI. The previous v1.0.9 was also opened normally on the user's Windows 11 PC with Smart App Control **On**, Microsoft Defender Antivirus enabled and real-time protection enabled. That earlier result does not establish trust for a changed executable or its new login module. No Windows protection settings or exclusions were changed for this update.
 
 v1.0.9 reads the version from the compiled assembly (v1.0.8 incorrectly reported v1.0.6), treats 1.0.9 and 1.0.9.0 equally, checks the trusted GitHub manifest's SHA-256, validates a signature if one is present, waits for the old process/file to close, and serializes desktop launches with installation. An unsigned file is submitted to normal Windows execution checks; the launcher does not require buying a certificate. Reopening the desktop shortcut activates the existing launcher. The updater records success only after the new UI acknowledges that it opened. Errors keep their actual cause instead of reporting every install failure as a GitHub outage.
 
@@ -12,7 +33,7 @@ If a release is withdrawn, the manifest may advertise `0.0.0` while `updatesPaus
 
 Windows Smart App Control accepted earlier builds but blocked the v1.0.8 pending update on one PC. Microsoft documents two ways an app can be allowed: a positive safety decision from its cloud service, or a trusted signature when the cloud service cannot decide. A signature is therefore not an absolute requirement. See [Microsoft's Smart App Control FAQ](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions). No release can promise acceptance under every administrator policy or antivirus product, and file reputation does not reliably carry over between unsigned releases.
 
-The build workflow compiles and tests every source update. It does not automatically substitute a new unsigned CI artifact for a Windows-tested public file. The maintainer may explicitly prepare an unsigned release with `scripts/Prepare-Release.ps1 -Executable <tested-exe> -AllowUnsigned -LocallyTestedSha256 <exact-tested-hash>`. This records the local test hash and unsigned status in the manifest; it does not grant Windows trust. The binary and its matching manifest must be pushed in one commit. Do not alter executable bytes just to obtain a different Windows verdict, install trust exceptions, or change protection settings as part of the updater.
+The build workflow compiles and tests every source update. It does not automatically publish unsigned builds. An explicit release can use `scripts/Prepare-Release.ps1 -Executable <tested-exe> -AllowUnsigned -WindowsCiRunId <successful-run>`: the script checks the repository, workflow, source ancestry, unchanged application source, passing Windows test steps and the downloaded artifact's exact SHA-256. Alternatively, `-LocallyTestedSha256 <exact-tested-hash>` records an actual local Windows launch. Neither mode grants Windows trust. The binary and matching manifest must be pushed in one commit. Do not alter executable bytes to obtain a different Windows verdict, install trust exceptions or change protection settings as part of the updater.
 
 Signing is optional and remains supported for future releases. MIT-licensed open-source projects may apply to the [SignPath Foundation](https://signpath.org/); approval is external. To use its workflow integration, configure the GitHub connector, EXE artifact configuration and signing policy, repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`, and secret `SIGNPATH_API_TOKEN`. Never commit keys or tokens. The default `scripts/Prepare-Release.ps1 -Executable <signed-exe>` verifies the embedded, timestamped, Windows-trusted signature before changing public files.
 

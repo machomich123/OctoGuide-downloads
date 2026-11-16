@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using System.Threading;
@@ -19,16 +19,16 @@ namespace TortoiseCrew
             {
                 Check(Paths.Version == Assembly.GetExecutingAssembly().GetName().Version.ToString(3),
                     "UI/update version follows compiled assembly");
-                Check(Paths.Version == "1.0.9", "release candidate is 1.0.9");
-                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.9" }),
+                Check(Paths.Version == "1.0.10", "release candidate is 1.0.10");
+                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.10" }),
                     "same version does not repeat update");
-                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.9.0" }),
+                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.10.0" }),
                     "three-part and four-part versions compare equally");
                 Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.8" }),
                     "older version does not downgrade");
-                Check(RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.10" }),
+                Check(RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.11" }),
                     "newer version is detected");
-                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.10", UpdatesPaused = true }),
+                Check(!RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "1.0.11", UpdatesPaused = true }),
                     "paused release is never offered");
                 Check(!RemoteUpdates.IsNewer(null) &&
                     !RemoteUpdates.IsNewer(new RealmManifest { LauncherVersion = "invalid" }),
