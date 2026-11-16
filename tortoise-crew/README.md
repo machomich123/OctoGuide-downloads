@@ -2,7 +2,7 @@
 
 ## Current unsigned release policy
 
-The owner has explicitly chosen releases without mandatory signing. See [Unsigned Windows release procedure](UNSIGNED-WINDOWS-RELEASE.md) for the durable procedure and [prepared Microsoft review text](MICROSOFT-REVIEW-1.0.12.txt).
+The owner has explicitly chosen no mandatory signing and no Microsoft submissions. Nothing was submitted. See [research into other projects](WINDOWS-BLOCK-RESEARCH.md) for the current evidence, limitations and durable guidance. The earlier submission proposal in UNSIGNED-WINDOWS-RELEASE.md is not authorized.
 
 Version 1.0.12 is still paused because Smart App Control blocked its exact executable on the affected PC. Installed 1.0.11 is preserved. Microsoft review is an available unsigned route, not a guaranteed approval. CI startup alone is not sufficient release evidence. The release tool permits unsigned publication only with provenance and a recorded successful test of that exact hash on the affected PC, with protection unchanged. No signing subscription is required by this policy.
 

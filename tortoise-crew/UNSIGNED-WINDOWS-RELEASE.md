@@ -1,5 +1,7 @@
 # Unsigned launcher releases on Windows
 
+**Owner decision after this proposal:** no Microsoft submissions are authorized. Nothing was sent. The review route below is background research, not an approved next action. See [research into other projects](WINDOWS-BLOCK-RESEARCH.md) for current findings and constraints. No working immediate unsigned/unsubmitted solution has been verified for 1.0.12.
+
 Owner preference: **do not require code signing**. This procedure supersedes the temporary signed-only policy added after the 1.0.12 block. It does not bypass Windows policy and does not promise that an unsigned file will be allowed.
 
 ## What actually happened
