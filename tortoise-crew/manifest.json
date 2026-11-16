@@ -1,15 +1,15 @@
 {
-  "launcherVersion": "1.0.11",
+  "launcherVersion": "1.0.12",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "32F6B13B1D0A362433861CE8B5040404183EBF25710FA17F5E24606EB7983267",
+  "launcherSha256": "0DFCE6C793D1E7233944A6E6455CA90D01DFEF7077A67141184CAF0572107FCE",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.11: normal WoW startup without injected login helpers; private failure-only diagnostics.",
+  "message": "v1.0.12: correct Vanilla/Turtle addon import and Repair addons with backups and dependency checks.",
   "crewApiUrl": "https://helmet-trunk-marie-jerry.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
-  "windowsTestedSha256": "32F6B13B1D0A362433861CE8B5040404183EBF25710FA17F5E24606EB7983267",
-  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43896210588"
+  "windowsTestedSha256": "0DFCE6C793D1E7233944A6E6455CA90D01DFEF7077A67141184CAF0572107FCE",
+  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43939914596"
 }
