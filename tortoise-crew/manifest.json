@@ -7,7 +7,7 @@
   "authPort": 3724,
   "worldPort": 8085,
   "message": "v1.0.11: normal WoW startup without injected login helpers; private failure-only diagnostics.",
-  "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com",
+  "crewApiUrl": "https://helmet-trunk-marie-jerry.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
   "windowsTestedSha256": "32F6B13B1D0A362433861CE8B5040404183EBF25710FA17F5E24606EB7983267",
