@@ -1,15 +1,16 @@
 {
-  "launcherVersion": "1.0.12",
+  "launcherVersion": "1.0.13",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "0DFCE6C793D1E7233944A6E6455CA90D01DFEF7077A67141184CAF0572107FCE",
+  "launcherSha256": "1D0D809AB8E4C66D6755E1C5B8B5ED8D87C9EFC909DB839E4FFEEB83165D9FDA",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "Launcher update paused: Windows blocked the unsigned 1.0.12 update. Keep the installed launcher; a trusted signed release is required before retrying.",
+  "message": "v1.0.13: migrate to Tortoise Crew Next with local Node UI and guarded shortcuts; keep the previous launcher for recovery.",
   "crewApiUrl": "https://helmet-trunk-marie-jerry.trycloudflare.com",
-  "updatesPaused": true,
+  "updatesPaused": false,
   "releaseSignature": "unsigned",
-  "windowsTestedSha256": "0DFCE6C793D1E7233944A6E6455CA90D01DFEF7077A67141184CAF0572107FCE",
-  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43939914596"
+  "windowsPolicyVerifiedSha256": "1D0D809AB8E4C66D6755E1C5B8B5ED8D87C9EFC909DB839E4FFEEB83165D9FDA",
+  "windowsTestedSha256": "1D0D809AB8E4C66D6755E1C5B8B5ED8D87C9EFC909DB839E4FFEEB83165D9FDA",
+  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43975718861"
 }
