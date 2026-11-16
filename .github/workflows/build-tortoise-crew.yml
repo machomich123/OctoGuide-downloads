@@ -42,6 +42,13 @@ jobs:
             $blocked = $true
           }
           if (-not $blocked) { throw 'Unsigned build passed the publication gate.' }
+          $blocked = $false
+          try { ./tortoise-crew/scripts/Prepare-Release.ps1 -Executable out/TortoiseCrewLauncher.exe -AllowUnsigned -WindowsCiRunId $env:GITHUB_RUN_ID }
+          catch {
+            if ($_.Exception.Message -notlike 'Release blocked: Windows-trusted*') { throw }
+            $blocked = $true
+          }
+          if (-not $blocked) { throw 'Legacy unsigned override passed the publication gate.' }
           if ($beforeExe -ne (Get-FileHash tortoise-crew/TortoiseCrewLauncher.exe).Hash -or
               $beforeManifest -ne (Get-FileHash tortoise-crew/manifest.json).Hash) {
             throw 'Failed release modified public distribution files.'

@@ -1,5 +1,13 @@
 # Tortoise Crew Launcher v1.0.10
 
+## Release paused after confirmed Windows block — 2026-11-16
+
+The exact Windows-CI-tested unsigned 1.0.12 `pending-update.exe` was blocked by Smart App Control on the user's PC (Code Integrity event 3077). Public updates are paused. Installed 1.0.11 was preserved. Do not retry unsigned updates or change Windows protection settings.
+
+Publisher signing is now required both by the updater source and by Prepare-Release.ps1; the legacy AllowUnsigned override is rejected even when CI evidence is supplied. The installed 1.0.11 cannot receive this code change until a trusted signed release is available. The paused manifest prevents it offering 1.0.12 meanwhile.
+
+No signing identity is configured. SignPath integration is already present in the build workflow, but owner enrollment and provider approval remain external prerequisites. The addon fixes are preserved in source; instant login remains disabled.
+
 ## Login and account-switch update
 
 The login fix replaces timed SendKeys with a one-shot DPAPI-protected handoff to
@@ -33,11 +41,11 @@ If a release is withdrawn, the manifest may advertise `0.0.0` while `updatesPaus
 
 Windows Smart App Control accepted earlier builds but blocked the v1.0.8 pending update on one PC. Microsoft documents two ways an app can be allowed: a positive safety decision from its cloud service, or a trusted signature when the cloud service cannot decide. A signature is therefore not an absolute requirement. See [Microsoft's Smart App Control FAQ](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions). No release can promise acceptance under every administrator policy or antivirus product, and file reputation does not reliably carry over between unsigned releases.
 
-The build workflow compiles and tests every source update. It does not automatically publish unsigned builds. An explicit release can use `scripts/Prepare-Release.ps1 -Executable <tested-exe> -AllowUnsigned -WindowsCiRunId <successful-run>`: the script checks the repository, workflow, source ancestry, unchanged application source, passing Windows test steps and the downloaded artifact's exact SHA-256. Alternatively, `-LocallyTestedSha256 <exact-tested-hash>` records an actual local Windows launch. Neither mode grants Windows trust. The binary and matching manifest must be pushed in one commit. Do not alter executable bytes to obtain a different Windows verdict, install trust exceptions or change protection settings as part of the updater.
+The build workflow compiles and tests source updates. Public release now requires `scripts/Prepare-Release.ps1 -Executable <trusted-signed-exe>`. Unsigned publication, including the legacy `-AllowUnsigned` option, is rejected. A matching hash and successful Windows CI run cannot establish publisher trust on another PC.
 
-Signing is optional and remains supported for future releases. MIT-licensed open-source projects may apply to the [SignPath Foundation](https://signpath.org/); approval is external. To use its workflow integration, configure the GitHub connector, EXE artifact configuration and signing policy, repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`, and secret `SIGNPATH_API_TOKEN`. Never commit keys or tokens. The default `scripts/Prepare-Release.ps1 -Executable <signed-exe>` verifies the embedded, timestamped, Windows-trusted signature before changing public files.
+Signing integration supports SignPath using repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_SIGNING_POLICY_SLUG`, and secret `SIGNPATH_API_TOKEN`. Owner enrollment and provider approval are required. Never commit keys or tokens. See https://signpath.org/ for the open-source application route.
 
-For local builds, use `scripts/Build.ps1 -Compiler <Roslyn-csc.exe>` and `scripts/Test.ps1`. Windows may block a new local build; the toolchain never works around that decision. CI covers version comparisons, concurrent launch ownership, signed-only publication defaults, unsigned delegation to Windows, valid and invalid embedded signatures, a real desktop shortcut and addon migration.
+For local builds, use `scripts/Build.ps1 -Compiler <Roslyn-csc.exe>` and `scripts/Test.ps1`. Windows may block a new local build; the toolchain never works around that decision. CI covers version comparisons, concurrent launch ownership, signed-only publication defaults, rejection of unsigned updates, valid and invalid embedded signatures, a real desktop shortcut and addon migration.
 
 ## First-time setup and play
 

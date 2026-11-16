@@ -58,8 +58,10 @@ namespace TortoiseCrew
                 try { ReleaseTrust.RequireTrusted(Assembly.GetExecutingAssembly().Location); }
                 catch (InvalidDataException) { rejected = true; }
                 Check(rejected, "strict signed-release validation rejects unsigned artifact");
-                ReleaseTrust.ValidateForLaunch(Assembly.GetExecutingAssembly().Location);
-                Console.WriteLine("PASS: unsigned local build delegates execution decision to Windows");
+                rejected = false;
+                try { ReleaseTrust.ValidateForLaunch(Assembly.GetExecutingAssembly().Location); }
+                catch (InvalidDataException) { rejected = true; }
+                Check(rejected, "unsigned update rejected before Windows execution attempt");
 
                 // Validate the native structure layout with a Windows-signed PE,
                 // then corrupt its hashed content to prove digest verification.
