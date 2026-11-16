@@ -1,15 +1,15 @@
 {
-  "launcherVersion": "1.0.10",
+  "launcherVersion": "1.0.11",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "E6159A8781E55FCFDBC1F8C30BEE54836B6C086D626A769A16B083F52DF5E6AB",
+  "launcherSha256": "32F6B13B1D0A362433861CE8B5040404183EBF25710FA17F5E24606EB7983267",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.10: login when the game UI is ready, exact password characters and password verification when switching accounts.",
+  "message": "v1.0.11: normal WoW startup without injected login helpers; private failure-only diagnostics.",
   "crewApiUrl": "https://sip-nurses-our-das.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
-  "windowsTestedSha256": "E6159A8781E55FCFDBC1F8C30BEE54836B6C086D626A769A16B083F52DF5E6AB",
-  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43847483392"
+  "windowsTestedSha256": "32F6B13B1D0A362433861CE8B5040404183EBF25710FA17F5E24606EB7983267",
+  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43896210588"
 }
