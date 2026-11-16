@@ -6,9 +6,9 @@
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.12: correct Vanilla/Turtle addon import and Repair addons with backups and dependency checks.",
+  "message": "Launcher update paused: Windows blocked the unsigned 1.0.12 update. Keep the installed launcher; a trusted signed release is required before retrying.",
   "crewApiUrl": "https://helmet-trunk-marie-jerry.trycloudflare.com",
-  "updatesPaused": false,
+  "updatesPaused": true,
   "releaseSignature": "unsigned",
   "windowsTestedSha256": "0DFCE6C793D1E7233944A6E6455CA90D01DFEF7077A67141184CAF0572107FCE",
   "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43939914596"
