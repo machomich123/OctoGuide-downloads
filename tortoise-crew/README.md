@@ -1,12 +1,12 @@
 # Tortoise Crew Launcher v1.0.10
 
-## Release paused after confirmed Windows block — 2026-11-16
+## Current unsigned release policy
 
-The exact Windows-CI-tested unsigned 1.0.12 `pending-update.exe` was blocked by Smart App Control on the user's PC (Code Integrity event 3077). Public updates are paused. Installed 1.0.11 was preserved. Do not retry unsigned updates or change Windows protection settings.
+The owner has explicitly chosen releases without mandatory signing. See [Unsigned Windows release procedure](UNSIGNED-WINDOWS-RELEASE.md) for the durable procedure and [prepared Microsoft review text](MICROSOFT-REVIEW-1.0.12.txt).
 
-Publisher signing is now required both by the updater source and by Prepare-Release.ps1; the legacy AllowUnsigned override is rejected even when CI evidence is supplied. The installed 1.0.11 cannot receive this code change until a trusted signed release is available. The paused manifest prevents it offering 1.0.12 meanwhile.
+Version 1.0.12 is still paused because Smart App Control blocked its exact executable on the affected PC. Installed 1.0.11 is preserved. Microsoft review is an available unsigned route, not a guaranteed approval. CI startup alone is not sufficient release evidence. The release tool permits unsigned publication only with provenance and a recorded successful test of that exact hash on the affected PC, with protection unchanged. No signing subscription is required by this policy.
 
-No signing identity is configured. SignPath integration is already present in the build workflow, but owner enrollment and provider approval remain external prerequisites. The addon fixes are preserved in source; instant login remains disabled.
+The older implementation notes below are historical where they conflict with the current procedure. In particular, automatic game login is disabled in 1.0.11/1.0.12; profiles and DLL/MPQ client mods are not copied by addon import.
 
 ## Login and account-switch update
 

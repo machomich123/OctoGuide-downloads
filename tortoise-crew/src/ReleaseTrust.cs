@@ -38,11 +38,12 @@ namespace TortoiseCrew
             Verify(path, true);
         }
 
-        // A checksum and CI startup are not evidence of publisher trust on the
-        // user's PC. Reject unsigned updates before attempting to execute them.
+        // An unsigned, hash-verified build may be allowed by Windows reputation.
+        // Do not replace that OS decision with our own mandatory-certificate rule.
+        // A present but invalid signature is still rejected.
         internal static void ValidateForLaunch(string path)
         {
-            Verify(path, true);
+            Verify(path, false);
         }
 
         private static void Verify(string path, bool requireSignature)

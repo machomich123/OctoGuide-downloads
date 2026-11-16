@@ -1,0 +1,13 @@
+Product: Smart App Control
+Application: Tortoise Crew Launcher 1.0.12.0 (unsigned)
+SHA256: 0DFCE6C793D1E7233944A6E6455CA90D01DFEF7077A67141184CAF0572107FCE
+
+Please review this legitimate open-source Windows Forms launcher, blocked on Windows 11 by Smart App Control. On 2026-11-16 at 20:32:03, Code Integrity events 3033/3077 reported that TortoiseCrewLauncher.exe could not start the downloaded pending-update.exe under policy {0283ac0f-fff1-49ae-ada1-8a933130cad6}. The launcher logged: "An Application Control policy has blocked this file". Version 1.0.11 remains installed. There is no antivirus malware detection name confirmed for this incident.
+
+The launcher manages local WoW addons and connects our private game client to a private server through an authenticated TLS/WebSocket relay. This version repairs addon directory naming and the client's addon-memory setting, with backups. It starts WoW normally and contains no injected login helper, embedded native loader or automated password typing. It does not change Windows security settings. Account credentials are stored using Windows DPAPI, not written to logs or process arguments.
+
+Source: https://github.com/machomich123/OctoGuide-downloads/tree/ae493ff71fe6f6b27bb970cc40b780df61b100b9/tortoise-crew
+Exact artifact and Windows build/regression/desktop-startup evidence:
+https://github.com/machomich123/OctoGuide-downloads/actions/runs/43939914596
+
+Please assess whether this file is safe and whether its Smart App Control classification can be corrected. We are not requesting changes to the user's protection policy. We will verify the exact file on the affected PC before resuming publication.
