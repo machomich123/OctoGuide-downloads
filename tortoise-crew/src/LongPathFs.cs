@@ -207,6 +207,18 @@ namespace TortoiseCrew
                 throw Error("Remove directory failed", directory);
         }
 
+        internal static string ReadText(string path)
+        {
+            using (var handle = CreateFileHandle(NativePath(path), 0x80000000, 1,
+                IntPtr.Zero, 3, FILE_ATTRIBUTE_NORMAL, IntPtr.Zero))
+            {
+                if (handle.IsInvalid) throw Error("Read manifest failed", path);
+                using (var stream = new FileStream(handle, FileAccess.Read))
+                using (var reader = new StreamReader(stream, Encoding.UTF8, true))
+                    return reader.ReadToEnd();
+            }
+        }
+
         // Only used by the offline test fixture; production import reads user files.
         internal static void WriteText(string path, string content)
         {

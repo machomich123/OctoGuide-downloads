@@ -16,14 +16,14 @@ namespace TortoiseCrew
         {
             var files = LongPathFs.GetFiles(folder, "*.toc").ToArray();
             var compatible = files.Where(file => {
-                var text = File.ReadAllText(LongPathFs.NativePath(file));
+                var text = LongPathFs.ReadText(file);
                 var m = Regex.Match(text, @"^##\s*Interface\s*:\s*([^\r\n]+)", RegexOptions.Multiline | RegexOptions.IgnoreCase);
                 return m.Success && Regex.Matches(m.Groups[1].Value, @"\d+").Cast<Match>()
                     .Any(v => v.Value == "11200" || v.Value == "11800" || v.Value == "11801");
             }).ToList();
             if (compatible.Count == 1) return compatible[0];
             if (compatible.Count == 0 && files.Length == 1 &&
-                !Regex.IsMatch(File.ReadAllText(LongPathFs.NativePath(files[0])), @"^##\s*Interface\s*:", RegexOptions.Multiline | RegexOptions.IgnoreCase))
+                !Regex.IsMatch(LongPathFs.ReadText(files[0]), @"^##\s*Interface\s*:", RegexOptions.Multiline | RegexOptions.IgnoreCase))
                 return files[0]; // Legacy addon with no version declaration.
             throw new InvalidDataException("No unambiguous Vanilla/Turtle addon manifest in " + folder + ". Nothing was imported.");
         }
