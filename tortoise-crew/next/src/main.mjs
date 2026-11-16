@@ -1,0 +1,323 @@
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { spawn, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import {
+  ACCOUNTS, dataDir, legacyDir, loadSettings, saveSettings, validateGameExe,
+  crewBaseUrl, readJson,
+} from './config.mjs';
+import { installedAddons, importPlan, importAddons, repairAddons, missingDependencies } from './addons.mjs';
+import { manifest, crewRequest, crewLogin, crewPresence, changePassword } from './remote.mjs';
+import { GameRelay } from './relay.mjs';
+import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
+
+const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const FILES = new Map([
+  ['/', ['index.html', 'text/html; charset=utf-8']],
+  ['/main.js', ['main.js', 'text/javascript; charset=utf-8']],
+  ['/main.css', ['main.css', 'text/css; charset=utf-8']],
+]);
+const root = process.env.CREW_NEXT_DATA_DIR || dataDir();
+const previous = process.env.CREW_LEGACY_DATA_DIR || legacyDir();
+const remembered = readJson(path.join(root, 'verified-account.json'), {});
+const state = { settings: loadSettings(root, previous), game: null, relay: null,
+  lastVerified: ACCOUNTS.includes(remembered.account) ? remembered.account : '',
+  shuttingDown: false };
+const secret = crypto.randomBytes(32).toString('hex');
+
+function redact(message) {
+  return String(message || '').replace(/(Bearer\s+)[A-Za-z0-9]+/ig, '$1[hidden]');
+}
+function log(message) {
+  fs.mkdirSync(root, { recursive: true });
+  fs.appendFileSync(path.join(root, 'launcher.log'),
+    new Date().toISOString() + ' ' + redact(message).substring(0, 400) + '\n');
+}
+function gameRunning() {
+  if (state.game !== null && state.game.exitCode === null) return true;
+  if (process.platform !== 'win32') return false;
+  try {
+    return /"WoW\.exe"/i.test(execFileSync('tasklist.exe',
+      ['/FI', 'IMAGENAME eq WoW.exe', '/FO', 'CSV', '/NH'],
+      { timeout: 3500, windowsHide: true, encoding: 'utf8' }));
+  } catch {
+    throw new Error('Could not verify that WoW is closed.');
+  }
+}
+function verifyPath() {
+  if (!state.settings.wowPath) throw new Error('Choose a WoW.exe first.');
+  return validateGameExe(state.settings.wowPath);
+}
+function addSetting(entry, value) {
+  if (!['username', 'wowPath', 'crewApiUrl'].includes(entry)) throw new Error('Unknown setting.');
+  const next = { ...state.settings, [entry]: value };
+  if (entry === 'username' && !ACCOUNTS.includes(value)) throw new Error('Choose a known account.');
+  if (entry === 'wowPath' && value) validateGameExe(value);
+  if (entry === 'crewApiUrl' && value) crewBaseUrl(value);
+  state.settings = saveSettings(root, next);
+}
+
+function backedUp(file, contents) {
+  if (fs.existsSync(file)) {
+    if (fs.lstatSync(file).isSymbolicLink()) throw new Error('Linked game configuration is not supported.');
+    if (fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') === contents.replace(/\r\n/g, '\n')) return;
+    if (!fs.existsSync(file + '.crew-backup')) fs.copyFileSync(file, file + '.crew-backup');
+  }
+  fs.writeFileSync(file, contents, { encoding: 'utf8' });
+}
+function configureGame(game, user) {
+  if (!ACCOUNTS.includes(user)) throw new Error('Unknown account.');
+  backedUp(path.join(game, 'realmlist.wtf'), 'set realmlist 127.0.0.1\r\n');
+  const folder = path.join(game, 'WTF');
+  fs.mkdirSync(folder, { recursive: true });
+  const config = path.join(folder, 'Config.wtf');
+  const previousText = fs.existsSync(config) ? fs.readFileSync(config, 'utf8') : '';
+  const newLine = 'SET accountName "' + user + '"';
+  const text = /^\s*SET\s+accountName\s+.*$/im.test(previousText) ?
+    previousText.replace(/^\s*SET\s+accountName\s+.*$/gim, newLine) :
+    previousText.replace(/[\r\n]*$/, '\r\n') + newLine + '\r\n';
+  backedUp(config, text);
+}
+async function stopGame() {
+  if (state.relay) {
+    const relay = state.relay;
+    state.relay = null;
+    await relay.stop();
+  }
+}
+async function play(account, password, remember) {
+  if (gameRunning()) throw new Error('WoW is already running from this launcher.');
+  if (!ACCOUNTS.includes(account) || !state.settings.crewApiUrl) throw new Error('Choose an account and Crew service.');
+  const gameDir = verifyPath();
+  if (typeof password !== 'string' || password.length < 1 || password.length > 16) {
+    throw new Error('Enter the current WoW account password.');
+  }
+  const token = await crewLogin(state.settings.crewApiUrl, account, password);
+  const relay = new GameRelay(state.settings.crewApiUrl, token);
+  await relay.start();
+  state.relay = relay;
+  try {
+    configureGame(gameDir, account);
+    const child = spawn(state.settings.wowPath, [], {
+      cwd: gameDir, windowsHide: false, stdio: 'ignore',
+    });
+    await new Promise((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', reject);
+    });
+    state.game = child;
+    state.settings = saveSettings(root, { ...state.settings, username: account });
+    state.lastVerified = account;
+    // Verification is recorded only after a successful account login.
+    const verifiedFile = path.join(root, 'verified-account.json');
+    fs.writeFileSync(verifiedFile + '.new', JSON.stringify({ account, utc: new Date().toISOString() }));
+    fs.renameSync(verifiedFile + '.new', verifiedFile);
+    // Store only the password just verified by the Crew service.
+    if (remember) saveCredential(root, account, password);
+    const migrated = path.join(root, 'migration.json');
+    if (fs.existsSync(migrated)) {
+      try {
+        const record = readJson(migrated);
+        if (record.cleanupPendingFirstVerifiedGameStart &&
+            record.oldLauncher === path.join(previous, 'TortoiseCrewLauncher.exe')) {
+          // Preserve user settings, DPAPI credentials and any recovery artifacts.
+          // Delete only the obsolete executable after an authenticated game launch.
+          fs.unlinkSync(record.oldLauncher);
+          record.cleanupPendingFirstVerifiedGameStart = false;
+          record.cleanupCompletedUtc = new Date().toISOString();
+          const temp = migrated + '.new';
+          fs.writeFileSync(temp, JSON.stringify(record, null, 2));
+          fs.renameSync(temp, migrated);
+          log('Old launcher executable retired after verified game launch.');
+        }
+      } catch (error) {
+        log('Legacy executable retirement deferred: ' + error.name);
+      }
+    }
+    child.once('exit', code => {
+      log('WoW exited, code=' + String(code));
+      state.game = null;
+      void stopGame();
+    });
+    return { started: true };
+  } catch (error) {
+    await stopGame();
+    throw error;
+  }
+}
+function fail(error) {
+  log('Request failed: ' + error?.name);
+  return { ok: false, error: error?.message || 'Operation failed.' };
+}
+async function operate(action, args) {
+  switch (action) {
+    case 'state':
+      return { accounts: ACCOUNTS, settings: state.settings,
+        gameRunning: gameRunning(),
+        savedAccounts: storedAccounts(root).filter(a => a === state.lastVerified),
+        version: '0.1.0-preview' };
+    case 'handshake':
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, 'startup-proof.json'),
+        JSON.stringify({ pid: process.pid, browserLoadedUtc: new Date().toISOString() }));
+      return { browserLoaded: true };
+    case 'setAccount':
+      addSetting('username', String(args.username || '').toUpperCase());
+      return { settings: state.settings };
+    case 'setClient':
+      addSetting('wowPath', String(args.wowPath || ''));
+      return { settings: state.settings };
+    case 'refreshManifest': {
+      const data = await manifest();
+      if (data.crewApiUrl && !state.settings.crewApiUrl)
+        addSetting('crewApiUrl', data.crewApiUrl);
+      return { version: data.launcherVersion, updatesPaused: !!data.updatesPaused,
+        crewApiUrl: state.settings.crewApiUrl };
+    }
+    case 'status':
+      return await crewRequest(state.settings.crewApiUrl, '/v1/health');
+    case 'presence':
+      return { online: await crewPresence(state.settings.crewApiUrl) };
+    case 'play': {
+      const account = String(args.username || state.settings.username).toUpperCase();
+      // Existing saved passwords can be used only for the selected account.
+      let password = String(args.password || '');
+      if (!password && account === state.settings.username &&
+          account === state.lastVerified && args.useSaved === true)
+        password = readCredential(root, account);
+      return await play(account, password, args.remember === true);
+    }
+    case 'changePassword': {
+      const account = state.settings.username;
+      if (!ACCOUNTS.includes(account)) throw new Error('Select an account.');
+      await changePassword(state.settings.crewApiUrl, account,
+        String(args.current || ''), String(args.desired || ''));
+      saveCredential(root, account, String(args.desired));
+      return { changed: true };
+    }
+    case 'installed':
+      return { installed: installedAddons(verifyPath()) };
+    case 'missing':
+      return { missing: missingDependencies(verifyPath()) };
+    case 'previewImport':
+      return importPlan(String(args.source || ''), verifyPath());
+    case 'import': {
+      if (gameRunning()) throw new Error('Close WoW before importing addons.');
+      const summary = importAddons(String(args.source || ''), verifyPath(), {
+        isGameRunning: gameRunning,
+      });
+      return summary;
+    }
+    case 'repair': {
+      if (gameRunning()) throw new Error('Close WoW before repairing addons.');
+      return repairAddons(verifyPath(), { isGameRunning: gameRunning });
+    }
+    default:
+      throw new Error('Unknown launcher operation.');
+  }
+}
+function reply(response, status, obj) {
+  const bytes = Buffer.from(JSON.stringify(obj));
+  response.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': bytes.length,
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'none'",
+  });
+  response.end(bytes);
+}
+export async function createServer() {
+  const server = http.createServer(async (request, response) => {
+    try {
+      if (request.headers.host !== '127.0.0.1:' + server.address().port)
+        return reply(response, 403, { ok: false, error: 'Invalid local hostname.' });
+      const target = new URL(request.url, 'http://127.0.0.1/');
+      if (request.method === 'POST' && target.pathname === '/api') {
+        if (request.headers['x-crew-token'] !== secret ||
+            request.headers.origin !== 'http://127.0.0.1:' + server.address().port ||
+            !String(request.headers['content-type'] || '').startsWith('application/json')) {
+          return reply(response, 403, { ok: false, error: 'Unauthorized browser request.' });
+        }
+        const chunks = [];
+        let bytes = 0;
+        for await (const chunk of request) {
+          bytes += chunk.length;
+          if (bytes > 128 * 1024) return reply(response, 413, { ok: false, error: 'Request too large.' });
+          chunks.push(chunk);
+        }
+        const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const result = await operate(payload.action, payload.args || {});
+        return reply(response, 200, { ok: true, result });
+      }
+      if (request.method === 'GET' && FILES.has(target.pathname) &&
+          (target.pathname !== '/' || target.searchParams.get('key') === secret)) {
+        const [file, type] = FILES.get(target.pathname);
+        const contents = fs.readFileSync(path.join(APP, 'public', file));
+        response.writeHead(200, {
+          'Content-Type': type, 'Content-Length': contents.length, 'Cache-Control': 'no-store',
+          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'",
+          'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
+        });
+        return response.end(contents);
+      }
+      return reply(response, 404, { ok: false, error: 'Not found.' });
+    } catch (error) {
+      const result = fail(error);
+      return reply(response, 400, result);
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  return { server, url: 'http://127.0.0.1:' + server.address().port + '/?key=' + secret };
+}
+async function main() {
+  if (process.platform !== 'win32' && !process.argv.includes('--test-server'))
+    throw new Error('The game launcher currently requires Windows.');
+  const { server, url } = await createServer();
+  if (process.argv.includes('--health-probe')) {
+    try {
+      const page = await fetch(url);
+      if (page.status !== 200 || !(await page.text()).includes('Tortoise Crew')) {
+        throw new Error('Local web UI did not respond.');
+      }
+      const probe = await fetch(new URL('/api', url), {
+        method: 'POST',
+        headers: { Origin: new URL(url).origin,
+          'Content-Type': 'application/json',
+          'X-Crew-Token': new URL(url).searchParams.get('key') },
+        body: JSON.stringify({ action: 'state', args: {} }),
+      });
+      const data = await probe.json();
+      if (!probe.ok || !data.ok) throw new Error('Local backend probe failed.');
+      console.log('CREW_NEXT_PROBE_OK');
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+    }
+    return;
+  }
+  log('Next preview started on loopback.');
+  // The browser opens only after the local server has bound successfully.
+  if (!process.argv.includes('--no-browser')) {
+    const opener = spawn('rundll32.exe', ['url.dll,FileProtocolHandler', url],
+      { detached: true, stdio: 'ignore', windowsHide: true });
+    opener.unref();
+  }
+  console.log('Tortoise Crew Next preview listening on localhost.');
+  const shutdown = async () => {
+    if (state.shuttingDown) return;
+    state.shuttingDown = true;
+    server.close();
+    await stopGame();
+    if (!gameRunning()) process.exit(0);
+  };
+  process.on('SIGTERM', () => { void shutdown(); });
+  process.on('SIGINT', () => { void shutdown(); });
+}
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  main().catch(error => { console.error(error.message); process.exitCode = 1; });

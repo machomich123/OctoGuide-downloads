@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Tortoise Crew · Launcher Preview</title>
+  <link rel="stylesheet" href="/main.css">
+  <script defer src="/main.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">✧ TORTOISE <span>CREW</span></div>
+      <p class="eyebrow">PRIVATE VANILLA REALM</p>
+      <nav aria-label="Launcher sections">
+        <button class="nav active" data-tab="realm">✦ Realm</button>
+        <button class="nav" data-tab="addons">▤ Addons</button>
+        <button class="nav" data-tab="settings">⚙ Settings</button>
+      </nav>
+      <div class="crew">
+        <div class="eyebrow">YOUR CREW</div>
+        <div id="players">Loading presence…</div>
+        <button id="refreshPresence" class="small">Refresh status</button>
+      </div>
+      <p class="footnote">PREVIEW 0.1 · Windows</p>
+    </aside>
+    <main>
+      <div class="topbar"><span>WORLD OF WARCRAFT / VANILLA</span><span id="serviceStatus">● Checking realm…</span></div>
+      <section id="realm" class="panel active">
+        <div class="hero">
+          <span class="eyebrow mint">THE WORLD IS WAITING</span>
+          <h1>Welcome back,<br><em>adventurer.</em></h1>
+          <p>Enter Azeroth together, with one secure connection.</p>
+        </div>
+        <div class="surface">
+          <h2>Launch Tortoise WoW</h2>
+          <label>CREW ACCOUNT<select id="account"></select></label>
+          <label>GAME PASSWORD<input type="password" id="password" autocomplete="current-password" placeholder="Your existing game password" maxlength="16"></label>
+          <label class="check"><input type="checkbox" id="useSaved"> Use locally encrypted password for the selected account</label>
+          <label class="check"><input type="checkbox" id="remember"> Save successfully verified password on this Windows profile</label>
+          <p id="wowLocation" class="footnote">No WoW.exe selected</p>
+          <button id="play" class="primary">▶ &nbsp; PLAY TORTOISE WOW</button>
+          <p class="footnote">The login screen remains manual. No DLL injection, keyboard automation, or password arguments.</p>
+        </div>
+      </section>
+      <section id="addons" class="panel">
+        <h1>Addons <em>library.</em></h1>
+        <p class="intro">Import local Vanilla/Turtle addons with backups. DLL/MPQ client patches are not activated.</p>
+        <div class="surface">
+          <div class="actions"><button id="loadInstalled">Installed addons</button><button id="missing">Missing dependencies</button><button id="repair">Repair addons</button></div>
+          <h2>Import from another client</h2>
+          <label>PREVIOUS CLIENT DIRECTORY<input id="source" type="text" placeholder="C:\Games\OctoWoW\client-octo"></label>
+          <div class="actions"><button id="previewImport">Preview import</button><button id="import" class="primary">Import safely</button></div>
+          <pre id="addonResult" class="results" aria-live="polite">Select an action above.</pre>
+        </div>
+      </section>
+      <section id="settings" class="panel">
+        <h1>Launcher <em>settings.</em></h1>
+        <div class="surface">
+          <label>VERIFIED 1.18.1 CLIENT EXECUTABLE<input id="wowPath" type="text" placeholder="C:\Games\client-turtle\WoW.exe"></label>
+          <button id="saveClient">Verify and save client</button>
+          <h2>Account password</h2>
+          <label>CURRENT PASSWORD<input type="password" id="currentPassword" maxlength="16"></label>
+          <label>NEW PASSWORD<input type="password" id="newPassword" maxlength="16"></label>
+          <button id="changePassword">Update selected account password</button>
+          <h2>Updates</h2>
+          <button id="checkUpdates">Check official release</button>
+          <p class="footnote">Preview mode. Existing launcher v1.0.11 and desktop shortcut are not replaced.</p>
+        </div>
+      </section>
+      <p id="message" class="feedback" role="status" aria-live="polite">Launcher preview ready.</p>
+    </main>
+  </div>
+</body>
+</html>
