@@ -37,3 +37,6 @@ jobs:
           $env:CREW_LEGACY_DATA_DIR = Join-Path $env:RUNNER_TEMP 'crew-no-legacy'
           node tortoise-crew/next/src/main.mjs --health-probe
           if ($LASTEXITCODE -ne 0) { throw 'Next loopback UI did not start.' }
+      - name: Verify source ZIP, bootstrap and GitHub release checksum
+        shell: pwsh
+        run: ./tortoise-crew/next/scripts/Prepare-Next-Update.ps1 -VerifyOnly

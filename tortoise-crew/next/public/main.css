@@ -1,12 +1,13 @@
 :root { color-scheme: dark; --bg: #0c121b; --surface: #172535; --line: #324254; --muted: #9fb4c7; --mint: #62e8be; --text: #eff7fa; }
 * { box-sizing: border-box; }
-html,body { margin:0; min-height:100%; font:15px/1.5 system-ui,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
-.layout { display:grid; grid-template-columns:240px minmax(0,1fr); min-height:100vh; }
-.sidebar { display:flex; flex-direction:column; padding:26px 18px; background:#101b28; border-right:1px solid var(--line); gap:14px; }
+html,body { margin:0; width:100%; height:100%; overflow:hidden; font:14px/1.4 system-ui,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+.layout { display:grid; grid-template-columns:218px minmax(0,1fr); height:100vh; height:100dvh; overflow:hidden; }
+.sidebar { display:flex; flex-direction:column; min-height:0; padding:20px 16px; background:#101b28; border-right:1px solid var(--line); gap:12px; overflow-y:auto; }
+.layout > main { display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
 .logo { font-weight:800; font-size:21px; letter-spacing:.09em; }
 .logo span,.mint,em { color:var(--mint); }
 .eyebrow { color:var(--muted); font-weight:700; font-size:11px; letter-spacing:.17em; }
-nav { display:grid; gap:8px; margin-top:32px; }
+nav { display:grid; gap:8px; margin-top:18px; }
 button { border:1px solid var(--line); background:#26394d; color:var(--text); padding:10px 16px; border-radius:9px; cursor:pointer; font-weight:700; text-align:left; }
 button:hover:not(:disabled) { background:#37536a; }
 button:disabled { opacity:.5; cursor:wait; }
@@ -17,20 +18,57 @@ button.primary { background:var(--mint); border-color:var(--mint); color:#073430
 .footnote { color:var(--muted); font-size:12px; }
 .player { display:flex; justify-content:space-between; border-bottom:1px solid #223247; padding:7px 1px; font-size:13px; }
 .player .online { color:var(--mint); }
-.topbar { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; letter-spacing:.08em; border-bottom:1px solid var(--line); padding:14px 34px; }
-.panel { display:none; max-width:900px; margin:auto; padding:44px 30px 15px; }
+.topbar { flex:0 0 auto; display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:11px; letter-spacing:.08em; border-bottom:1px solid var(--line); padding:10px 25px; }
+.panel { display:none; flex:1 1 auto; min-height:0; width:100%; max-width:980px; margin:0 auto; padding:17px 25px; overflow-y:auto; overscroll-behavior:contain; }
 .panel.active { display:block; }
-.hero { padding:30px 0 28px; }
-h1 { font-size:clamp(32px,5vw,54px); font-weight:800; line-height:1.08; letter-spacing:-.04em; margin:16px 0; }
+.hero { padding:7px 0 12px; }
+h1 { font-size:clamp(27px,3vw,39px); font-weight:800; line-height:1.07; letter-spacing:-.04em; margin:8px 0; }
 h1 em { font-style:normal; }
 .hero p,.intro { color:var(--muted); }
-.surface { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:27px; margin:15px 0 30px; }
-h2 { font-size:20px; margin:0 0 17px; }
-h2:not(:first-child) { margin-top:26px; }
-label:not(.check) { display:grid; gap:7px; font-weight:700; font-size:11px; letter-spacing:.1em; color:var(--muted); margin:14px 0; }
-input:not([type="checkbox"]), select { font:15px system-ui; color:var(--text); background:#0b1927; border:1px solid #4b6477; border-radius:8px; padding:12px; width:100%; min-width:0; }
-.check { display:flex; gap:10px; align-items:center; font-size:13px; color:var(--muted); margin:11px 0; }
+.surface { background:var(--surface); border:1px solid var(--line); border-radius:13px; padding:19px 22px; margin:8px 0 14px; }
+h2 { font-size:18px; margin:0 0 10px; }
+h2:not(:first-child) { margin-top:16px; }
+label:not(.check) { display:grid; gap:5px; font-weight:700; font-size:11px; letter-spacing:.07em; color:var(--muted); margin:9px 0; }
+input:not([type="checkbox"]), select { font:14px system-ui; color:var(--text); background:#0b1927; border:1px solid #4b6477; border-radius:8px; padding:9px; width:100%; min-width:0; }
+.check { display:flex; gap:10px; align-items:center; font-size:12px; color:var(--muted); margin:8px 0; }
+.panel .footnote { margin:8px 0; }
 .actions { display:flex; gap:10px; flex-wrap:wrap; }
 .results { white-space:pre-wrap; overflow-wrap:anywhere; background:#0b1927; color:#d0e5ed; padding:14px; border-radius:8px; max-height:430px; overflow:auto; font-size:12px; }
-.feedback { position:sticky; bottom:0; z-index:2; margin:0; padding:12px 30px; background:#0f2831; color:var(--mint); border-top:1px solid #235e5c; overflow-wrap:anywhere; }
-@media(max-width:700px) { .layout { grid-template-columns:1fr; } .sidebar { display:block; } nav { display:flex; margin:10px 0; } .crew { display:none; } .panel { padding:22px 14px; } .topbar { padding:12px 14px; } }
+.feedback { position:relative; flex:0 0 auto; margin:0; padding:9px 25px; background:#0f2831; color:var(--mint); border-top:1px solid #235e5c; overflow-wrap:anywhere; font-size:12px; }
+.panel#realm { max-width:740px; }
+.panel#realm .surface { max-width:650px; margin:8px auto 12px; }
+.panel#realm .hero { text-align:left; }
+.panel#realm .hero p { margin:4px 0; }
+.panel#addons { max-width:none; display:none; flex-direction:column; overflow:hidden; gap:9px; }
+.panel#addons.active { display:flex; }
+.addon-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:0 0 auto; }
+.addon-head h1 { margin:0; }
+.addon-head p { margin:2px 0; font-size:12px; }
+.addon-tabs { display:flex; gap:8px; flex:0 0 auto; flex-wrap:wrap; }
+.addon-tabs button { padding:7px 11px; }
+.addon-tabs button.active { border-color:#58bfa4; background:#194a45; }
+.addon-toolbar { display:grid; grid-template-columns:minmax(130px,1fr) 160px 160px 82px; gap:8px; align-items:center; flex:0 0 auto; }
+.addon-toolbar input,.addon-toolbar select { height:37px; }
+.addon-list { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); align-content:start; gap:9px; padding:2px 4px 12px 0; }
+.addon-card { display:grid; grid-template-columns:54px minmax(0,1fr); gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px; min-height:115px; }
+.addon-art { width:52px; height:52px; object-fit:cover; border-radius:8px; background:#304456; }
+.addon-info { min-width:0; }
+.addon-name { font-size:14px; font-weight:700; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.addon-desc { color:var(--muted); font-size:12px; margin:3px 0 5px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.addon-meta { color:var(--mint); font-size:11px; }
+.addon-buttons { display:flex; justify-content:flex-end; gap:6px; margin-top:7px; }
+.addon-buttons button { font-size:11px; padding:5px 9px; }
+.addon-bottom { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.addon-bottom .actions button { padding:7px 10px; font-size:12px; }
+.addon-import { display:none; flex:1 1 auto; min-height:0; overflow-y:auto; }
+.addon-import.active { display:block; }
+.addon-import .surface { margin:5px 0 10px; }
+.addon-details { width:min(620px,92vw); max-height:85vh; overflow-y:auto; border:1px solid var(--line); border-radius:14px; background:#152536; color:var(--text); padding:22px; }
+.addon-details::backdrop { background:#030b14d9; }
+.addon-details a { color:var(--mint); overflow-wrap:anywhere; }
+.addon-details img { border-radius:8px; max-width:100%; }
+.addon-details .actions { margin-top:14px; }
+.addon-toolbar.hidden, .addon-list.hidden, .addon-bottom.hidden { display:none; }
+@media(max-height:680px) { .sidebar { padding:12px; gap:6px; } nav { margin-top:5px; } .hero { padding:0; } .hero p { display:none; } .surface { padding:12px 18px; } .panel { padding:10px 18px; } button { padding:7px 12px; } .player { padding:3px 0; } }
+@media(max-width:800px) { .layout { grid-template-columns:172px minmax(0,1fr); } .sidebar { padding:15px 10px; } .logo { font-size:16px; } .addon-toolbar { grid-template-columns:1fr 1fr; } .addon-list { grid-template-columns:1fr; } }
+@media(max-width:620px) { .layout { grid-template-columns:1fr; grid-template-rows:auto minmax(0,1fr); } .sidebar { flex-direction:row; align-items:center; overflow:hidden; } .sidebar .crew,.sidebar .footnote,.sidebar .eyebrow { display:none; } nav { display:flex; margin:0; } .panel { padding:12px; } .topbar { padding:9px 12px; } }
