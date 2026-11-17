@@ -21,9 +21,15 @@ import { closeAppWindow } from './close-app.mjs';
 import { startAutoLogin } from './wow-autologin.mjs';
 import {
   inspectNativeInstant, installNativeInstant, uninstallNativeInstant,
+  upgradeNativeInstant,
 } from './native-instant.mjs';
 import { saveNativeCredential } from './native-vault.mjs';
-import { focusVerifiedGame } from './focus-wow.mjs';
+import { focusVerifiedGame, revealVerifiedGameSync } from './focus-wow.mjs';
+import { startWindowGuardian } from './window-guardian.mjs';
+import { LoginPreflight } from './login-preflight.mjs';
+import {
+  clearReadyFile, readyFile, characterReady,
+} from './character-ready.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = new Map([
@@ -35,9 +41,13 @@ const root = process.env.CREW_NEXT_DATA_DIR || dataDir();
 const previous = process.env.CREW_LEGACY_DATA_DIR || legacyDir();
 const remembered = readJson(path.join(root, 'verified-account.json'), {});
 const state = { settings: loadSettings(root, previous), game: null, relay: null,
-  nativeWatch: null, nativeLastError: '',
+  nativeWatch: null, nativeGuardian: null, nativeLastError: '',
   lastVerified: ACCOUNTS.includes(remembered.account) ? remembered.account : '',
   shuttingDown: false };
+const preflight = new LoginPreflight({
+  authenticate: crewLogin,
+  provision: saveNativeCredential,
+});
 const secret = crypto.randomBytes(32).toString('hex');
 
 function redact(message) {
@@ -81,6 +91,37 @@ function addSetting(entry, value) {
   state.settings = saveSettings(root, next);
 }
 
+function prepareSavedAccount() {
+  const account = state.settings.username;
+  preflight.invalidate();
+  if (!ACCOUNTS.includes(account) || !state.settings.crewApiUrl ||
+      !storedAccounts(root).includes(account)) return;
+  const prefs = accountPreferences(root, account, true);
+  if (!prefs.remember || !prefs.useSaved || !prefs.autoLogin) return;
+  let password;
+  try {
+    password = readCredential(root, account);
+  } catch (error) {
+    log('Stored account verification unavailable: ' + error.name);
+    return;
+  }
+  if (!password) return;
+  let native = false;
+  try {
+    if (state.settings.wowPath) {
+      native = inspectNativeInstant(
+        path.dirname(state.settings.wowPath), root).installed;
+    }
+  } catch (error) {
+    log('Launcher preflight native inspection: ' + error.name);
+  }
+  // All work happens in the launcher; this never starts a game process.
+  void preflight.prepare({
+    account, password, url: state.settings.crewApiUrl, native,
+  }).then(() => log('Launcher account verified and credentials prepared.'))
+    .catch(error => log('Launcher preflight unavailable: ' + error.name));
+}
+
 function backedUp(file, contents) {
   if (fs.existsSync(file)) {
     if (fs.lstatSync(file).isSymbolicLink()) throw new Error('Linked game configuration is not supported.');
@@ -105,6 +146,18 @@ export function configureGame(game, user, autoLogin = false) {
   backedUp(config, text);
 }
 async function stopGame() {
+  if (state.nativeGuardian) {
+    // A user may close the launcher while WoW is booting off-screen.
+    // Restore the game synchronously before ending the guard.
+    try {
+      const pid = observedWowPid();
+      if (pid) revealVerifiedGameSync(pid);
+    } catch (error) {
+      log('Could not restore parked window during shutdown: ' + error.name);
+    }
+    state.nativeGuardian.kill();
+    state.nativeGuardian = null;
+  }
   if (state.nativeWatch) {
     clearInterval(state.nativeWatch);
     state.nativeWatch = null;
@@ -122,7 +175,22 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
   if (typeof password !== 'string' || password.length < 1 || password.length > 16) {
     throw new Error('Enter the current WoW account password.');
   }
-  const token = await crewLogin(state.settings.crewApiUrl, account, password);
+  let native = false;
+  if (autoLogin) {
+    const status = inspectNativeInstant(gameDir, root);
+    native = status.installed;
+    if (native && status.upgradeAvailable) {
+      upgradeNativeInstant(gameDir, root, { gameRunning });
+    }
+  }
+  if (native && !remember) {
+    throw new Error('Enable Remember password to use native instant login.');
+  }
+  // Reuse any account verification already completed while the launcher was
+  // open. If Play wins the race, await the in-flight verification.
+  const token = await preflight.take({
+    account, password, url: state.settings.crewApiUrl, native,
+  });
   // Save after Crew authentication, not after a later game launch succeeds:
   // clients that fail to start should still retain the verified credential.
   if (remember) {
@@ -133,30 +201,57 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
   await relay.start();
   state.relay = relay;
   state.nativeLastError = '';
+  let guardian = null;
   try {
     configureGame(gameDir, account, autoLogin);
-    const native = autoLogin && inspectNativeInstant(gameDir, root).installed;
     if (native) {
-      if (!remember) {
-        throw new Error('Enable Remember password to use native instant login.');
-      }
-      // Crew HTTPS has already authenticated these credentials. Copy them
-      // directly into ClassicAPI's encrypted Windows vault before WoW starts.
-      // Nothing is written to WoW config, Lua, a command line or a plaintext
-      // file. The DLL consumes the vault entry inside the game process.
-      saveNativeCredential(account, password);
-      log('ClassicAPI credential safely provisioned for local Crew realm.');
+      clearReadyFile(gameDir);
+      // The guard has to be installed before VanillaFixes creates WoW.
+      // It parks newly-created WoW windows outside all visible desktops,
+      // then restores the same window when character data is ready.
+      guardian = startWindowGuardian(readyFile(gameDir), { timeoutMs: 27000 });
+      await guardian.armed;
+      state.nativeGuardian = guardian.child;
     }
     const executable = native ?
       path.join(gameDir, 'VanillaFixes.exe') : state.settings.wowPath;
     const child = spawn(executable, [], {
-      cwd: gameDir, windowsHide: false, stdio: 'ignore',
+      // VanillaFixes forwards its Windows startup show-mode to WoW.exe.
+      // A hidden game window runs the native login but stays invisible until
+      // CHARACTER_LIST_UPDATE confirms Character Selection is ready.
+      cwd: gameDir, windowsHide: native, stdio: 'ignore',
     });
     await new Promise((resolve, reject) => {
       child.once('spawn', resolve);
       child.once('error', reject);
     });
     state.game = child;
+    if (guardian) {
+      void guardian.finished.then(report => {
+        if (state.nativeGuardian === guardian.child) state.nativeGuardian = null;
+        const fields = report.split(',');
+        const successful = fields[0] === 'CHARACTER_VISIBLE' &&
+          fields[1] === 'True' && characterReady(gameDir);
+        if (successful) {
+          log('Character Selection revealed by native guardian, ' +
+            'elapsedMs=' + String(fields[2]));
+          if (closeOnPlay) {
+            try { closeAppWindow(root); } catch {}
+          }
+        } else {
+          state.nativeLastError = 'Character Selection was not confirmed: ' + fields[0];
+          log(state.nativeLastError);
+          // Guard normally reveals on timeout; if it crashed, restore
+          // the parked game so manual login is always possible.
+          if (fields[0] === 'GUARD_ERROR' || fields[0] === 'GUARD_EXIT') {
+            try {
+              const pid = observedWowPid();
+              if (pid) focusVerifiedGame(pid, () => {});
+            } catch {}
+          }
+        }
+      });
+    }
     state.settings = saveSettings(root, { ...state.settings, username: account });
     state.lastVerified = account;
     // Verification is recorded only after a successful account login.
@@ -201,18 +296,6 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
           try { running = gameRunning(); } catch { running = false; }
           if (running) {
             clearInterval(wait);
-            try {
-              const gamePid = observedWowPid();
-              if (gamePid) {
-                focusVerifiedGame(gamePid, focused =>
-                  log('Native WoW focus requested: ' + focused));
-              }
-            } catch (error) {
-              log('Native game window focus unavailable: ' + error.name);
-            }
-            if (closeOnPlay) {
-              try { closeAppWindow(root); } catch {}
-            }
             state.nativeWatch = setInterval(() => {
               try {
                 if (!gameRunning()) {
@@ -268,8 +351,9 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
       }, 350);
     }
     return { started: true, autoLoginRequested: autoLogin,
-      nativeInstant: native, nativePendingConsent: native };
+      nativeInstant: native, nativeHiddenUntilCharacterReady: native };
   } catch (error) {
+    if (guardian) guardian.child.kill();
     await stopGame();
     throw error;
   }
@@ -292,6 +376,7 @@ async function operate(action, args) {
       return { accounts: ACCOUNTS, settings: state.settings,
         gameRunning: gameRunning(),
         nativeInstant: { ...native, lastError: state.nativeLastError },
+        preAuth: preflight.status(state.settings.username),
         savedAccounts: saved,
         preferences: Object.fromEntries(ACCOUNTS.map(account =>
           [account, accountPreferences(root, account, saved.includes(account))])),
@@ -304,19 +389,26 @@ async function operate(action, args) {
       return { browserLoaded: true };
     case 'setAccount':
       addSetting('username', String(args.username || '').toUpperCase());
+      prepareSavedAccount();
       return { settings: state.settings };
     case 'setPreferences': {
       const account = String(args.account || '').toUpperCase();
-      return { preferences: setAccountPreferences(root, account, args.values,
-        storedAccounts(root).includes(account)) };
+      const preferences = setAccountPreferences(root, account, args.values,
+        storedAccounts(root).includes(account));
+      if (account === state.settings.username) prepareSavedAccount();
+      return { preferences };
     }
     case 'setClient':
       addSetting('wowPath', String(args.wowPath || ''));
+      prepareSavedAccount();
       return { settings: state.settings };
     case 'installNativeInstant':
       return installNativeInstant(verifyPath(), root, { gameRunning });
     case 'uninstallNativeInstant':
       return uninstallNativeInstant(verifyPath(), root, { gameRunning });
+    case 'loginStatus':
+      return { ...preflight.status(state.settings.username),
+        nativeError: state.nativeLastError };
     case 'refreshManifest': {
       const data = await manifest();
       if (data.crewApiUrl && !state.settings.crewApiUrl)
@@ -378,6 +470,7 @@ async function operate(action, args) {
         String(args.current || ''), String(args.desired || ''));
       saveCredential(root, account, String(args.desired));
       setAccountPreferences(root, account, { remember: true, useSaved: true }, true);
+      prepareSavedAccount();
       return { changed: true };
     }
     case 'installed':
@@ -529,6 +622,15 @@ async function main() {
     const browser = await openDesktopApp(url, root);
     log('Launched dedicated ' + browser + ' app window.');
   }
+  // Start verifying the saved account only after the UI can connect.
+  // No WoW.exe process is created until the user explicitly presses Play.
+  setTimeout(prepareSavedAccount, 200).unref();
+  const refresh = setInterval(() => {
+    if (state.shuttingDown || gameRunning() ||
+        preflight.status(state.settings.username).status === 'verifying') return;
+    if (!preflight.status(state.settings.username).verified) prepareSavedAccount();
+  }, 120000);
+  refresh.unref();
   console.log('Tortoise Crew Next listening on localhost.');
   const shutdown = async () => {
     if (state.shuttingDown) return;

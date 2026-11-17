@@ -2,15 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { unpackZip } from './safe-zip.mjs';
 import { GAME_SHA256, readJson, writeJsonAtomic, sha256 } from './config.mjs';
+import { nativeAssetText } from './native-assets-bundled.mjs';
 
 // Experimental native GlueXML/ClassicAPI integration for the user's verified
 // Vanilla 1.12.1 client. The 1.18.1 Turtle content uses this base executable.
 // No modification to WoW.exe, passwords in game files, or hidden DLL injection.
-const ASSETS = ['GlueXML.toc', 'CrewInstantLogin.lua', 'CrewInstantLogin.xml'];
-const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'native-assets');
+const ASSETS = [
+  'GlueXML.toc', 'CrewInstantLogin.lua', 'CrewInstantLogin.xml',
+  'CrewLegacyGlobals.lua',
+];
 const MARKER = 'crew-native-instant-v1.json';
 export const VF_EXE_HASH = '228D7BB5E3B5B0C2062D6C5F40C38C2A173E4C80D8A5D9E4077BE800431B48A3';
 export const VF_DLL_HASH = 'F283B6B5AD8042E7995EFF9768C150042DD47DE6E5F00FFE530D2E67743DF81D';
@@ -35,7 +37,7 @@ function verifyPath(game, file) {
 }
 export function nativeFiles() {
   return Object.fromEntries(ASSETS.map(name =>
-    [name, fs.readFileSync(path.join(SOURCE, name))]));
+    [name, Buffer.from(nativeAssetText[name], 'utf8')]));
 }
 export function verifyNativeClient(game, { requireLoader = true } = {}) {
   if (!fs.existsSync(path.join(game, 'WoW.exe')) ||
@@ -61,7 +63,7 @@ export function verifyNativeClient(game, { requireLoader = true } = {}) {
 
 export function inspectNativeInstant(game, root) {
   const marker = readJson(fileMarker(root), null);
-  if (!marker || marker.version !== 1 || marker.game !== path.resolve(game) ||
+  if (!marker || ![1, 2].includes(marker.version) || marker.game !== path.resolve(game) ||
       !Array.isArray(marker.files)) return { installed: false };
   verifyNativeClient(game);
   for (const record of marker.files) {
@@ -73,7 +75,82 @@ export function inspectNativeInstant(game, root) {
   return {
     installed: true, nativeLauncher: path.join(game, 'VanillaFixes.exe'),
     firstLoginRequiresVaultProvisioning: true,
+    protocol: marker.version,
+    upgradeAvailable: ASSETS.some(name => {
+      const target = path.join(glueRoot(game), name);
+      return !fs.existsSync(target) ||
+        digest(fs.readFileSync(target)) !== digest(nativeFiles()[name]);
+    }),
   };
+}
+
+// Migrate an owned v1 installation to the no-splash, character-ready v2
+// protocol. This backs up only our files and preserves other modifications.
+export function upgradeNativeInstant(game, root, { gameRunning = () => false } = {}) {
+  if (gameRunning()) throw new Error('Close WoW before upgrading its native UI.');
+  game = path.resolve(game);
+  const status = inspectNativeInstant(game, root);
+  if (!status.installed) throw new Error('Native login is not installed.');
+  if (!status.upgradeAvailable && status.protocol === 2) return { upgraded: false };
+  const oldMarker = readJson(fileMarker(root));
+  const entries = new Map(oldMarker.files.map(record => [record.relative, record]));
+  const assets = nativeFiles();
+  const changes = [];
+  for (const [name, source] of Object.entries(assets)) {
+    const target = path.join(glueRoot(game), name);
+    const relative = path.relative(game, target);
+    verifyPath(game, target);
+    if (!entries.has(relative) && fs.existsSync(target))
+      throw new Error('An unowned native GlueXML file already exists: ' + name);
+    changes.push({ relative, target, source, existed: fs.existsSync(target) });
+  }
+  const backupDir = path.join(root, 'backups',
+    'native-ready-v2-' + new Date().toISOString().replace(/[:.]/g, '-'));
+  fs.mkdirSync(backupDir, { recursive: true });
+  const previousFiles = new Map();
+  for (const change of changes) {
+    if (!change.existed) continue;
+    const old = fs.readFileSync(change.target);
+    previousFiles.set(change.target, old);
+    fs.writeFileSync(path.join(backupDir, path.basename(change.target) + '.before'), old);
+  }
+  fs.copyFileSync(fileMarker(root), path.join(backupDir, 'manifest.before.json'));
+  const applied = [];
+  try {
+    for (const change of changes) {
+      fs.mkdirSync(path.dirname(change.target), { recursive: true });
+      const staging = change.target + '.crew-v2-stage';
+      if (fs.existsSync(staging)) throw new Error('Concurrent native upgrade detected.');
+      fs.writeFileSync(staging, change.source, { flag: 'wx' });
+      try {
+        fs.renameSync(staging, change.target);
+      } finally {
+        if (fs.existsSync(staging)) fs.unlinkSync(staging);
+      }
+      applied.push(change);
+      entries.set(change.relative, {
+        relative: change.relative, sha256: sha256(change.target),
+      });
+    }
+    writeJsonAtomic(fileMarker(root), {
+      ...oldMarker, version: 2, files: [...entries.values()],
+      updatedUtc: new Date().toISOString(),
+    });
+    const verified = inspectNativeInstant(game, root);
+    if (!verified.installed || verified.upgradeAvailable)
+      throw new Error('Native v2 upgrade verification failed.');
+    return { upgraded: true, backupDir };
+  } catch (error) {
+    for (const change of applied.reverse()) {
+      if (previousFiles.has(change.target)) {
+        fs.writeFileSync(change.target, previousFiles.get(change.target));
+      } else if (fs.existsSync(change.target)) {
+        fs.unlinkSync(change.target);
+      }
+    }
+    fs.copyFileSync(path.join(backupDir, 'manifest.before.json'), fileMarker(root));
+    throw error;
+  }
 }
 
 // An official, verified zip may be used when the patcher is not yet present.
@@ -141,7 +218,7 @@ export async function installNativeInstant(game, root, {
       created.push(entry.path);
     }
     writeJsonAtomic(fileMarker(root), {
-      version: 1, game,
+      version: 2, game,
       files: created.map(file => ({
         relative: path.relative(game, file), sha256: sha256(file),
       })), installedUtc: new Date().toISOString(),

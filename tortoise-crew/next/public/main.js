@@ -100,7 +100,7 @@ protect($('play'), async () => {
     $('useSaved').checked = true;
   }
   if (result.nativeInstant) {
-    message('Native login started. If asked, approve the known ClassicAPI DLL list once.');
+    message('WoW is starting hidden. Character Selection will appear when ready.');
   } else if ($('closeOnPlay').checked) window.close();
 });
 protect($('saveClient'), async () => {
@@ -114,6 +114,17 @@ function showNativeStatus(native) {
     'Not installed. Normal WoW login is available.';
   $('nativeLoginStatus').textContent = line;
   $('instantLoginStatus').textContent = line;
+}
+async function updatePreAuthStatus() {
+  const state = await api('loginStatus');
+  const labels = {
+    idle: 'Login preparation: enter or select a saved password.',
+    verifying: 'Verifying saved account in the launcher…',
+    ready: 'Account verified. Ready for Play; WoW is not running.',
+    unavailable: 'Pre-verification unavailable. Play will retry securely.',
+  };
+  $('preAuthStatus').textContent = labels[state.status] || labels.idle;
+  if (state.nativeError) message(state.nativeError, true);
 }
 protect($('installNativeLogin'), async () => {
   if (!confirm('Install experimental ClassicAPI login integration into this client? Close WoW first. The original WoW.exe is not changed.')) return;
@@ -493,6 +504,8 @@ async function initial() {
   accountPreferenceMap = state.preferences || {};
   applyAccountPreferences();
   showNativeStatus(state.nativeInstant);
+  void updatePreAuthStatus().catch(() => {});
+  setInterval(() => { void updatePreAuthStatus().catch(() => {}); }, 2500);
   $('wowPath').value = state.settings.wowPath;
   $('wowLocation').textContent = state.settings.wowPath || 'No WoW.exe selected';
   await run('refreshManifest', {}, 'Check server settings').catch(() => {});

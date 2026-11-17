@@ -29,9 +29,15 @@ import { addonDetails, githubReadmeImages, allowedImageUrl, imageData } from '..
 import { validateAutoLoginRequest, loginHelperSource } from '../src/wow-autologin.mjs';
 import {
   nativeFiles, inspectNativeInstant, uninstallNativeInstant, nativePatcherBytes,
+  upgradeNativeInstant,
 } from '../src/native-instant.mjs';
+import { nativeAssetText } from '../src/native-assets-bundled.mjs';
 import { nativeVaultScript } from '../src/native-vault.mjs';
 import { focusScript } from '../src/focus-wow.mjs';
+import { guardianScript } from '../src/window-guardian.mjs';
+import { LoginPreflight } from '../src/login-preflight.mjs';
+import { readyFile, clearReadyFile, characterReady,
+  waitForCharacterSelection } from '../src/character-ready.mjs';
 const RELEASE_VERSION = JSON.parse(fs.readFileSync(
   path.resolve('tortoise-crew', 'next', 'package.json'), 'utf8')).version;
 
@@ -58,21 +64,37 @@ function fixture(t) {
 test('native instant login ships as loose GlueXML without changing WoW.exe', t => {
   const files = nativeFiles();
   assert.deepEqual(Object.keys(files).sort(),
-    ['GlueXML.toc', 'CrewInstantLogin.lua', 'CrewInstantLogin.xml'].sort());
+    ['GlueXML.toc', 'CrewInstantLogin.lua', 'CrewInstantLogin.xml',
+      'CrewLegacyGlobals.lua'].sort());
   const toc = files['GlueXML.toc'].toString('utf8');
+  assert.match(toc, /^CrewLegacyGlobals[.]lua\r?\nGlueConstants[.]lua/m);
   assert.match(toc, /AccountLogin[.]xml/);
   assert.match(toc, /CharacterSelect[.]xml/);
   assert.match(toc, /CrewInstantLogin[.]xml/);
   const lua = files['CrewInstantLogin.lua'].toString('utf8');
   assert.match(lua, /LoginWithSavedAccount/);
   assert.match(lua, /GetSavedAccounts/);
-  assert.match(lua, /CrewInstantSplash/);
-  assert.match(lua, /CharacterSelect_OnShow/);
+  assert.match(lua, /CharacterSelect_OnEvent/);
+  assert.match(lua, /CHARACTER_LIST_UPDATE/);
+  assert.match(lua, /AppendToFile/);
+  assert.match(lua, /CrewCharacterReady[.]flag/);
   assert.match(lua, /SaveAccount/);
+  assert.doesNotMatch(lua, /Authenticating securely|CrewInstantSplash/);
+  assert.match(files['CrewLegacyGlobals.lua'].toString('utf8'), /_G = getfenv\(0\)/);
   assert.doesNotMatch(lua, /SetCVar[^(]*[(]"password"|ImportFile|EncryptPassword|password[ \t]*=[ \t]*["']\w+/);
   const dir = fixture(t);
   assert.deepEqual(inspectNativeInstant(dir, dir), { installed: false });
   assert.deepEqual(uninstallNativeInstant(dir, dir), { removed: false });
+});
+
+test('native source assets are embedded in the secure updater-compatible JavaScript bundle', () => {
+  const originals = path.resolve('tortoise-crew', 'next', 'src', 'native-assets');
+  for (const [name, source] of Object.entries(nativeAssetText)) {
+    const original = fs.readFileSync(path.join(originals, name), 'utf8')
+      .replace(/\r\n/g, '\n');
+    assert.equal(source, original, 'Regenerate the asset bundle after editing ' + name);
+    assert.deepEqual(nativeFiles()[name], Buffer.from(original, 'utf8'));
+  }
 });
 
 test('native integration refuses untrusted VfPatcher DLL and avoids game mutation', async t => {
@@ -111,8 +133,122 @@ test('native focus helper targets only the WoW window without keystrokes', () =>
   const source = focusScript();
   assert.match(source, /ProcessName -ne "WoW"/);
   assert.match(source, /SetForegroundWindow/);
-  assert.match(source, /MainWindowHandle/);
+  assert.match(source, /EnumWindows/);
+  assert.match(source, /GetWindowThreadProcessId/);
+  assert.match(source, /ShowWindowAsync/);
   assert.doesNotMatch(source, /SendKeys|SendInput|password|Inject|Set-ExecutionPolicy/);
+});
+
+test('readiness signal distinguishes real character list from stale/missing data', async t => {
+  const folder = fixture(t);
+  fs.mkdirSync(path.join(folder, 'WTF'), { recursive: true });
+  const flag = readyFile(folder);
+  assert.equal(characterReady(folder), false);
+  fs.writeFileSync(flag, 'not ready');
+  assert.equal(characterReady(folder), false);
+  clearReadyFile(folder);
+  assert.equal(fs.existsSync(flag), false);
+  setTimeout(() => fs.writeFileSync(flag, 'CREW_CHARACTER_LIST_READY\n'), 80);
+  const result = await waitForCharacterSelection(folder, {
+    intervalMs: 20, timeoutMs: 1000,
+  });
+  assert.equal(result.status, 'ready');
+  assert.equal(characterReady(folder), true);
+  clearReadyFile(folder);
+  const exited = await waitForCharacterSelection(folder, {
+    intervalMs: 20, timeoutMs: 1000,
+    isGameRunning: () => false,
+  });
+  assert.equal(exited.status, 'exited');
+  const timeout = await waitForCharacterSelection(folder, {
+    intervalMs: 10, timeoutMs: 35,
+  });
+  assert.equal(timeout.status, 'timeout');
+});
+
+test('launcher pre-verifies once, reuses token and awaits in-flight verification', async () => {
+  let calls = 0, provisioned = 0, now = 1000;
+  let finish;
+  const preflight = new LoginPreflight({
+    authenticate: () => {
+      calls++;
+      return new Promise(resolve => { finish = resolve; });
+    },
+    provision: () => { provisioned++; },
+    now: () => now, validMs: 20000,
+  });
+  const payload = { account: 'MICHAEL', password: 'example-only',
+    url: 'https://crew.example.test', native: true };
+  const preparing = preflight.prepare(payload);
+  assert.equal(preflight.status('MICHAEL').status, 'verifying');
+  const consuming = preflight.take(payload);
+  finish('a'.repeat(64));
+  assert.equal((await preparing).verified, true);
+  assert.equal(await consuming, 'a'.repeat(64));
+  assert.equal(calls, 1);
+  assert.equal(provisioned, 1);
+  now += 21000;
+  const second = preflight.prepare(payload);
+  finish('b'.repeat(64));
+  await second;
+  assert.equal(await preflight.take(payload), 'b'.repeat(64));
+  assert.equal(calls, 2);
+  assert.equal(provisioned, 2);
+  preflight.invalidate();
+  assert.equal(preflight.status('MICHAEL').verified, false);
+});
+
+test('native startup runs hidden and reveals only after a character-list signal', () => {
+  const code = fs.readFileSync(
+    path.resolve('tortoise-crew/next/src/main.mjs'), 'utf8');
+  assert.match(code, /windowsHide: native/);
+  assert.match(code, /clearReadyFile\(gameDir\)/);
+  assert.match(code, /startWindowGuardian\(readyFile\(gameDir\)/);
+  assert.match(code, /await guardian[.]armed/);
+  assert.match(code, /fields\[0\] === 'CHARACTER_VISIBLE'/);
+  assert.match(code, /focusVerifiedGame\(pid/);
+  assert.doesNotMatch(
+    fs.readFileSync(path.resolve('tortoise-crew/next/src/native-assets/CrewInstantLogin.lua'), 'utf8'),
+    /Authenticating securely|CrewInstantSplash|SendKeys/);
+});
+
+test('Win32 hidden-window enumerator compiles using signed Windows PowerShell', () => {
+  if (process.platform !== 'win32') return;
+  // A non-WoW PID exits safely without touching any window, but the full
+  // Win32 helper must compile before its PID guard runs.
+  const processResult = spawnSync('powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', focusScript()], {
+      input: JSON.stringify({ pid: process.pid, mode: 'inspect' }),
+      windowsHide: true, encoding: 'utf8', timeout: 16000,
+    });
+  assert.equal(processResult.status, 3, processResult.stderr + processResult.stdout);
+  assert.equal(processResult.stderr.trim(), '');
+});
+
+test('guardian parks the real WoW window and reveals it only after character readiness', () => {
+  const script = guardianScript();
+  assert.match(script, /SetWinEventHook/);
+  assert.match(script, /SetWindowPos/);
+  assert.match(script, /-30000/);
+  assert.match(script, /CREW_CHARACTER_LIST_READY/);
+  assert.match(script, /CHARACTER_VISIBLE/);
+  assert.match(script, /FALLBACK_VISIBLE/);
+  assert.match(script, /Stop\(\)/);
+  assert.doesNotMatch(script, /SendKeys|SendInput|Set-ExecutionPolicy|CredWrite|password/i);
+});
+
+test('Win32 window guardian parses cleanly without launching WoW', () => {
+  if (process.platform !== 'win32') return;
+  const result = spawnSync('powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command',
+      '$t=$null;$e=$null;' +
+      '[void][System.Management.Automation.Language.Parser]::ParseInput(' +
+      '[Console]::In.ReadToEnd(),[ref]$t,[ref]$e);' +
+      'if($e.Count){$e|%{$_.Message};exit 2};"GUARDIAN_SYNTAX_OK"'], {
+      input: guardianScript(), encoding: 'utf8', windowsHide: true, timeout: 9000,
+    });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /GUARDIAN_SYNTAX_OK/);
 });
 function game(base) {
   fs.mkdirSync(path.join(base, 'Interface', 'AddOns'), { recursive: true });

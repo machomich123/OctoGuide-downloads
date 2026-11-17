@@ -1,6 +1,6 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.3.5:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.3.6:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires
@@ -75,6 +75,27 @@ no browser tabs or address bar, independent of the system default browser.
   Settings exposes an uninstall action that removes only owned files after
   checking hashes. No DLLs are silently loaded or injected by Node itself.
   Actual game login and compatibility remain to be verified by the user.
+- v0.3.6 replaces the visual login cover with an off-screen window boot.
+  The launcher verifies the stored account and provisions ClassicAPI's
+  encrypted credential before Play; no WoW process exists during preflight.
+  VanillaFixes passes the hidden Windows startup flag to WoW.exe, but WoW
+  overrides that flag while initializing DirectX; a transient signed Windows
+  helper parks its window outside the visible desktop and restores it after
+  the real character-list signal. GlueXML emits a local
+  WTF/CrewCharacterReady.flag only after CHARACTER_LIST_UPDATE and a
+  short UI settlement interval. The launcher reveals and focuses the hidden
+  window after that real signal, not after an arbitrary delay. If native
+  authentication fails, a 25-second safety timeout reveals normal login
+  instead of trapping a game off-screen. The updated mod adds the missing
+  GlueConstants.lua and _G compatibility shim, and the installer can
+  migrate a hash-verified v1 mod with rollback backups.
+  The native GlueXML source assets are bundled as a generated .mjs module
+  (regenerate with scripts/Generate-Native-Asset-Bundle.mjs) because old
+  installed updater versions intentionally exclude .lua, .xml and .toc ZIP
+  entries. The restrictive updater allowlist remains unchanged.
+  This cannot make a cold WoW process start instantaneously: actual game
+  initialization and network authentication still occur after Play, and
+  there may be a very short initial window flash before it is parked.
 - A separate migration helper that stages the new application, performs a
   loopback UI probe, creates desktop/Start Menu shortcuts and restores originals
   after a failed migration. Default use is a dry run.
