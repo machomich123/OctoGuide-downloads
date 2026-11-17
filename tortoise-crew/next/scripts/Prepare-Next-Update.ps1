@@ -1,5 +1,6 @@
 param([switch]$VerifyOnly)
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $root = Split-Path $PSScriptRoot -Parent
 $pkg = Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json
 $version = [string]$pkg.version
@@ -10,6 +11,15 @@ $temp = Join-Path $env:TEMP ('crew-next-check-' + [guid]::NewGuid().ToString('N'
 $expected = @(Get-ChildItem (Join-Path $root 'src'),(Join-Path $root 'public') -File -Recurse) +
     @(Get-Item (Join-Path $root 'package.json'))
 $utf8 = New-Object Text.UTF8Encoding($false)
+function RemoveStage([string]$folder) {
+    $absolute = [IO.Path]::GetFullPath($folder)
+    $tempRoot = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
+    if (-not $absolute.StartsWith($tempRoot,[StringComparison]::OrdinalIgnoreCase) -or
+        [IO.Path]::GetFileName($absolute) -notmatch '^crew-next-(stage|check)-[a-f0-9]{32}$') {
+        throw 'Refusing to remove a directory outside the release staging area.'
+    }
+    Remove-Item -LiteralPath $absolute -Recurse -Force -ErrorAction SilentlyContinue
+}
 function CanonicalBytes([string]$file) {
     $value = [IO.File]::ReadAllText($file).Replace(([string][char]13 + [char]10), [string][char]10)
     return ,($utf8.GetBytes($value))
@@ -30,10 +40,10 @@ if (-not $VerifyOnly) {
             [IO.File]::WriteAllBytes($dest, (CanonicalBytes $file.FullName))
         }
         if (Test-Path -LiteralPath $bundle) { Remove-Item -LiteralPath $bundle }
-        Compress-Archive -Path (Join-Path $stage 'package.json'),
-            (Join-Path $stage 'src'),(Join-Path $stage 'public') -DestinationPath $bundle
+        [IO.Compression.ZipFile]::CreateFromDirectory($stage,$bundle,
+            [IO.Compression.CompressionLevel]::Optimal,$false)
     } finally {
-        Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+        RemoveStage $stage
     }
     $release = [ordered]@{
         version = $version
@@ -58,7 +68,7 @@ if ((CanonicalSha256 (Join-Path $root 'bootstrap.mjs')) -ne $published.bootstrap
 }
 New-Item -ItemType Directory -Path $temp -Force | Out-Null
 try {
-    Expand-Archive -LiteralPath $bundle -DestinationPath $temp
+    [IO.Compression.ZipFile]::ExtractToDirectory($bundle,$temp)
     foreach ($file in $expected) {
         $relative = $file.FullName.Substring($root.Length).TrimStart('\','/')
         $archiveFile = Join-Path $temp $relative
@@ -69,5 +79,5 @@ try {
     }
     Write-Host "PASS: Crew Next $version bundle and source hashes match ($($expected.Count) files)."
 } finally {
-    Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+    RemoveStage $temp
 }

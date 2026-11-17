@@ -100,7 +100,7 @@ protect($('play'), async () => {
     $('useSaved').checked = true;
   }
   if (result.nativeInstant) {
-    message('Native login started. If asked, approve the known ClassicAPI DLL list once.');
+    message('WoW is starting hidden. Character Selection will appear when ready.');
   } else if ($('closeOnPlay').checked) window.close();
 });
 protect($('saveClient'), async () => {
@@ -109,14 +109,28 @@ protect($('saveClient'), async () => {
 });
 function showNativeStatus(native) {
   const line = native?.installed ?
-    'Native instant login test installed. Uses ClassicAPI secure vault; first login may be manual.' :
+    'Fast login enabled. Your game session is prepared before Play.' :
     native?.error ? 'Native login needs attention: ' + native.error :
-    'Not installed. Normal WoW login is available.';
+    'Fast login will be prepared automatically for this client.';
   $('nativeLoginStatus').textContent = line;
   $('instantLoginStatus').textContent = line;
 }
+async function updatePreAuthStatus() {
+  const state = await api('loginStatus');
+  const labels = {
+    idle: 'Login preparation: enter or select a saved password.',
+    verifying: 'Preparing your game session…',
+    ready: 'Account verified. Ready for Play; WoW is not running.',
+    unavailable: 'Pre-verification unavailable. Play will retry securely.',
+  };
+  $('preAuthStatus').textContent = state.gameSessionPrepared ?
+    (state.charactersPrefetched ? 'Account and character list ready. Press Play to start WoW.' :
+      'Account ready. First launch will prepare this client’s addon information.') :
+    labels[state.status] || labels.idle;
+  if (state.nativeError) message(state.nativeError, true);
+}
 protect($('installNativeLogin'), async () => {
-  if (!confirm('Install experimental ClassicAPI login integration into this client? Close WoW first. The original WoW.exe is not changed.')) return;
+  if (!confirm('Enable fast login for this client? Verified ClassicAPI and VanillaFixes will be downloaded if needed. Close WoW first.')) return;
   await run('installNativeInstant', {}, 'Install native instant login');
   showNativeStatus({ installed: true });
 });
@@ -493,6 +507,8 @@ async function initial() {
   accountPreferenceMap = state.preferences || {};
   applyAccountPreferences();
   showNativeStatus(state.nativeInstant);
+  void updatePreAuthStatus().catch(() => {});
+  setInterval(() => { void updatePreAuthStatus().catch(() => {}); }, 2500);
   $('wowPath').value = state.settings.wowPath;
   $('wowLocation').textContent = state.settings.wowPath || 'No WoW.exe selected';
   await run('refreshManifest', {}, 'Check server settings').catch(() => {});
