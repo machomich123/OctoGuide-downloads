@@ -546,6 +546,10 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
   fs.writeFileSync(path.join(app, 'package.json'), '{"version":"0.1.0-preview"}');
   fs.mkdirSync(path.join(app, 'src'));
   fs.writeFileSync(path.join(app, 'src', 'main.mjs'), '// previous launcher');
+  fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ username:'BERNARD', wowPath:'C:\\ExistingClient\\WoW.exe' }));
+  fs.writeFileSync(path.join(root, 'credentials.json'), '{"fixture":"preserved"}');
+  const settingsBefore=fs.readFileSync(path.join(root,'settings.json'));
+  const vaultBefore=fs.readFileSync(path.join(root,'credentials.json'));
   const dir = path.resolve('tortoise-crew', 'next');
   const archive = fs.readFileSync(path.join(dir, 'crew-next-' + RELEASE_VERSION + '.zip'));
   const boot = fs.readFileSync(path.join(dir, 'bootstrap.mjs'));
@@ -558,7 +562,8 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
     bootstrapSha256: digest(boot),
     extractorSha256: digest(extractor),
   };
-  const d = path.join(root, 'desk.lnk'), s = path.join(root, 'start.lnk');
+  const desktop=path.join(root,'OneDrive','Desktop');fs.mkdirSync(desktop,{recursive:true});
+  const d = path.join(desktop, 'Tortoise Crew Launcher.lnk'), s = path.join(root, 'start.lnk');
   nativeShortcut(d, process.execPath, path.join(root, 'app', 'src', 'main.mjs'), root, '');
   const result = await installOnce({
     root, start: false, shortcuts: { desktop: d, start: s },
@@ -575,6 +580,14 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
   assert.ok(fs.existsSync(path.join(root, 'start-hidden.vbs')));
   assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, RELEASE_VERSION);
   assert.ok(fs.existsSync(path.join(result.backup, 'src', 'main.mjs')));
+  assert(fs.readFileSync(path.join(root,'settings.json')).equals(settingsBefore));
+  assert(fs.readFileSync(path.join(root,'credentials.json')).equals(vaultBefore));
+  const marker=JSON.parse(fs.readFileSync(path.join(root,'launcher-icon.json'),'utf8'));
+  assert.match(marker.sha256,/^[a-f0-9]{64}$/);
+  const iconFiles=fs.readdirSync(app).filter(n=>/^crew-b3-.*\.ico$/.test(n));
+  assert.equal(iconFiles.length,1);
+  assert.equal(d,result.shortcuts.desktop);
+  assert(fs.existsSync(path.join(root,'backups')));
 });
 
 test('saved-password and close-on-play choices persist by account across restarts', t => {

@@ -104,6 +104,9 @@ export async function installOnce({
   fs.mkdirSync(stage);
   fs.writeFileSync(loader, extractor, { mode: 0o600 });
   let previous = null, priorBootstrap = null;
+  const shortcutBackups = [];
+  const iconMarker = path.join(root, 'launcher-icon.json');
+  const priorIconMarker = fs.existsSync(iconMarker) ? fs.readFileSync(iconMarker) : null;
   const bootstrapPath = path.join(root, 'bootstrap.mjs');
   const links = shortcuts || locateShortcuts(root);
   try {
@@ -135,9 +138,25 @@ export async function installOnce({
     fs.writeFileSync(bootstrapPath, bootstrap);
     const { installHiddenShortcuts } = await import(
       pathToFileURL(path.join(oldApp, 'src', 'hidden-start.mjs')).href);
+    // Use the selected icon immediately on the actual Windows Known Folder
+    // desktop (including OneDrive). Startup must not recreate a second link
+    // under a guessed C:\Users\name\Desktop path.
+    let icon = path.join(oldApp, 'crew.ico'), iconHash = null;
+    const artwork = path.join(oldApp, 'src', 'launcher-icon.mjs');
+    if (fs.existsSync(artwork)) {
+      const { materializeLauncherIcon, ICON_SHA256 } = await import(pathToFileURL(artwork).href);
+      icon = materializeLauncherIcon(oldApp);iconHash = ICON_SHA256;
+    }
+    for (const [name, target] of [['desktop', links.desktop], ['start', links.start]]) {
+      const backup = path.join(backups, 'shortcut-before-onboarding-' + crypto.randomUUID() + '-' + name + '.lnk');
+      if (fs.existsSync(target)) { fs.copyFileSync(target, backup);shortcutBackups.push({ target, backup }); }
+      else shortcutBackups.push({ target, backup: null });
+    }
     const result = installHiddenShortcuts({
-      root, app: oldApp, node: process.execPath, shortcuts: links,
+      root, app: oldApp, node: process.execPath, shortcuts: links, icon,
     });
+    if (iconHash) fs.writeFileSync(iconMarker,
+      JSON.stringify({ sha256: iconHash, installedUtc: new Date().toISOString() }), { mode: 0o600 });
     if (start) {
       const proof = path.join(root, 'startup-proof.json');
       if (fs.existsSync(proof)) fs.unlinkSync(proof);
@@ -166,10 +185,12 @@ export async function installOnce({
       fs.renameSync(previous, oldApp);
       if (priorBootstrap && fs.existsSync(priorBootstrap))
         fs.copyFileSync(priorBootstrap, bootstrapPath);
-      for (const target of [links.desktop, links.start]) {
-        const backup = target + '.before-hidden-launch.lnk';
-        if (fs.existsSync(backup)) fs.copyFileSync(backup, target);
+      for (const { target, backup } of shortcutBackups) {
+        if (backup) fs.copyFileSync(backup, target);
+        else if (fs.existsSync(target)) fs.unlinkSync(target);
       }
+      if (priorIconMarker) fs.writeFileSync(iconMarker, priorIconMarker);
+      else if (fs.existsSync(iconMarker)) fs.unlinkSync(iconMarker);
     }
     throw error;
   } finally {
