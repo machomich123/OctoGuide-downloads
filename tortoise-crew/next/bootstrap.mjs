@@ -50,7 +50,7 @@ async function fetchBytes(url, limit, timeoutMs = 12000) {
 export async function checkForUpdate(app, download = fetchBytes) {
   const current = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version;
   const remote = validateUpdateManifest(JSON.parse(
-    (await download(UPDATE_URL, 8192)).toString('utf8')));
+    (await download(UPDATE_URL + '?nonce=' + crypto.randomBytes(8).toString('hex'), 8192)).toString('utf8')));
   return compareVersion(remote.version, current) > 0 ? remote : null;
 }
 

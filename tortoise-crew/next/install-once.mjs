@@ -13,7 +13,9 @@ const DEFAULT_ROOT = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(
   'AppData', 'Local'), 'TortoiseCrewNext');
 
 async function getBytes(url, max) {
-  if (!url.startsWith(BASE) || url.includes('?') || url.includes('#'))
+  const prefix = BASE + 'update.json?nonce=';
+  const freshManifest = url.startsWith(prefix) && /^[a-f0-9]{16}$/.test(url.slice(prefix.length));
+  if (!url.startsWith(BASE) || url.includes('#') || (url.includes('?') && !freshManifest))
     throw new Error('Unexpected GitHub launcher URL.');
   const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(25000) });
   if (!response.ok || response.url !== url) throw new Error('Official GitHub resource unavailable.');
@@ -83,7 +85,8 @@ export async function installOnce({
   const oldApp = path.join(root, 'app');
   if (!fs.existsSync(path.join(oldApp, 'src', 'main.mjs')))
     throw new Error('Install the existing Tortoise Crew v1.0.13 launcher first.');
-  const manifest = JSON.parse((await download(BASE + 'update.json', 8192)).toString('utf8'));
+  const manifest = JSON.parse((await download(BASE + 'update.json?nonce=' +
+    crypto.randomBytes(8).toString('hex'), 8192)).toString('utf8'));
   assertManifest(manifest);
   const [zip, bootstrap, extractor] = await Promise.all([
     download(manifest.bundleUrl, 12 * 1024 * 1024),
