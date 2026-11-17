@@ -417,8 +417,11 @@ test('Windows auto-login checks the exact game process and keeps secrets off arg
   assert.match(script, /GetWindowThreadProcessId/);
   assert.match(script, /GetForegroundWindow/);
   assert.match(script, /GameHasFocus/);
+  assert.match(script, /ProcessName -ne "WoW"/);
+  assert.match(script, /\$resolvedPath -and/);
   assert.match(script, /AppActivate/);
   assert.match(script, /\{ENTER\}/);
+  assert.doesNotMatch(script, /\$account\.ToCharArray\(\)/);
   assert.doesNotMatch(script, /Set-Content|Out-File|Add-Content|Clipboard|CredWrite|Invoke-WebRequest/);
 });
 
@@ -449,7 +452,7 @@ test('signed Windows host accepts auto-login helper without sending input', () =
   assert.match(result.stdout, /HELPER_PROBE_OK/);
 });
 
-test('auto-login clears username hint but never puts the password in game config', t => {
+test('auto-login preserves Remember Username and never puts password in game config', t => {
   const root = fixture(t), gameDir = path.join(root, 'client');
   const folder = path.join(gameDir, 'WTF');
   fs.mkdirSync(folder, { recursive: true });
@@ -457,7 +460,7 @@ test('auto-login clears username hint but never puts the password in game config
   fs.writeFileSync(config, 'SET accountName "AUGUST"\r\nSET screenshotQuality "8"\r\n');
   configureGame(gameDir, 'MICHAEL', true);
   const contents = fs.readFileSync(config, 'utf8');
-  assert.match(contents, /SET accountName ""/);
+  assert.match(contents, /SET accountName "MICHAEL"/);
   assert.match(contents, /SET screenshotQuality "8"/);
   assert.doesNotMatch(contents, /password|secret/i);
   assert.match(fs.readFileSync(config + '.crew-backup', 'utf8'), /AUGUST/);
