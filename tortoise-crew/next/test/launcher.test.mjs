@@ -356,7 +356,7 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
   const result = await installOnce({
     root, start: false, shortcuts: { desktop: d, start: s },
     download: async url => {
-      if (url.endsWith('update.json')) return Buffer.from(JSON.stringify(manifest));
+      if (url.includes('update.json?nonce=')) return Buffer.from(JSON.stringify(manifest));
       if (url.endsWith('bootstrap.mjs')) return boot;
       if (url.endsWith('/safe-zip.mjs')) return extractor;
       if (url.endsWith('.zip')) return archive;
