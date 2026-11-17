@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
   loadSettings, saveSettings, crewBaseUrl, ACCOUNTS,
@@ -17,6 +18,12 @@ import {
   browserCandidates, selectAppBrowser, desktopAppArguments,
 } from '../src/desktop-window.mjs';
 import { saveCredential, readCredential } from '../src/secrets.mjs';
+import { gitHubRepo, parseRegistry, loadCatalog } from '../src/catalog.mjs';
+import { unpackZip } from '../src/safe-zip.mjs';
+import { collectAddonFolders, installFromGitHub } from '../src/github-addons.mjs';
+import { hiddenScript, installHiddenShortcuts } from '../src/hidden-start.mjs';
+import { compareVersion, validateUpdateManifest, applyUpdate } from '../bootstrap.mjs';
+import { installOnce } from '../install-once.mjs';
 
 function fixture(t) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-next-test-'));
@@ -200,4 +207,160 @@ test('app-window uses a local, isolated profile and no browser security override
     'http://127.0.0.1:38493/?key=invalid', 'http://127.0.0.1:38493/api?key=' + 'a'.repeat(64)]) {
     assert.throws(() => desktopAppArguments(bad, home));
   }
+});
+
+test('old Turtle catalog parses all valid GitHub and GitLab listings', async t => {
+  const root = fixture(t);
+  const legacy = path.join(root, 'legacy');
+  fs.mkdirSync(legacy);
+  const input = { addons: [
+    { name: 'Octoscope', url: 'https://github.com/author/Octoscope', stars: 15 },
+    { name: 'Legacy GitLab', url: 'https://gitlab.com/author/legacy', stars: 2 },
+    { name: 'Wrong source', url: 'http://example.com/unsafe', stars: 500 },
+  ] };
+  const text = JSON.stringify(input);
+  fs.writeFileSync(path.join(legacy, 'addon-registry.json'), text);
+  const { items } = await loadCatalog({ root: path.join(root, 'next'), legacy,
+    fetchText: async () => { throw new Error('Offline fixture'); } });
+  assert.equal(items.length, 2);
+  assert.equal(items[0].name, 'Octoscope');
+  assert.equal(items[1].installable, false);
+  assert.equal(parseRegistry(text).length, 2);
+  assert.deepEqual(gitHubRepo('https://github.com/author/Octoscope'),
+    { owner: 'author', repo: 'Octoscope', url: 'https://github.com/author/Octoscope' });
+  assert.equal(gitHubRepo('https://evil.com/a/b'), null);
+});
+
+test('safe ZIP and GitHub addon importer skip executables and preserve existing addon', async t => {
+  if (process.platform !== 'win32') return t.skip('PowerShell ZIP fixture');
+  const root = fixture(t);
+  const input = path.join(root, 'archive-src'), repo = path.join(input, 'some-github-repo');
+  const folder = path.join(repo, 'Octoscope');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'Octoscope.toc'), '## Interface: 11800\n');
+  fs.writeFileSync(path.join(folder, 'Core.lua'), '-- compatible addon');
+  fs.writeFileSync(path.join(folder, 'addon.dll'), 'no native binaries');
+  const zip = path.join(root, 'addon.zip');
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    'Compress-Archive -LiteralPath $env:CREW_ZIP_SRC -DestinationPath $env:CREW_ZIP_FILE'], {
+    windowsHide: true, encoding: 'utf8',
+    env: { ...process.env, CREW_ZIP_SRC: repo, CREW_ZIP_FILE: zip },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const extracted = path.join(root, 'extracted');
+  const archive = fs.readFileSync(zip);
+  assert.ok(unpackZip(archive, extracted, { extensions: new Set(['.lua', '.toc']) }).files >= 2);
+  assert.equal(collectAddonFolders(extracted).length, 1);
+  const client = game(path.join(root, 'client'));
+  const old = addon(client, 'Octoscope');
+  fs.writeFileSync(path.join(old, 'Old.lua'), '-- old');
+  let fetchCount = 0;
+  const installed = await installFromGitHub('https://github.com/author/Octoscope', client, {
+    isGameRunning: () => false,
+    download: async (url) => ++fetchCount === 1 ?
+      Buffer.from('{"default_branch":"main"}') : archive,
+  });
+  assert.equal(installed.imported, 1);
+  assert.ok(fs.existsSync(path.join(client, 'Interface', 'AddOns', 'Octoscope', 'Core.lua')));
+  assert.equal(fs.existsSync(path.join(client, 'Interface', 'AddOns', 'Octoscope', 'addon.dll')), false);
+  assert.ok(fs.existsSync(path.join(installed.backup, 'Octoscope', 'Old.lua')));
+  assert.throws(() => unpackZip(Buffer.from('not-zip'), path.join(root, 'unsafe')), /ZIP/);
+});
+
+test('launcher update validates GitHub URL, version ordering and sha256', () => {
+  assert.equal(compareVersion('0.2.0', '0.1.9') > 0, true);
+  assert.equal(compareVersion('0.2.0', '0.2.0'), 0);
+  assert.equal(compareVersion('0.1.9', '0.2.0') < 0, true);
+  const release = {
+    version: '0.2.0',
+    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.0.zip',
+    sha256: 'A'.repeat(64),
+  };
+  assert.deepEqual(validateUpdateManifest(release), release);
+  assert.throws(() => validateUpdateManifest({ ...release, bundleUrl: 'https://evil.test/payload.zip' }));
+  assert.throws(() => validateUpdateManifest({ ...release, sha256: 'bad' }));
+});
+
+test('verified GitHub package applies atomically and keeps an app backup', async t => {
+  const root = fixture(t), app = path.join(root, 'app');
+  const current = path.resolve('tortoise-crew', 'next');
+  fs.mkdirSync(app);
+  for (const part of ['src', 'public']) {
+    fs.cpSync(path.join(current, part), path.join(app, part), { recursive: true });
+  }
+  fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ version: '0.1.9' }));
+  const archive = fs.readFileSync(path.join(current, 'crew-next-0.2.0.zip'));
+  const sha256 = (await import('node:crypto')).createHash('sha256').update(archive).digest('hex');
+  const release = {
+    version: '0.2.0',
+    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.0.zip',
+    sha256,
+  };
+  await assert.rejects(() => applyUpdate(root, { ...release, sha256: 'f'.repeat(64) },
+    { allowRunningGame: true, download: async () => archive }), /checksum mismatch/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, '0.1.9');
+  const result = await applyUpdate(root, release,
+    { allowRunningGame: true, download: async () => archive });
+  assert.equal(result.updated, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, '0.2.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(result.oldApp, 'package.json'), 'utf8')).version, '0.1.9');
+});
+
+test('hidden Windows launcher uses wscript and preserves a recovery shortcut', t => {
+  if (process.platform !== 'win32') return t.skip('Windows desktop shortcut integration');
+  const root = fixture(t), app = path.join(root, 'app');
+  fs.mkdirSync(app);
+  fs.writeFileSync(path.join(root, 'bootstrap.mjs'), '// test entrypoint');
+  const first = path.join(root, 'desktop.lnk'), second = path.join(root, 'start.lnk');
+  nativeShortcut(first, process.execPath, path.join(root, 'bootstrap.mjs'), root, '');
+  const result = installHiddenShortcuts({ root, app,
+    shortcuts: { desktop: first, start: second } });
+  const readLink = file => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive',
+    '-Command', '$w=New-Object -ComObject WScript.Shell;' +
+      '$s=$w.CreateShortcut($env:CREW_LINK);[Console]::Out.Write($s.TargetPath)'], {
+    windowsHide: true, encoding: 'utf8', env: { ...process.env, CREW_LINK: file },
+  }).stdout;
+  assert.match(readLink(first), /wscript.exe$/i);
+  assert.match(readLink(second), /wscript.exe$/i);
+  assert.ok(fs.existsSync(first + '.before-hidden-launch.lnk'));
+  assert.match(fs.readFileSync(result.script, 'utf8'), /shell\.Run/i);
+  assert.ok(hiddenScript(process.execPath, path.join(root, 'bootstrap.mjs')).includes(', 0, False'));
+});
+
+test('one-time migration delivers a hidden launcher to a disconnected crew fixture', async t => {
+  if (process.platform !== 'win32') return t.skip('Windows app migration fixture');
+  const root = fixture(t), app = path.join(root, 'app');
+  fs.mkdirSync(app);
+  fs.writeFileSync(path.join(app, 'package.json'), '{"version":"0.1.0-preview"}');
+  fs.mkdirSync(path.join(app, 'src'));
+  fs.writeFileSync(path.join(app, 'src', 'main.mjs'), '// previous launcher');
+  const dir = path.resolve('tortoise-crew', 'next');
+  const archive = fs.readFileSync(path.join(dir, 'crew-next-0.2.0.zip'));
+  const boot = fs.readFileSync(path.join(dir, 'bootstrap.mjs'));
+  const extractor = fs.readFileSync(path.join(dir, 'src', 'safe-zip.mjs'));
+  const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+  const manifest = {
+    version: '0.2.0',
+    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.0.zip',
+    sha256: digest(archive),
+    bootstrapSha256: digest(boot),
+    extractorSha256: digest(extractor),
+  };
+  const d = path.join(root, 'desk.lnk'), s = path.join(root, 'start.lnk');
+  nativeShortcut(d, process.execPath, path.join(root, 'app', 'src', 'main.mjs'), root, '');
+  const result = await installOnce({
+    root, start: false, shortcuts: { desktop: d, start: s },
+    download: async url => {
+      if (url.endsWith('update.json')) return Buffer.from(JSON.stringify(manifest));
+      if (url.endsWith('bootstrap.mjs')) return boot;
+      if (url.endsWith('/safe-zip.mjs')) return extractor;
+      if (url.endsWith('.zip')) return archive;
+      throw new Error('Unexpected fixture URL.');
+    },
+  });
+  assert.equal(result.installed, '0.2.0');
+  assert.ok(fs.existsSync(path.join(root, 'bootstrap.mjs')));
+  assert.ok(fs.existsSync(path.join(root, 'start-hidden.vbs')));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, '0.2.0');
+  assert.ok(fs.existsSync(path.join(result.backup, 'src', 'main.mjs')));
 });

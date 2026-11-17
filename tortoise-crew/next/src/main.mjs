@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  ACCOUNTS, dataDir, legacyDir, loadSettings, saveSettings, validateGameExe,
+  ACCOUNTS, NEXT_VERSION, dataDir, legacyDir, loadSettings, saveSettings, validateGameExe,
   crewBaseUrl, readJson,
 } from './config.mjs';
 import { installedAddons, importPlan, importAddons, repairAddons, missingDependencies } from './addons.mjs';
@@ -13,6 +13,8 @@ import { manifest, crewRequest, crewLogin, crewPresence, changePassword } from '
 import { GameRelay } from './relay.mjs';
 import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
 import { openDesktopApp } from './desktop-window.mjs';
+import { loadCatalog, searchGitHub, clientLocations } from './catalog.mjs';
+import { installFromGitHub } from './github-addons.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = new Map([
@@ -158,7 +160,7 @@ async function operate(action, args) {
       return { accounts: ACCOUNTS, settings: state.settings,
         gameRunning: gameRunning(),
         savedAccounts: storedAccounts(root).filter(a => a === state.lastVerified),
-        version: '0.1.0-preview' };
+        version: NEXT_VERSION };
     case 'handshake':
       fs.mkdirSync(root, { recursive: true });
       fs.writeFileSync(path.join(root, 'startup-proof.json'),
@@ -176,6 +178,33 @@ async function operate(action, args) {
         addSetting('crewApiUrl', data.crewApiUrl);
       return { version: data.launcherVersion, updatesPaused: !!data.updatesPaused,
         crewApiUrl: state.settings.crewApiUrl };
+    }
+    case 'updateStatus': {
+      const url = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/update.json';
+      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error('GitHub launcher update metadata unavailable.');
+      const contents = await response.text();
+      if (contents.length > 8192) throw new Error('Unexpected update metadata size.');
+      const release = JSON.parse(contents);
+      if (!/^\d+\.\d+\.\d+$/.test(release.version || ''))
+        throw new Error('Invalid launcher update version.');
+      return { current: NEXT_VERSION, latest: release.version,
+        available: release.version !== NEXT_VERSION };
+    }
+    case 'restartLauncher': {
+      if (gameRunning()) throw new Error('Close WoW before restarting the launcher.');
+      const script = path.join(root, 'start-hidden.vbs');
+      if (!fs.existsSync(script)) throw new Error('Hidden launcher is not installed yet.');
+      // Re-launch through the permanent Windows host; bootstrap performs the
+      // verified download and rollback after this backend has exited.
+      fs.writeFileSync(path.join(root, 'restart-pending.json'),
+        JSON.stringify({ pid: process.pid, utc: new Date().toISOString() }));
+      try { fs.unlinkSync(path.join(root, 'session.json')); } catch { }
+      const child = spawn('wscript.exe', ['//B', '//Nologo', script],
+        { detached: true, stdio: 'ignore', windowsHide: true });
+      child.unref();
+      setTimeout(() => process.exit(0), 850);
+      return { restarting: true };
     }
     case 'status':
       return await crewRequest(state.settings.crewApiUrl, '/v1/health');
@@ -200,6 +229,18 @@ async function operate(action, args) {
     }
     case 'installed':
       return { installed: installedAddons(verifyPath()) };
+    case 'catalog':
+      return loadCatalog({ force: args.force === true, root, legacy: previous });
+    case 'githubSearch':
+      return { items: await searchGitHub(String(args.query || '')) };
+    case 'scanClients':
+      return { clients: clientLocations() };
+    case 'installRepository': {
+      if (gameRunning()) throw new Error('Close WoW before installing an addon.');
+      return installFromGitHub(String(args.url || ''), verifyPath(), {
+        isGameRunning: gameRunning,
+      });
+    }
     case 'missing':
       return { missing: missingDependencies(verifyPath()) };
     case 'previewImport':
@@ -260,7 +301,7 @@ export async function createServer() {
         const contents = fs.readFileSync(path.join(APP, 'public', file));
         response.writeHead(200, {
           'Content-Type': type, 'Content-Length': contents.length, 'Cache-Control': 'no-store',
-          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'",
+          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://github.com; connect-src 'self'",
           'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
         });
         return response.end(contents);
@@ -313,17 +354,24 @@ async function main() {
     }
     return;
   }
-  log('Next preview started on loopback.');
+  log('Crew Next ' + NEXT_VERSION + ' started on loopback.');
+  fs.writeFileSync(path.join(root, 'session.json'),
+    JSON.stringify({ pid: process.pid, url, utc: new Date().toISOString() }),
+    { mode: 0o600 });
   // Open an Edge/Chrome app window, never the default browser or a normal tab.
   // The existing desktop shortcut can continue to launch this Node entrypoint.
   if (!process.argv.includes('--no-browser')) {
     const browser = await openDesktopApp(url, root);
     log('Launched dedicated ' + browser + ' app window.');
   }
-  console.log('Tortoise Crew Next preview listening on localhost.');
+  console.log('Tortoise Crew Next listening on localhost.');
   const shutdown = async () => {
     if (state.shuttingDown) return;
     state.shuttingDown = true;
+    try {
+      const session = readJson(path.join(root, 'session.json'), {});
+      if (session.pid === process.pid) fs.unlinkSync(path.join(root, 'session.json'));
+    } catch { /* Stale session records are ignored by bootstrap. */ }
     server.close();
     await stopGame();
     if (!gameRunning()) process.exit(0);

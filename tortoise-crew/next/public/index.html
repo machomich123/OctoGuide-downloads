@@ -24,7 +24,7 @@
         <div id="players">Loading presence…</div>
         <button id="refreshPresence" class="small">Refresh status</button>
       </div>
-      <p class="footnote">PREVIEW 0.1 · Windows</p>
+      <p class="footnote">CREW NEXT · WINDOWS APP</p>
     </aside>
     <main>
       <div class="topbar"><span>WORLD OF WARCRAFT / VANILLA</span><span id="serviceStatus">● Checking realm…</span></div>
@@ -46,15 +46,51 @@
         </div>
       </section>
       <section id="addons" class="panel">
-        <h1>Addons <em>library.</em></h1>
-        <p class="intro">Import local Vanilla/Turtle addons with backups. DLL/MPQ client patches are not activated.</p>
-        <div class="surface">
-          <div class="actions"><button id="loadInstalled">Installed addons</button><button id="missing">Missing dependencies</button><button id="repair">Repair addons</button></div>
-          <h2>Import from another client</h2>
-          <label>PREVIOUS CLIENT DIRECTORY<input id="source" type="text" placeholder="C:\Games\OctoWoW\client-octo"></label>
-          <div class="actions"><button id="previewImport">Preview import</button><button id="import" class="primary">Import safely</button></div>
-          <pre id="addonResult" class="results" aria-live="polite">Select an action above.</pre>
+        <div class="addon-head">
+          <div><h1>Addon <em>library.</em></h1><p class="intro" id="addonStatus">Browse Turtle WoW addons or import your previous client.</p></div>
+          <button id="refreshCatalog" class="small">Refresh catalog</button>
         </div>
+        <div class="addon-tabs" role="tablist" aria-label="Addon sections">
+          <button class="active addon-tab" data-addon-tab="discover">Discover</button>
+          <button class="addon-tab" data-addon-tab="installed">Installed</button>
+          <button class="addon-tab" data-addon-tab="packs">Packs &amp; DLLs</button>
+          <button class="addon-tab" data-addon-tab="import">Import / repair</button>
+        </div>
+        <div id="addonToolbar" class="addon-toolbar">
+          <input id="addonSearch" type="search" aria-label="Search addons" placeholder="Search addons, authors and descriptions">
+          <select id="addonProvider" aria-label="Catalog source"><option value="turtle">Turtle WoW catalog</option><option value="github">GitHub search</option></select>
+          <select id="addonSort" aria-label="Sort addons">
+            <option value="popular">Popular (stars)</option>
+            <option value="downloads">Downloads (if available)</option>
+            <option value="recent">Recently updated</option>
+            <option value="name">Name A–Z</option>
+            <option value="reverse">Name Z–A</option>
+          </select>
+          <select id="addonPageSize" aria-label="Addons per page"><option>12</option><option selected>24</option><option>48</option><option>100</option><option>250</option></select>
+        </div>
+        <div id="addonList" class="addon-list" aria-live="polite"></div>
+        <div id="addonBottom" class="addon-bottom">
+          <span id="addonCount" class="footnote">Loading…</span>
+          <div class="actions"><button id="addonPrev">Previous</button><button id="addonNext">Next</button></div>
+        </div>
+        <div id="addonImport" class="addon-import">
+          <div class="surface">
+            <h2>Import from an existing OctoWoW / Turtle 1.18.1 client</h2>
+            <p class="intro">Addon Lua files are imported safely with backups. Client DLL, EXE and MPQ patches are inventoried only, not activated.</p>
+            <div class="actions"><button id="scanClients">Find previous clients</button><button id="loadInstalled">Installed addons</button><button id="missing">Missing dependencies</button><button id="repair">Repair addons</button></div>
+            <label>PREVIOUS CLIENT FOLDER<input id="source" type="text" placeholder="C:\Games\OctoWoW\client-octo"></label>
+            <div class="actions"><button id="previewImport">Preview import</button><button id="import" class="primary">Import safely</button></div>
+            <pre id="addonResult" class="results" aria-live="polite">Select an action above.</pre>
+          </div>
+        </div>
+        <dialog id="addonDetails" class="addon-details">
+          <div class="actions" style="justify-content:space-between;align-items:center">
+            <h2 id="detailTitle">Addon details</h2><button id="closeAddonDetails" class="small">Close</button>
+          </div>
+          <p id="detailDescription"></p><p id="detailMetadata" class="addon-meta"></p>
+          <p><a id="detailSource" target="_blank" rel="noopener noreferrer">Open source repository</a></p>
+          <div class="actions"><button id="detailInstall" class="primary">Install addon</button></div>
+        </dialog>
       </section>
       <section id="settings" class="panel">
         <h1>Launcher <em>settings.</em></h1>
@@ -66,11 +102,11 @@
           <label>NEW PASSWORD<input type="password" id="newPassword" maxlength="16"></label>
           <button id="changePassword">Update selected account password</button>
           <h2>Updates</h2>
-          <button id="checkUpdates">Check official release</button>
-          <p class="footnote">Preview mode. Existing launcher v1.0.11 and desktop shortcut are not replaced.</p>
+          <div class="actions"><button id="checkUpdates">Check GitHub updates</button><button id="restartLauncher" class="primary">Restart &amp; apply updates</button></div>
+          <p class="footnote" id="updateStatus">Launcher updates are checked on startup. The previous version is kept for recovery.</p>
         </div>
       </section>
-      <p id="message" class="feedback" role="status" aria-live="polite">Launcher preview ready.</p>
+      <p id="message" class="feedback" role="status" aria-live="polite">Tortoise Crew Launcher ready.</p>
     </main>
   </div>
 </body>
