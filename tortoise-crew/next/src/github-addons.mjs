@@ -57,6 +57,21 @@ export function collectAddonFolders(root, maxDepth = 7) {
   return results;
 }
 
+function chooseClassicToc(folder, tocs, repository) {
+  const candidates = tocs.filter(file => {
+    const contents = fs.readFileSync(path.join(folder, file), 'utf8');
+    const version = contents.match(/^##\s*Interface\s*:\s*(\d+)/im)?.[1] || '';
+    return !version || /^(11\d\d\d|12\d\d\d)$/.test(version);
+  });
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0];
+  const exact = candidates.filter(file =>
+    path.basename(file, '.toc').toLowerCase() === repository.toLowerCase());
+  if (exact.length === 1) return exact[0];
+  // Do not guess when two manifests both target the same Classic client.
+  return null;
+}
+
 export async function installFromGitHub(url, game, {
   isGameRunning, download = fetchLimited,
 } = {}) {
@@ -81,14 +96,22 @@ export async function installFromGitHub(url, game, {
     for (const folder of folders) {
       if (isGameRunning?.()) throw new Error('Close WoW before changing addons.');
       const tocs = fs.readdirSync(folder).filter(x => x.toLowerCase().endsWith('.toc'));
-      if (tocs.length !== 1) continue; // Skip ambiguous addon folders.
-      const name = path.basename(tocs[0], '.toc');
+      const chosen = chooseClassicToc(folder, tocs, repo.repo);
+      if (!chosen) continue; // Skip ambiguous or non-Classic manifests.
+      const name = path.basename(chosen, '.toc');
       if (!safeName(name) || names.has(name.toLowerCase()) ||
           /^blizzard[_-]|^turtle[_-]/i.test(name)) continue;
       names.add(name.toLowerCase());
-      fs.cpSync(folder, path.join(flat, name), {
+      const destination = path.join(flat, name);
+      fs.cpSync(folder, destination, {
         recursive: true, force: false, errorOnExist: true, dereference: false,
       });
+      // Repositories such as pfUI include both Vanilla and TBC manifests.
+      // Keep only the chosen Classic TOC so ordinary import validation can
+      // safely select it without interfering with bundled Lua/XML resources.
+      for (const other of tocs) {
+        if (other !== chosen) fs.unlinkSync(path.join(destination, other));
+      }
     }
     if (!names.size) throw new Error('No supported Vanilla/Turtle .toc addons found in this repository.');
     const plan = importPlan(flat, game);
