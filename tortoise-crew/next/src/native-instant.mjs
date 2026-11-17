@@ -39,7 +39,7 @@ export function nativeFiles() {
   return Object.fromEntries(ASSETS.map(name =>
     [name, Buffer.from(nativeAssetText[name], 'utf8')]));
 }
-export function verifyNativeClient(game, { requireLoader = true } = {}) {
+export function verifyNativeClient(game, { requireLoader = true, requireClassic = true } = {}) {
   if (!fs.existsSync(path.join(game, 'WoW.exe')) ||
       sha256(path.join(game, 'WoW.exe')) !== GAME_SHA256)
     throw new Error('Native test requires the verified Tortoise WoW.exe.');
@@ -51,14 +51,68 @@ export function verifyNativeClient(game, { requireLoader = true } = {}) {
   ]) {
     if (exe[offset] !== byte) throw new Error('Custom GlueXML has not been enabled.');
   }
-  if (!fs.existsSync(path.join(game, 'ClassicAPI.dll')) ||
-      sha256(path.join(game, 'ClassicAPI.dll')) !== CLASSICAPI_HASH)
+  if (requireClassic && (!fs.existsSync(path.join(game, 'ClassicAPI.dll')) ||
+      sha256(path.join(game, 'ClassicAPI.dll')) !== CLASSICAPI_HASH))
     throw new Error('This test requires the verified ClassicAPI.dll.');
   if (requireLoader && (!fs.existsSync(path.join(game, 'VanillaFixes.exe')) ||
       sha256(path.join(game, 'VanillaFixes.exe')) !== VF_EXE_HASH ||
       !fs.existsSync(path.join(game, 'VfPatcher.dll')) ||
       sha256(path.join(game, 'VfPatcher.dll')) !== VF_DLL_HASH))
     throw new Error('Verified VanillaFixes 1.5.3 loader files are missing.');
+}
+
+// Install the same pinned runtime on every supported Crew client. Existing
+// unknown native modules are preserved and cause a clear compatibility error.
+// VanillaFixes' normal one-time DLL consent remains enabled.
+export async function ensureNativeRuntime(game, { fetcher = fetch, gameRunning = () => false } = {}) {
+  if (gameRunning()) throw new Error('Close WoW before preparing native login.');
+  verifyNativeClient(game, { requireLoader: false, requireClassic: false });
+  const hashes = { 'ClassicAPI.dll': CLASSICAPI_HASH, 'VanillaFixes.exe': VF_EXE_HASH, 'VfPatcher.dll': VF_DLL_HASH };
+  const missing = [];
+  for (const [name, expected] of Object.entries(hashes)) {
+    const file = path.join(game,name); verifyPath(game,file);
+    if (fs.existsSync(file)) {
+      if (sha256(file) !== expected) throw new Error('Preserving an unsupported native module: '+name);
+    } else missing.push(name);
+  }
+  if (!missing.length) return { installed: true, added: [] };
+  const blobs = new Map();
+  const download = async (url, max, expected) => {
+    const response=await fetcher(url,{redirect:'follow',signal:AbortSignal.timeout(20000)});
+    if (!response.ok || Number(response.headers.get('content-length')||0)>max) throw new Error('Native runtime download unavailable.');
+    const data=Buffer.from(await response.arrayBuffer());
+    if(data.length>max || digest(data)!==expected) throw new Error('Native runtime checksum mismatch.');
+    return data;
+  };
+  await Promise.all([
+    (async()=>{
+      if(!missing.includes('ClassicAPI.dll'))return;
+      blobs.set('ClassicAPI.dll',await download('https://github.com/brues-code/ClassicAPI/releases/download/v1.15.16/ClassicAPI.dll',2000000,CLASSICAPI_HASH));
+    })(),
+    (async()=>{
+      if(!missing.some(name=>name!=='ClassicAPI.dll'))return;
+      const zip=await download(UPSTREAM_ZIP_URL,300000,UPSTREAM_ZIP_HASH);
+      const temp=fs.mkdtempSync(path.join(os.tmpdir(),'crew-runtime-'));
+      try {
+        unpackZip(zip,temp,{maxFiles:10,maxBytes:500000,extensions:new Set(['.dll','.exe'])});
+        for(const name of missing.filter(name=>name!=='ClassicAPI.dll')) {
+          const data=fs.readFileSync(path.join(temp,name));
+          if(digest(data)!==hashes[name])throw new Error('Native runtime member checksum mismatch.');
+          blobs.set(name,data);
+        }
+      }finally{fs.rmSync(temp,{recursive:true,force:true});}
+    })(),
+  ]);
+  const added=[];
+  try {
+    if(gameRunning())throw new Error('WoW started during runtime preparation.');
+    for(const [name,data] of blobs) {
+      const file=path.join(game,name);verifyPath(game,file);
+      fs.writeFileSync(file,data,{flag:'wx'});added.push(name);
+    }
+    verifyNativeClient(game);
+    return {installed:true,added};
+  }catch(error){for(const name of added.reverse())fs.unlinkSync(path.join(game,name));throw error;}
 }
 
 export function inspectNativeInstant(game, root) {
@@ -188,6 +242,7 @@ export async function installNativeInstant(game, root, {
   game = path.resolve(game);
   if (gameRunning()) throw new Error('Close World of Warcraft before installing.');
   if (inspectNativeInstant(game, root).installed) return { installed: true, existing: true };
+  await ensureNativeRuntime(game, { fetcher, gameRunning });
   verifyNativeClient(game, { requireLoader: false });
   const loader = path.join(game, 'VanillaFixes.exe');
   if (!fs.existsSync(loader) || sha256(loader) !== VF_EXE_HASH)
@@ -201,24 +256,28 @@ export async function installNativeInstant(game, root, {
     ...Object.entries(files).map(([name, content]) => ({
       path: path.join(glueRoot(game), name), content,
     })),
-    { path: path.join(game, 'dlls.txt'), content: Buffer.from('ClassicAPI.dll\r\n') },
   ];
+  const dlls=path.join(game,'dlls.txt');verifyPath(game,dlls);
+  const originalDlls=fs.existsSync(dlls)?fs.readFileSync(dlls):null;
+  if(!originalDlls || !originalDlls.toString('utf8').split(/\r?\n/).some(line=>line.trim().toLowerCase()==='classicapi.dll'))
+    locations.push({path:dlls,content:Buffer.from((originalDlls?originalDlls.toString('utf8').replace(/\s*$/,'')+'\r\n':'')+'ClassicAPI.dll\r\n'),restore:originalDlls});
   if (addPatcher) locations.push({ path: patcher,
     content: await nativePatcherBytes({ fetcher, sourceFile: patcherSource }) });
   for (const entry of locations) {
     verifyPath(game, entry.path);
-    if (fs.existsSync(entry.path))
+    if (fs.existsSync(entry.path) && entry.path !== dlls)
       throw new Error('Custom game file already exists: ' + path.basename(entry.path));
   }
   const created = [];
   try {
     for (const entry of locations) {
       fs.mkdirSync(path.dirname(entry.path), { recursive: true });
-      fs.writeFileSync(entry.path, entry.content, { flag: 'wx' });
+      fs.writeFileSync(entry.path, entry.content, { flag: entry.restore ? 'w' : 'wx' });
       created.push(entry.path);
     }
     writeJsonAtomic(fileMarker(root), {
       version: 2, game,
+      restores: locations.filter(entry=>entry.restore).map(entry=>({relative:path.relative(game,entry.path),content:entry.restore.toString('base64')})),
       files: created.map(file => ({
         relative: path.relative(game, file), sha256: sha256(file),
       })), installedUtc: new Date().toISOString(),
@@ -226,7 +285,7 @@ export async function installNativeInstant(game, root, {
     return inspectNativeInstant(game, root);
   } catch (error) {
     for (const file of created.reverse()) {
-      try { fs.unlinkSync(file); } catch {}
+      try { if(file===dlls && originalDlls)fs.writeFileSync(file,originalDlls);else fs.unlinkSync(file); } catch {}
     }
     throw error;
   }
@@ -243,7 +302,11 @@ export function uninstallNativeInstant(game, root, { gameRunning = () => false }
     if (sha256(file) !== record.sha256)
       throw new Error('The native file changed. Refusing to remove an unknown modification.');
   }
-  for (const record of marker.files) fs.unlinkSync(path.join(game, record.relative));
+  for (const record of marker.files) {
+    const restore=marker.restores?.find(entry=>entry.relative===record.relative);
+    if(restore)fs.writeFileSync(path.join(game,record.relative),Buffer.from(restore.content,'base64'));
+    else fs.unlinkSync(path.join(game, record.relative));
+  }
   fs.unlinkSync(fileMarker(root));
   return { removed: true };
 }

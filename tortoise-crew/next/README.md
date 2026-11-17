@@ -3,8 +3,7 @@
 **Version 0.3.6:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
-recovery backups and hidden Windows startup. Real realm login still requires
-a person to test in-game. Keep the v1.0.11 recovery EXE.
+recovery backups and hidden Windows startup. Real character-selection login has been tested on Windows. Keep the v1.0.11 recovery EXE.
 
 This is a dedicated Edge/Chrome app window and local Node.js backend, intended
 to reduce the need for a different unsigned Windows EXE whenever addon/UI code
@@ -59,43 +58,23 @@ no browser tabs or address bar, independent of the system default browser.
   to type if the game does not own the active window. Windows can refuse
   foreground activation depending on its focus policy; a click may still be
   necessary in that case. No changes to security policy are made.
-- Experimental native instant login is now installed on request, without
-  modifying WoW.exe. The client must already allow loose GlueXML loading;
-  Tortoise Crew adds GlueXML.toc and two small CrewInstantLogin Lua/XML files.
-  When ClassicAPI is available, the client calls LoginWithSavedAccount on
-  the remembered account. A temporary branded covering screen is shown
-  during normal SRP/server authentication and disappears at character select.
-  Windows Credential Manager holds the login secret and is provisioned from
-  the already authenticated Crew password using the exact ClassicAPI target
-  format. The official VanillaFixes 1.5.3 loader and VfPatcher.dll are
-  integrity-checked; if dlls.txt changes, Windows may display a **one-time
-  consent reminder** for ClassicAPI.dll, which the user must accept.
-  This never disables Windows Smart App Control or bypasses server login.
-  On missing native functions, the normal manual login remains available.
-  Settings exposes an uninstall action that removes only owned files after
-  checking hashes. No DLLs are silently loaded or injected by Node itself.
-  Actual game login and compatibility remain to be verified by the user.
-- v0.3.6 replaces the visual login cover with an off-screen window boot.
-  The launcher verifies the stored account and provisions ClassicAPI's
-  encrypted credential before Play; no WoW process exists during preflight.
-  VanillaFixes passes the hidden Windows startup flag to WoW.exe, but WoW
-  overrides that flag while initializing DirectX; a transient signed Windows
-  helper parks its window outside the visible desktop and restores it after
-  the real character-list signal. GlueXML emits a local
-  WTF/CrewCharacterReady.flag only after CHARACTER_LIST_UPDATE and a
-  short UI settlement interval. The launcher reveals and focuses the hidden
-  window after that real signal, not after an arbitrary delay. If native
-  authentication fails, a 25-second safety timeout reveals normal login
-  instead of trapping a game off-screen. The updated mod adds the missing
-  GlueConstants.lua and _G compatibility shim, and the installer can
-  migrate a hash-verified v1 mod with rollback backups.
-  The native GlueXML source assets are bundled as a generated .mjs module
-  (regenerate with scripts/Generate-Native-Asset-Bundle.mjs) because old
-  installed updater versions intentionally exclude .lua, .xml and .toc ZIP
-  entries. The restrictive updater allowlist remains unchanged.
-  This cannot make a cold WoW process start instantaneously: actual game
-  initialization and network authentication still occur after Play, and
-  there may be a very short initial window flash before it is parked.
+- v0.3.6 now authenticates to the real WoW realm in the launcher. Once the
+  client has supplied its exact addon metadata on its first launch, later
+  launches also prefetch the live character list before Play. No WoW process
+  starts before Play. A loopback SRP frontend hands the visible client to the
+  prepared world session and translates encrypted packet headers in both
+  directions. Addon metadata is preserved unchanged; no server restart or
+  authentication bypass is used.
+- The old off-screen guardian and 27-second reveal timeout are removed from
+  the startup path. The unused login scene is suppressed in GlueXML; the
+  normal WoW window starts visibly and receives foreground focus as soon as
+  its window exists. There is no branded cover or delayed window reveal.
+- Supported clients automatically obtain SHA-256-pinned ClassicAPI 1.15.16
+  and VanillaFixes 1.5.3 if missing. Unknown existing modules are preserved.
+  Existing dlls.txt entries are preserved and restored on integration removal.
+  VanillaFixes retains its ordinary first-use DLL consent. Secrets are kept
+  in Windows-protected storage and live session keys stay in memory.
+- See INSTANT-LOGIN-0.3.6.md for protocol details and actual Windows validation.
 - A separate migration helper that stages the new application, performs a
   loopback UI probe, creates desktop/Start Menu shortcuts and restores originals
   after a failed migration. Default use is a dry run.

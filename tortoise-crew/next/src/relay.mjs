@@ -1,6 +1,7 @@
 import net from 'node:net';
 import tls from 'node:tls';
 import crypto from 'node:crypto';
+import { Duplex } from 'node:stream';
 import { crewBaseUrl } from './config.mjs';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -69,7 +70,7 @@ export class FrameDecoder {
   }
 }
 
-async function connectWebSocket(base, mode, token) {
+export async function connectWebSocket(base, mode, token) {
   if (!/^[0-9a-f]{64}$/i.test(token) || !['auth', 'world'].includes(mode)) {
     throw new Error('Invalid relay session.');
   }
@@ -111,6 +112,30 @@ async function connectWebSocket(base, mode, token) {
     socket.on('data', receive);
     socket.once('close', () => { if (!finished) fail(new Error('Relay closed during handshake.')); });
   });
+}
+
+// A binary stream over the existing authenticated TLS relay. No listener or
+// WoW process is needed to prepare a session through this stream.
+export async function openRelayStream(base, mode, token) {
+  const { socket, initial } = await connectWebSocket(base, mode, token);
+  const stream = new Duplex({
+    read() { socket.resume(); },
+    write(bytes, encoding, done) { socket.write(encodeFrame(2, bytes), done); },
+    destroy(error, done) { clearInterval(ping); socket.destroy(); done(error); },
+  });
+  const decoder = new FrameDecoder(
+    bytes => { if (!stream.push(bytes)) socket.pause(); },
+    bytes => socket.write(encodeFrame(10, bytes)),
+    () => stream.destroy(),
+  );
+  const receive = bytes => { try { decoder.push(bytes); } catch (error) { stream.destroy(error); } };
+  socket.on('data', receive);
+  socket.on('error', error => stream.destroy(error));
+  socket.on('close', () => { stream.push(null); stream.destroy(); });
+  const ping = setInterval(() => { if (!socket.destroyed) socket.write(encodeFrame(9)); }, 20000);
+  ping.unref();
+  if (initial.length) queueMicrotask(() => receive(initial));
+  return stream;
 }
 
 export class GameRelay {

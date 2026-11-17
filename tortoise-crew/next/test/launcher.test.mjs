@@ -198,20 +198,6 @@ test('launcher pre-verifies once, reuses token and awaits in-flight verification
   assert.equal(preflight.status('MICHAEL').verified, false);
 });
 
-test('native startup runs hidden and reveals only after a character-list signal', () => {
-  const code = fs.readFileSync(
-    path.resolve('tortoise-crew/next/src/main.mjs'), 'utf8');
-  assert.match(code, /windowsHide: native/);
-  assert.match(code, /clearReadyFile\(gameDir\)/);
-  assert.match(code, /startWindowGuardian\(readyFile\(gameDir\)/);
-  assert.match(code, /await guardian[.]armed/);
-  assert.match(code, /fields\[0\] === 'CHARACTER_VISIBLE'/);
-  assert.match(code, /focusVerifiedGame\(pid/);
-  assert.doesNotMatch(
-    fs.readFileSync(path.resolve('tortoise-crew/next/src/native-assets/CrewInstantLogin.lua'), 'utf8'),
-    /Authenticating securely|CrewInstantSplash|SendKeys/);
-});
-
 test('Win32 hidden-window enumerator compiles using signed Windows PowerShell', () => {
   if (process.platform !== 'win32') return;
   // A non-WoW PID exits safely without touching any window, but the full
@@ -463,7 +449,9 @@ test('safe ZIP and GitHub addon importer skip executables and preserve existing 
   fs.writeFileSync(path.join(folder, 'addon.dll'), 'no native binaries');
   const zip = path.join(root, 'addon.zip');
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-    'Compress-Archive -LiteralPath $env:CREW_ZIP_SRC -DestinationPath $env:CREW_ZIP_FILE'], {
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem; ' +
+    '[IO.Compression.ZipFile]::CreateFromDirectory($env:CREW_ZIP_SRC,$env:CREW_ZIP_FILE,' +
+    '[IO.Compression.CompressionLevel]::Optimal,$true)'], {
     windowsHide: true, encoding: 'utf8',
     env: { ...process.env, CREW_ZIP_SRC: repo, CREW_ZIP_FILE: zip },
   });
