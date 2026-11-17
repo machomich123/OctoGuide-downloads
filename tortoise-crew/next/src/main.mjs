@@ -12,6 +12,7 @@ import { installedAddons, importPlan, importAddons, repairAddons, missingDepende
 import { manifest, crewRequest, crewLogin, crewPresence, changePassword } from './remote.mjs';
 import { GameRelay } from './relay.mjs';
 import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
+import { openDesktopApp } from './desktop-window.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = new Map([
@@ -264,6 +265,17 @@ export async function createServer() {
         });
         return response.end(contents);
       }
+      if (request.method === 'GET' && target.pathname === '/favicon.ico') {
+        const icon = path.join(APP, 'crew.ico');
+        if (fs.existsSync(icon)) {
+          const contents = fs.readFileSync(icon);
+          response.writeHead(200, {
+            'Content-Type': 'image/x-icon', 'Content-Length': contents.length,
+            'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+          });
+          return response.end(contents);
+        }
+      }
       return reply(response, 404, { ok: false, error: 'Not found.' });
     } catch (error) {
       const result = fail(error);
@@ -302,11 +314,11 @@ async function main() {
     return;
   }
   log('Next preview started on loopback.');
-  // The browser opens only after the local server has bound successfully.
+  // Open an Edge/Chrome app window, never the default browser or a normal tab.
+  // The existing desktop shortcut can continue to launch this Node entrypoint.
   if (!process.argv.includes('--no-browser')) {
-    const opener = spawn('rundll32.exe', ['url.dll,FileProtocolHandler', url],
-      { detached: true, stdio: 'ignore', windowsHide: true });
-    opener.unref();
+    const browser = await openDesktopApp(url, root);
+    log('Launched dedicated ' + browser + ' app window.');
   }
   console.log('Tortoise Crew Next preview listening on localhost.');
   const shutdown = async () => {

@@ -1,13 +1,21 @@
-# Tortoise Crew Next — isolated Windows launcher preview
+# Tortoise Crew Next — dedicated Windows app window
 
-**Status: prototype only. Do not activate the legacy EXE update manifest or delete v1.0.11.**
+**Status: browser-engine desktop window built on the published v1.0.13 Node
+launcher. Real WoW gameplay testing and the complete online addon catalog are
+still outstanding. Keep the previous EXE backup for recovery.**
 
-This is a new browser interface and local Node.js backend, intended to reduce
-the need for a different unsigned Windows EXE whenever addon/UI code changes.
+This is a dedicated Edge/Chrome app window and local Node.js backend, intended
+to reduce the need for a different unsigned Windows EXE whenever addon/UI code
+changes. It is **not a fully native Win32 app**, but it has its own window with
+no browser tabs or address bar, independent of the system default browser.
 
 ## Implemented and locally tested
 
-- Local browser UI bound to 127.0.0.1 with a randomly generated session token,
+- Dedicated Microsoft Edge/Chrome app window, launched automatically from the
+  existing desktop shortcut, with no browser tabs, address bar, dependency on
+  the default browser, or newly compiled Windows EXE. This is a browser-engine
+  app window, not a native Win32 UI, and needs Edge or Chrome installed.
+- Local browser-engine UI bound to 127.0.0.1 with a randomly generated session token,
   request-origin verification, strict CSP and constrained backend actions.
 - Read-only migration of legacy settings. Existing DPAPI credentials are not
   decrypted or copied automatically. New data lives in a separate directory
@@ -42,28 +50,25 @@ node src/migrate.mjs
 The separate --apply switch is intended only for a disposable Windows test
 installation at this stage. Do not run it on the working v1.0.11 installation.
 
-## Blocker: updating via the existing EXE
+## Existing EXE update path
 
-Version 1.0.11 downloads one fixed EXE path, verifies the expected SHA-256 and
-starts it with the --replace argument. It cannot directly install a Node bundle
-or update Windows shortcuts. A compatible transition EXE must first be tested
-on the affected PC with Smart App Control unchanged. The 1.0.12 EXE was blocked.
-Local development and Windows CI success do not establish acceptance of an
-EXE downloaded and run through the existing launcher.
+Version 1.0.13 was published after the exact GitHub-built transition EXE passed
+Windows application control and migrated the first PC. It installs this local
+Node backend and updates the desktop/start-menu shortcuts. The 1.0.13 bundle
+predates the dedicated app-window mode; existing installs must receive the
+updated Node source files once before this mode is available. The current Node
+launcher does not yet contain a general-purpose self-updater.
 
-Therefore public automatic updates remain paused. The manifest retains
-updatesPaused=true. Neither Defender nor Smart App Control is disabled, no
-Microsoft submission occurs and no signing purchase is required.
+No Defender/Smart App Control settings are changed. This is not a guarantee
+that any future unsigned EXE would be accepted on other computers.
 
 ## Remaining release criteria
 
 1. Verify real WoW login, realm entry, relay lifetime and graceful exit.
 2. Port and test the full online addon discovery/download functionality.
-3. Verify shortcut migration, icon and rollback in a disposable Windows user.
+3. Verify app window icon and end-to-end shortcut migration on each crew PC.
 4. Implement versioned and authenticated Node bundle updates and rollback.
-5. Build a transition EXE accepted by the existing --replace protocol and
-   Windows application-control policy.
-6. Test that exact fetched artifact on the affected PC, then and only then
-   activate the production update manifest for v1.0.11 users.
+5. Add safe, authenticated, rollback-capable distribution for Node source
+   updates to other PCs without rebuilding the native transition EXE.
 
 The preview does not modify Altare or the live server.
