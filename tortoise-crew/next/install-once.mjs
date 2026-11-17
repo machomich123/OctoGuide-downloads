@@ -13,9 +13,12 @@ const DEFAULT_ROOT = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(
   'AppData', 'Local'), 'TortoiseCrewNext');
 
 async function getBytes(url, max) {
-  const prefix = BASE + 'update.json?nonce=';
-  const freshManifest = url.startsWith(prefix) && /^[a-f0-9]{16}$/.test(url.slice(prefix.length));
-  if (!url.startsWith(BASE) || url.includes('#') || (url.includes('?') && !freshManifest))
+  const nonceTargets = ['update.json', 'bootstrap.mjs', 'src/safe-zip.mjs'];
+  const freshSource = nonceTargets.some(item => {
+    const prefix = BASE + item + '?nonce=';
+    return url.startsWith(prefix) && /^[a-f0-9]{16}$/.test(url.slice(prefix.length));
+  });
+  if (!url.startsWith(BASE) || url.includes('#') || (url.includes('?') && !freshSource))
     throw new Error('Unexpected GitHub launcher URL.');
   const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(25000) });
   if (!response.ok || response.url !== url) throw new Error('Official GitHub resource unavailable.');
@@ -90,8 +93,8 @@ export async function installOnce({
   assertManifest(manifest);
   const [zip, bootstrap, extractor] = await Promise.all([
     download(manifest.bundleUrl, 12 * 1024 * 1024),
-    download(BASE + 'bootstrap.mjs', 150 * 1024),
-    download(BASE + 'src/safe-zip.mjs', 100 * 1024),
+    download(BASE + 'bootstrap.mjs?nonce=' + crypto.randomBytes(8).toString('hex'), 150 * 1024),
+    download(BASE + 'src/safe-zip.mjs?nonce=' + crypto.randomBytes(8).toString('hex'), 100 * 1024),
   ]);
   requireDigest(zip, manifest.sha256);
   requireDigest(bootstrap, manifest.bootstrapSha256);

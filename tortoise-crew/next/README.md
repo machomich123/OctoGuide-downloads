@@ -1,6 +1,6 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.2.2:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.3.0:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires
@@ -33,7 +33,12 @@ no browser tabs or address bar, independent of the system default browser.
   directly from checked ZIP archives. Saved addons are backed up, native DLL,
   EXE and MPQ patches are never activated. GitLab entries are listed but not
   directly downloadable. Missing dependencies can be viewed but still require
-  manual installation; full README screenshot rendering is not yet ported.
+  manual installation. Details now show GitHub README text, license, project
+  metadata and all supported README images in a scrollable gallery.
+- Remember/use-saved-password and close-on-play preferences persist separately
+  for each of the four accounts. Passwords remain encrypted via Windows DPAPI.
+- After launching WoW, the dedicated launcher window closes; Node and the
+  authenticated game relay continue running until WoW exits.
 - A separate migration helper that stages the new application, performs a
   loopback UI probe, creates desktop/Start Menu shortcuts and restores originals
   after a failed migration. Default use is a dry run.
@@ -84,9 +89,11 @@ After onboarding, new releases are distributed as:
    **Restart & apply updates** button to close it first.
 5. A rollback backup remains under %LOCALAPPDATA%\TortoiseCrewNext\backups.
 
-The original v1.0.13 EXE update button does not update Node code. Publishing a
-new ZIP alone does not make older v1.0.13 installations self-updating until
-they have completed the one-time migration.
+The old v1.0.13 Node application cannot update its own source. Users already
+on that version must run TortoiseCrew-Upgrade.cmd once. The newer v1.0.14 EXE
+transition is designed to install this version directly when launched through
+the legacy EXE update button, conditional on Windows accepting the GitHub-built
+file. Publishing a Node ZIP alone cannot upgrade older clients lacking an updater.
 
 No Defender/Smart App Control settings are changed. This is not a guarantee
 that any future unsigned EXE would be accepted on other computers.
@@ -97,7 +104,7 @@ that any future unsigned EXE would be accepted on other computers.
 2. Verify first-run migration and browser host policy on JAYKE, BERNARD and
    AUGUST's own Windows machines; a successful test on one PC does not certify
    the others.
-3. Add automated dependency resolution and rendered README screenshots in
+3. Add automated dependency resolution and improve README formatting in
    addon details, if desired.
 4. Keep the update manifest/source packages protected against accidental
    source changes; no promise that all unsigned executables are accepted.

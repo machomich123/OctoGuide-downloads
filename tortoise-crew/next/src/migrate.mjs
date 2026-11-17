@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dataDir, legacyDir, writeJsonAtomic } from './config.mjs';
+import { installHiddenShortcuts } from './hidden-start.mjs';
 
 const APP_SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WINDOW_SCRIPT = [
@@ -96,6 +97,9 @@ export function migrate(options = {}) {
   const shortcutBackups = [];
   let replaced = false;
   let newAppInstalled = false;
+  const bootstrap = path.join(plan.root, 'bootstrap.mjs');
+  const bootstrapBackup = path.join(plan.root, 'bootstrap-before-' + stamp + '.mjs');
+  let wroteBootstrap = false;
   fs.mkdirSync(plan.root, { recursive: true });
   try {
     fs.mkdirSync(staging);
@@ -112,6 +116,11 @@ export function migrate(options = {}) {
     fs.renameSync(staging, plan.app);
     newAppInstalled = true;
     probe(plan.app, plan.node);
+    const bundled = path.join(plan.source, 'bootstrap.mjs');
+    if (!fs.existsSync(bundled)) throw new Error('Updated Node bootstrap is missing.');
+    if (fs.existsSync(bootstrap)) fs.copyFileSync(bootstrap, bootstrapBackup);
+    fs.copyFileSync(bundled, bootstrap);
+    wroteBootstrap = true;
     for (const shortcut of [plan.desktop, plan.start]) {
       fs.mkdirSync(path.dirname(shortcut), { recursive: true });
       const backup = path.join(plan.root,
@@ -137,10 +146,14 @@ export function migrate(options = {}) {
       nativeShortcut(shortcut, plan.node, path.join(plan.app, 'src', 'main.mjs'), plan.app,
         path.join(plan.app, 'crew.ico'));
     }
+    installHiddenShortcuts({ root: plan.root, app: plan.app, node: plan.node,
+      shortcuts: { desktop: plan.desktop, start: plan.start } });
     const marker = path.join(plan.root, 'startup-proof.json');
     if (fs.existsSync(marker)) fs.unlinkSync(marker);
     const child = spawn(plan.node, [path.join(plan.app, 'src', 'main.mjs')], {
-      cwd: plan.app, windowsHide: true, detached: true, stdio: 'ignore',
+      cwd: plan.root, windowsHide: true, detached: true, stdio: 'ignore',
+      env: { ...process.env, CREW_NEXT_DATA_DIR: plan.root,
+        CREW_LEGACY_DATA_DIR: plan.oldRoot },
     });
     child.unref();
     // A first-start browser or a slow Windows user profile may need more than
@@ -171,6 +184,10 @@ export function migrate(options = {}) {
     }
     if (newAppInstalled && fs.existsSync(plan.app)) fs.rmSync(plan.app, { recursive: true, force: true });
     if (replaced && fs.existsSync(oldApp)) fs.renameSync(oldApp, plan.app);
+    if (wroteBootstrap) {
+      if (fs.existsSync(bootstrapBackup)) fs.copyFileSync(bootstrapBackup, bootstrap);
+      else if (fs.existsSync(bootstrap)) fs.unlinkSync(bootstrap);
+    }
     throw error;
   } finally {
     if (fs.existsSync(staging)) fs.rmSync(staging, { recursive: true, force: true });

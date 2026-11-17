@@ -63,11 +63,31 @@ input:not([type="checkbox"]), select { font:14px system-ui; color:var(--text); b
 .addon-import { display:none; flex:1 1 auto; min-height:0; overflow-y:auto; }
 .addon-import.active { display:block; }
 .addon-import .surface { margin:5px 0 10px; }
-.addon-details { width:min(620px,92vw); max-height:85vh; overflow-y:auto; border:1px solid var(--line); border-radius:14px; background:#152536; color:var(--text); padding:22px; }
+.addon-details { width:min(1050px,94vw); max-width:94vw; height:min(850px,88vh); max-height:88vh; overflow-y:auto; border:1px solid var(--line); border-radius:14px; background:#152536; color:var(--text); padding:22px; }
 .addon-details::backdrop { background:#030b14d9; }
 .addon-details a { color:var(--mint); overflow-wrap:anywhere; }
 .addon-details img { border-radius:8px; max-width:100%; }
-.addon-details .actions { margin-top:14px; }
+.addon-details h3 { margin:18px 0 10px; }
+.detail-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+.detail-head h2 { font-size:26px; margin-bottom:7px; }
+.detail-head p { margin:0; color:var(--muted); }
+.detail-head button { flex:0 0 auto; }
+.detail-stats { margin:18px 0; display:flex; flex-wrap:wrap; gap:8px; }
+.detail-stats span { border:1px solid var(--line); border-radius:7px; padding:6px 9px; color:var(--muted); font-size:12px; }
+.detail-actions { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+.detail-gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+.detail-gallery a { display:flex; min-height:130px; align-items:center; justify-content:center; background:#26394a; border:1px solid var(--line); border-radius:9px; padding:5px; }
+.detail-gallery img { object-fit:contain; width:100%; max-height:320px; }
+.detail-readme { max-width:900px; font-size:14px; line-height:1.62; white-space:normal; overflow-wrap:anywhere; }
+.detail-readme h2 { font-size:22px; margin:22px 0 9px; }
+.detail-readme h3 { font-size:18px; margin:18px 0 8px; }
+.detail-readme h4 { font-size:15px; margin:12px 0 5px; }
+.detail-readme p { margin:8px 0 12px; }
+.detail-readme ul { padding-left:24px; }
+.detail-readme li { margin:4px 0; }
+.detail-readme pre { padding:12px; border-radius:8px; background:#0b1927; white-space:pre-wrap; overflow-wrap:anywhere; }
+.detail-readme blockquote { border-left:3px solid var(--mint); padding-left:12px; color:var(--muted); margin-left:0; }
+.addon-art-fallback { display:grid; place-items:center; width:52px; height:52px; border-radius:8px; background:#304456; color:#a3d9c7; font-size:22px; font-weight:800; }
 .addon-toolbar.hidden, .addon-list.hidden, .addon-bottom.hidden { display:none; }
 @media(max-height:680px) { .sidebar { padding:12px; gap:6px; } nav { margin-top:5px; } .hero { padding:0; } .hero p { display:none; } .surface { padding:12px 18px; } .panel { padding:10px 18px; } button { padding:7px 12px; } .player { padding:3px 0; } }
 @media(max-width:800px) { .layout { grid-template-columns:172px minmax(0,1fr); } .sidebar { padding:15px 10px; } .logo { font-size:16px; } .addon-toolbar { grid-template-columns:1fr 1fr; } .addon-list { grid-template-columns:1fr; } }

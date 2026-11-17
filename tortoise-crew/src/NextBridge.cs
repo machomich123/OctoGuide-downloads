@@ -31,15 +31,17 @@ namespace TortoiseCrew
                 if (stream == null) throw new InvalidDataException("Launcher migration bundle was not embedded.");
                 using (var zip = new ZipArchive(stream, ZipArchiveMode.Read, false))
                 {
-                    bool main = false, installer = false, ui = false;
+                    bool main = false, installer = false, ui = false, bootstrap = false;
                     foreach (var entry in zip.Entries)
                     {
                         string item = entry.FullName.Replace('\\', '/');
                         if (item == "src/main.mjs") main = true;
                         if (item == "src/migrate.mjs") installer = true;
                         if (item == "public/index.html") ui = true;
+                        if (item == "bootstrap.mjs") bootstrap = true;
                     }
-                    if (!main || !installer || !ui) throw new InvalidDataException("Migration resources are incomplete.");
+                    if (!main || !installer || !ui || !bootstrap)
+                        throw new InvalidDataException("Migration resources are incomplete.");
                 }
             }
             return true;
