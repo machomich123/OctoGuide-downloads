@@ -328,6 +328,7 @@ test('hidden Windows launcher uses wscript and preserves a recovery shortcut', t
   assert.match(readLink(second), /wscript.exe$/i);
   assert.ok(fs.existsSync(first + '.before-hidden-launch.lnk'));
   assert.match(fs.readFileSync(result.script, 'utf8'), /shell\.Run/i);
+  assert.match(fs.readFileSync(result.script, 'utf8'), /shell\.CurrentDirectory/i);
   assert.ok(hiddenScript(process.execPath, path.join(root, 'bootstrap.mjs')).includes(', 0, False'));
 });
 

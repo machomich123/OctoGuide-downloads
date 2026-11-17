@@ -1,6 +1,6 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.2.1:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.2.2:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires

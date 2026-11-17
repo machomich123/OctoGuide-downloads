@@ -66,6 +66,21 @@ function probe(entry, dataRoot) {
   fs.rmSync(env.CREW_NEXT_DATA_DIR, { recursive: true, force: true });
 }
 
+async function moveDirectory(source, target) {
+  // Windows may temporarily hold an app directory while the browser host,
+  // antivirus scanner or an exiting Node process releases its last handle.
+  let lastError;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    try { fs.renameSync(source, target); return; }
+    catch (error) {
+      if (!['EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error;
+      lastError = error;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+  throw lastError;
+}
+
 export async function applyUpdate(root, remote, {
   download = fetchBytes, allowRunningGame = false,
 } = {}) {
@@ -100,8 +115,8 @@ export async function applyUpdate(root, remote, {
     const backups = path.join(root, 'backups');
     fs.mkdirSync(backups, { recursive: true });
     previous = path.join(backups, 'app-before-' + Date.now() + '-' + crypto.randomUUID());
-    fs.renameSync(app, previous);
-    fs.renameSync(temp, app);
+    await moveDirectory(app, previous);
+    await moveDirectory(temp, app);
     installed = true;
     return { updated: true, oldApp: previous, newVersion: remote.version };
   } catch (error) {
@@ -140,7 +155,7 @@ async function startApp(root) {
   const marker = path.join(root, 'startup-proof.json');
   if (fs.existsSync(marker)) fs.unlinkSync(marker);
   const child = spawn(process.execPath, [path.join(app, 'src', 'main.mjs')], {
-    cwd: app, detached: true, stdio: 'ignore', windowsHide: true,
+    cwd: root, detached: true, stdio: 'ignore', windowsHide: true,
   });
   await new Promise((resolve, reject) => {
     child.once('spawn', resolve);
@@ -163,6 +178,9 @@ async function startApp(root) {
 }
 
 export async function boot(root = ROOT, { download = fetchBytes } = {}) {
+  // The launcher is installed under root/app; holding that directory as the
+  // bootstrap's process working directory makes fs.renameSync fail on Windows.
+  process.chdir(root);
   const app = path.join(root, 'app');
   const restarting = path.join(root, 'restart-pending.json');
   if (fs.existsSync(restarting)) {
