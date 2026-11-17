@@ -428,9 +428,10 @@ test('old Turtle catalog parses all valid GitHub and GitLab listings', async t =
   fs.writeFileSync(path.join(legacy, 'addon-registry.json'), text);
   const { items } = await loadCatalog({ root: path.join(root, 'next'), legacy,
     fetchText: async () => { throw new Error('Offline fixture'); } });
-  assert.equal(items.length, 2);
-  assert.equal(items[0].name, 'Octoscope');
-  assert.equal(items[1].installable, false);
+  assert.equal(items.length, 3);
+  assert.equal(items[0].name, 'TortoiseBotsManager');
+  assert.equal(items[1].name, 'Octoscope');
+  assert.equal(items[2].installable, false);
   assert.equal(parseRegistry(text).length, 2);
   assert.deepEqual(gitHubRepo('https://github.com/author/Octoscope'),
     { owner: 'author', repo: 'Octoscope', url: 'https://github.com/author/Octoscope' });

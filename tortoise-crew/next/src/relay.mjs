@@ -25,12 +25,13 @@ export function encodeFrame(opcode, data = Buffer.alloc(0)) {
 
 // Strict RFC 6455 decoder for unmasked server frames (with fragmentation).
 export class FrameDecoder {
-  constructor(onBinary, onPing, onClose) {
+  constructor(onBinary, onPing, onClose, onPong = () => {}) {
     this.buffer = Buffer.alloc(0);
     this.fragment = false;
     this.onBinary = onBinary;
     this.onPing = onPing;
     this.onClose = onClose;
+    this.onPong = onPong;
   }
   push(data) {
     this.buffer = Buffer.concat([this.buffer, data]);
@@ -55,9 +56,9 @@ export class FrameDecoder {
       if (this.buffer.length < offset + n) return;
       const payload = this.buffer.subarray(offset, offset + n);
       this.buffer = this.buffer.subarray(offset + n);
-      if (opcode === 8) { this.onClose(); return; }
+      if (opcode === 8) { this.onClose(payload.length >= 2 ? payload.readUInt16BE(0) : 1005); return; }
       if (opcode === 9) { this.onPing(payload); continue; }
-      if (opcode === 10) continue;
+      if (opcode === 10) { this.onPong(payload); continue; }
       if (opcode === 2) {
         if (this.fragment) throw new Error('Nested WebSocket frames.');
         this.fragment = !fin;
@@ -70,7 +71,7 @@ export class FrameDecoder {
   }
 }
 
-export async function connectWebSocket(base, mode, token) {
+export async function connectWebSocket(base, mode, token, { trace = null } = {}) {
   if (!/^[0-9a-f]{64}$/i.test(token) || !['auth', 'world'].includes(mode)) {
     throw new Error('Invalid relay session.');
   }
@@ -79,14 +80,18 @@ export async function connectWebSocket(base, mode, token) {
     const key = crypto.randomBytes(16).toString('base64');
     const accept = crypto.createHash('sha1').update(key + GUID).digest('base64');
     const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: true });
+    socket.setNoDelay(true);
+    socket.setKeepAlive(true, 30000);
+    trace?.bind(socket);
     socket.setTimeout(12000);
     let pending = Buffer.alloc(0), finished = false;
     const fail = error => {
+      trace?.end(error?.code === 'ETIMEDOUT' ? 'handshake_timeout' : 'handshake_error', error);
       if (!finished) { finished = true; reject(error); }
       socket.destroy();
     };
     socket.once('error', fail);
-    socket.once('timeout', () => fail(new Error('Relay handshake timed out.')));
+    socket.once('timeout', () => fail(Object.assign(new Error('Relay handshake timed out.'), { code: 'ETIMEDOUT' })));
     socket.once('secureConnect', () => socket.write([
       'GET /v1/relay/' + mode + ' HTTP/1.1',
       'Host: ' + host, 'Upgrade: websocket', 'Connection: Upgrade',
@@ -107,6 +112,7 @@ export async function connectWebSocket(base, mode, token) {
       socket.off('error', fail);
       socket.setTimeout(0);
       finished = true;
+      trace?.connected();
       resolve({ socket, initial: pending.subarray(end + 4) });
     }
     socket.on('data', receive);
@@ -116,34 +122,51 @@ export async function connectWebSocket(base, mode, token) {
 
 // A binary stream over the existing authenticated TLS relay. No listener or
 // WoW process is needed to prepare a session through this stream.
-export async function openRelayStream(base, mode, token) {
-  const { socket, initial } = await connectWebSocket(base, mode, token);
+export async function openRelayStream(base, mode, token, { diagnostics = null,
+  connect = connectWebSocket } = {}) {
+  const trace = diagnostics?.begin(mode, 'prepared');
+  let connection;
+  try { connection = await connect(base, mode, token, { trace }); }
+  catch (error) { trace?.end('handshake_error', error); throw error; }
+  const { socket, initial } = connection;
+  trace?.bind(socket);trace?.connected();
   const stream = new Duplex({
     read() { socket.resume(); },
     write(bytes, encoding, done) { socket.write(encodeFrame(2, bytes), done); },
-    destroy(error, done) { clearInterval(ping); socket.destroy(); done(error); },
+    destroy(error, done) { trace?.end('stream_destroy', error); clearInterval(ping); socket.destroy(); done(error); },
   });
   const decoder = new FrameDecoder(
     bytes => { if (!stream.push(bytes)) socket.pause(); },
     bytes => socket.write(encodeFrame(10, bytes)),
-    () => stream.destroy(),
+    code => { trace?.end('websocket_close', null, code); stream.destroy(); },
+    payload => trace?.pong(payload),
   );
-  const receive = bytes => { try { decoder.push(bytes); } catch (error) { stream.destroy(error); } };
+  const receive = bytes => { try { decoder.push(bytes); } catch (error) { trace?.end('decode_error', error); stream.destroy(error); } };
   socket.on('data', receive);
-  socket.on('error', error => stream.destroy(error));
-  socket.on('close', () => { stream.push(null); stream.destroy(); });
-  const ping = setInterval(() => { if (!socket.destroyed) socket.write(encodeFrame(9)); }, 20000);
+  socket.on('error', error => { trace?.end('remote_error', error); stream.destroy(error); });
+  socket.on('end', () => { trace?.end('remote_end'); });
+  socket.on('close', () => { trace?.end('remote_close'); stream.push(null); stream.destroy(); });
+  let sequence = 0;
+  const ping = setInterval(() => {
+    if (!socket.destroyed) {
+      const payload = Buffer.allocUnsafe(4);payload.writeUInt32BE(++sequence >>> 0);
+      trace?.ping(payload);socket.write(encodeFrame(9, payload));
+    }
+  }, 20000);
   ping.unref();
+  stream.endDiagnostics = (reason, error = null) => trace?.end(reason, error);
+  stream.bindDiagnosticsClient = client => trace?.bind(socket, client);
   if (initial.length) queueMicrotask(() => receive(initial));
   return stream;
 }
 
 export class GameRelay {
-  constructor(baseUrl, token) {
+  constructor(baseUrl, token, { diagnostics = null, connect = connectWebSocket } = {}) {
     this.baseUrl = baseUrl;
     this.token = token;
     this.listeners = [];
     this.clients = new Set();
+    this.diagnostics = diagnostics;this.connect = connect;this.traces = new Map();
   }
   async start() {
     try {
@@ -165,36 +188,55 @@ export class GameRelay {
   }
   async forward(client, mode) {
     this.clients.add(client);
+    client.setNoDelay?.(true);
+    const trace = this.diagnostics?.begin(mode, 'standard');
+    this.traces.set(client, trace);
     client.pause();
-    let remote, ping;
-    const close = () => {
+    let remote, ping, closed = false;
+    const close = (reason = 'stream_destroy', error = null, code = undefined) => {
+      if (closed) return;closed = true;
+      trace?.end(reason, error, code);
       if (ping) clearInterval(ping);
       client.destroy();
       remote?.destroy();
       this.clients.delete(client);
+      this.traces.delete(client);
     };
+    client.once('end', () => trace?.end('client_end'));
+    client.once('close', () => close('client_close'));
+    client.once('error', error => close('client_error', error));
     try {
-      const connection = await connectWebSocket(this.baseUrl, mode, this.token);
+      const connection = await this.connect(this.baseUrl, mode, this.token, { trace });
       remote = connection.socket;
+      trace?.bind(remote, client);trace?.connected();
+      if (closed || client.destroyed) { remote.destroy();close('client_close');return; }
       const decoder = new FrameDecoder(
         data => { if (!client.write(data)) remote.pause(); },
         data => remote.write(encodeFrame(10, data)),
-        close,
+        code => close('websocket_close', null, code),
+        payload => trace?.pong(payload),
       );
       client.on('data', bytes => { if (!remote.write(encodeFrame(2, bytes))) client.pause(); });
       client.on('drain', () => remote.resume());
       remote.on('drain', () => client.resume());
-      remote.on('data', bytes => { try { decoder.push(bytes); } catch { close(); } });
-      client.once('close', close);
-      remote.once('close', close);
-      client.once('error', close);
-      remote.once('error', close);
-      ping = setInterval(() => { if (!remote.destroyed) remote.write(encodeFrame(9)); }, 20000);
+      remote.on('data', bytes => { try { decoder.push(bytes); } catch (error) { close('decode_error', error); } });
+      remote.once('end', () => trace?.end('remote_end'));
+      remote.once('close', () => close('remote_close'));
+      remote.once('error', error => close('remote_error', error));
+      let sequence = 0;
+      ping = setInterval(() => {
+        if (!remote.destroyed) {
+          const payload = Buffer.allocUnsafe(4);payload.writeUInt32BE(++sequence >>> 0);
+          trace?.ping(payload);remote.write(encodeFrame(9, payload));
+        }
+      }, 20000);
+      ping.unref();
       if (connection.initial.length) decoder.push(connection.initial);
       client.resume();
-    } catch { close(); }
+    } catch (error) { close('handshake_error', error); }
   }
   async stop() {
+    for (const trace of this.traces.values()) trace?.end('launcher_stop');
     for (const client of [...this.clients]) client.destroy();
     this.clients.clear();
     await Promise.all(this.listeners.map(s => new Promise(done => s.close(done))));

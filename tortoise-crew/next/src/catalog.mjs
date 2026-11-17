@@ -4,6 +4,16 @@ import { dataDir, legacyDir } from './config.mjs';
 
 const REGISTRY = 'https://raw.githubusercontent.com/bnema/turtlectl/main/data/addons.json';
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
+const CREW_ADDONS = [{ name: 'TortoiseBotsManager', author: 'Sagiroth',
+  url: 'https://github.com/Sagiroth/TortoiseBotsManager',
+  description: 'In-game TortoiseBots control panel (/tbm) for Tortoise WoW 1.18.1. Requires the server-side TortoiseBots module. Install as Interface/AddOns/TortoiseBotsManager.',
+}];
+
+export function withCrewAddons(items) {
+  const curated = CREW_ADDONS.map(row => normalizeEntry(row, 'Tortoise Crew'));
+  const urls = new Set(curated.map(row => row.url.toLowerCase().replace(/\/$/, '')));
+  return [...curated, ...items.filter(row => !urls.has(row.url.toLowerCase().replace(/\/$/, '')))];
+}
 
 function clipped(value, length = 500) {
   return typeof value === 'string' ? value.slice(0, length) : '';
@@ -88,22 +98,23 @@ export async function loadCatalog({ force = false, root = dataDir(),
   const oldCache = path.join(legacy, 'addon-registry.json');
   if (!force && fs.existsSync(currentCache) &&
       Date.now() - fs.statSync(currentCache).mtimeMs < 24 * 3600 * 1000)
-    return { items: parseRegistry(fs.readFileSync(currentCache, 'utf8')), cached: true };
+    return { items: withCrewAddons(parseRegistry(fs.readFileSync(currentCache, 'utf8'))), cached: true };
   try {
     const contents = await fetchText(REGISTRY, MAX_REGISTRY_BYTES);
     const items = parseRegistry(contents);
     fs.mkdirSync(root, { recursive: true });
     fs.writeFileSync(currentCache + '.new', contents, { mode: 0o600 });
     fs.renameSync(currentCache + '.new', currentCache);
-    return { items, cached: false };
+    return { items: withCrewAddons(items), cached: false };
   } catch (error) {
     for (const old of [currentCache, oldCache]) {
       if (!fs.existsSync(old)) continue;
-      try { return { items: parseRegistry(fs.readFileSync(old, 'utf8')),
+      try { return { items: withCrewAddons(parseRegistry(fs.readFileSync(old, 'utf8'))),
         cached: true, warning: 'Offline: showing the most recent saved catalog.' }; }
       catch { /* Continue to the other saved registry. */ }
     }
-    throw error;
+    return { items: withCrewAddons([]), cached: true,
+      warning: 'Offline: showing bundled Tortoise Crew addons. Refresh to load the community catalog.' };
   }
 }
 

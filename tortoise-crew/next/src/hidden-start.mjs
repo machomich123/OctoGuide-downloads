@@ -21,6 +21,7 @@ export function hiddenScript(node, entry) {
 export function installHiddenShortcuts({
   root = migrationPaths().root, app = path.join(root, 'app'),
   node = process.execPath, shortcuts = migrationPaths(),
+  icon = path.join(app, 'crew.ico'),
 } = {}) {
   if (process.platform !== 'win32') throw new Error('Hidden launcher requires Windows.');
   if (!fs.existsSync(wscript)) throw new Error('Microsoft Windows Script Host is unavailable.');
@@ -41,7 +42,7 @@ export function installHiddenShortcuts({
       } else {
         originals.push({ shortcut, backup: null });
       }
-      nativeShortcut(shortcut, wscript, script, app, path.join(app, 'crew.ico'));
+      nativeShortcut(shortcut, wscript, script, app, icon);
     }
     return { desktop: shortcuts.desktop, start: shortcuts.start,
       shellHost: wscript, script };
