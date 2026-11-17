@@ -13,6 +13,9 @@ import {
 import { encodeFrame, FrameDecoder } from '../src/relay.mjs';
 import { planMigration, migrate, nativeShortcut } from '../src/migrate.mjs';
 import { createServer } from '../src/main.mjs';
+import {
+  browserCandidates, selectAppBrowser, desktopAppArguments,
+} from '../src/desktop-window.mjs';
 import { saveCredential, readCredential } from '../src/secrets.mjs';
 
 function fixture(t) {
@@ -166,4 +169,35 @@ test('Windows creates a real .lnk pointing at signed Node and launcher entrypoin
   assert.equal(output.status, 0, output.stderr);
   assert.ok(output.stdout.toLowerCase().includes(process.execPath.toLowerCase()));
   assert.ok(output.stdout.includes('main.mjs'));
+});
+
+test('app-window selects Edge independent of default browser, with Chrome fallback', () => {
+  const env = {
+    'ProgramFiles(x86)': 'C:\\Program Files (x86)',
+    ProgramFiles: 'C:\\Program Files',
+    LOCALAPPDATA: 'C:\\Users\\Example\\AppData\\Local',
+  };
+  // Use platform-appropriate paths to exercise the selector on CI and locally.
+  const all = browserCandidates(env);
+  const edge = all.find(([name]) => name === 'Microsoft Edge');
+  const chrome = all.find(([name]) => name === 'Google Chrome');
+  assert.ok(edge);
+  assert.ok(chrome);
+  assert.equal(selectAppBrowser(env, file => file === edge[1]).name, 'Microsoft Edge');
+  assert.equal(selectAppBrowser(env, file => file === chrome[1]).name, 'Google Chrome');
+  assert.throws(() => selectAppBrowser(env, () => false), /Install Edge/);
+});
+
+test('app-window uses a local, isolated profile and no browser security overrides', () => {
+  const home = path.resolve('crew-next-test');
+  const url = 'http://127.0.0.1:38493/?key=' + 'a'.repeat(64);
+  const args = desktopAppArguments(url, home);
+  assert.equal(args[0], '--app=' + url);
+  assert.ok(args.some(x => x.startsWith('--user-data-dir=')));
+  assert.ok(args.includes('--no-first-run'));
+  assert.ok(args.every(x => !/disable-web-security|allow-running-insecure|ignore-certificate-errors/i.test(x)));
+  for (const bad of ['https://google.com/', 'http://localhost:38493/?key=' + 'a'.repeat(64),
+    'http://127.0.0.1:38493/?key=invalid', 'http://127.0.0.1:38493/api?key=' + 'a'.repeat(64)]) {
+    assert.throws(() => desktopAppArguments(bad, home));
+  }
 });
