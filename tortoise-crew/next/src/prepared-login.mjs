@@ -53,9 +53,15 @@ export function validateAddonBlob(blob) {
 // exact, non-secret addon handshake, invalidated when its installation changes.
 export class PreparedLogin {
   constructor({ root, game, account, password, url, token, report = () => {},
-    open = mode => openRelayStream(url, mode, token), ttlMs = 90000 }) {
+    diagnostics = null,
+    open = mode => openRelayStream(url, mode, token, { diagnostics }), ttlMs = 90000 }) {
     this.root=root; this.game=game; this.account=account; this.password=password;
-    this.url=url; this.token=token; this.report=report; this.open=open; this.ttlMs=ttlMs;
+    this.url=url; this.token=token; this.report=report; this.ttlMs=ttlMs;
+    this.open=async mode=>{
+      const stream=await open(mode);
+      if(this.gameClient)stream.bindDiagnosticsClient?.(this.gameClient);
+      return stream;
+    };
     this.listeners=[]; this.clients=new Set(); this.localKey=null; this.disposed=false;
     this.attached=false; this.expires=0; this.ready=false; this.world=null;
     this.fallback=false;this.fallbackStreams=new Set();this.started=false;
@@ -126,6 +132,11 @@ export class PreparedLogin {
       const world=await listen(client=>{
         if(this.fallback){void this.forward(client,'world');return;}
         if (!this.localKey || this.attached || this.world.disposed) { client.destroy(); return; }
+        this.gameClient=client;
+        this.world.wire?.io?.stream?.bindDiagnosticsClient?.(client);
+        client.once('end',()=>this.world?.wire?.io?.stream?.endDiagnostics?.('client_end'));
+        client.once('close',()=>this.world?.wire?.io?.stream?.endDiagnostics?.('client_close'));
+        client.once('error',error=>this.world?.wire?.io?.stream?.endDiagnostics?.('client_error',error));
         this.attached=true; clearTimeout(this.expiry);
         void this.world.attach(client,this.localKey).catch(error=>this.report('client-session-ended: '+error.message))
           .finally(()=>{ if(!this.disposed)this.enableFallback(); });
@@ -157,6 +168,7 @@ export class PreparedLogin {
     client.once('error',close);client.once('close',close);
     try {
       remote=await this.open(mode);
+      remote.bindDiagnosticsClient?.(client);
       if(this.disposed || client.destroyed){remote.destroy();return;}
       this.fallbackStreams.add(remote);remote.once('error',close);remote.once('close',close);
       client.pipe(remote).pipe(client);
@@ -164,6 +176,8 @@ export class PreparedLogin {
   }
   async stop() {
     if (this.disposed) return; this.disposed=true;this.ready=false;clearTimeout(this.expiry);
+    this.world?.wire?.io?.stream?.endDiagnostics?.('launcher_stop');
+    for (const stream of this.fallbackStreams) stream.endDiagnostics?.('launcher_stop');
     this.world?.destroy();this.localKey?.fill(0);this.localKey=null;this.password='';this.token='';
     for (const client of this.clients) client.destroy();this.clients.clear();
     for (const stream of this.fallbackStreams) stream.destroy();this.fallbackStreams.clear();

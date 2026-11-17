@@ -6,7 +6,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   ACCOUNTS, NEXT_VERSION, dataDir, legacyDir, loadSettings, saveSettings, validateGameExe,
-  crewBaseUrl, readJson,
+  crewBaseUrl, readJson, writeJsonAtomic,
 } from './config.mjs';
 import { installedAddons, importPlan, importAddons, repairAddons, missingDependencies } from './addons.mjs';
 import { manifest, crewRequest, crewLogin, crewPresence, changePassword } from './remote.mjs';
@@ -27,6 +27,9 @@ import { saveNativeCredential } from './native-vault.mjs';
 import { focusVerifiedGame, revealVerifiedGameSync } from './focus-wow.mjs';
 import { LoginPreflight } from './login-preflight.mjs';
 import { PreparedLogin } from './prepared-login.mjs';
+import { createConnectionDiagnostics } from './connection-diagnostics.mjs';
+import { launcherIconBytes, materializeLauncherIcon, ICON_SHA256 } from './launcher-icon.mjs';
+import { installHiddenShortcuts } from './hidden-start.mjs';
 import {
   clearReadyFile, readyFile, characterReady,
 } from './character-ready.mjs';
@@ -38,6 +41,7 @@ const FILES = new Map([
   ['/main.css', ['main.css', 'text/css; charset=utf-8']],
 ]);
 const root = process.env.CREW_NEXT_DATA_DIR || dataDir();
+const diagnostics = createConnectionDiagnostics(root, { version: NEXT_VERSION });
 const previous = process.env.CREW_LEGACY_DATA_DIR || legacyDir();
 const remembered = readJson(path.join(root, 'verified-account.json'), {});
 const state = { settings: loadSettings(root, previous), game: null, relay: null,
@@ -53,7 +57,7 @@ const preflight = new LoginPreflight({
     if (presence[account] === true || presence[account]?.online)
       throw new Error('This account is already playing. Close its game before preparing another login.');
     return new PreparedLogin({ root, game: path.dirname(state.settings.wowPath),
-      account, password, url, token,
+      account, password, url, token, diagnostics,
       report: (stage, ms) => log('Prepared WoW: ' + stage +
         (ms === undefined ? '' : ' elapsedMs=' + ms)),
     }).prepare();
@@ -233,7 +237,7 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
     saveCredential(root, account, password);
     setAccountPreferences(root, account, { remember: true, useSaved: true }, true);
   }
-  const relay = ticket.prepared || new GameRelay(state.settings.crewApiUrl, ticket.token);
+  const relay = ticket.prepared || new GameRelay(state.settings.crewApiUrl, ticket.token, { diagnostics });
   await relay.start();
   state.relay = relay;
   state.nativeLastError = '';
@@ -362,6 +366,7 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
       nativeHiddenUntilCharacterReady: false };
   } catch (error) {
     await stopGame();
+    await diagnostics.flush();
     throw error;
   }
 }
@@ -444,6 +449,10 @@ async function operate(action, args) {
       if (gameRunning()) throw new Error('Close WoW before restarting the launcher.');
       const script = path.join(root, 'start-hidden.vbs');
       if (!fs.existsSync(script)) throw new Error('Hidden launcher is not installed yet.');
+      state.shuttingDown = true;
+      preflight.invalidate();
+      await stopGame();
+      await diagnostics.flush();
       // Re-launch through the permanent Windows host; bootstrap performs the
       // verified download and rollback after this backend has exited.
       fs.writeFileSync(path.join(root, 'restart-pending.json'),
@@ -581,15 +590,12 @@ export async function createServer() {
         return response.end(contents);
       }
       if (request.method === 'GET' && target.pathname === '/favicon.ico') {
-        const icon = path.join(APP, 'crew.ico');
-        if (fs.existsSync(icon)) {
-          const contents = fs.readFileSync(icon);
+          const contents = launcherIconBytes();
           response.writeHead(200, {
             'Content-Type': 'image/x-icon', 'Content-Length': contents.length,
             'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
           });
           return response.end(contents);
-        }
       }
       return reply(response, 404, { ok: false, error: 'Not found.' });
     } catch (error) {
@@ -628,6 +634,15 @@ async function main() {
     }
     return;
   }
+  try {
+    const icon = materializeLauncherIcon(APP);
+    const marker = path.join(root, 'launcher-icon.json');
+    if (path.relative(root, APP).toLowerCase() === 'app' &&
+        fs.existsSync(path.join(root, 'bootstrap.mjs')) && readJson(marker, {}).sha256 !== ICON_SHA256) {
+      installHiddenShortcuts({ root, app: APP, icon });
+      writeJsonAtomic(marker, { sha256: ICON_SHA256, installedUtc: new Date().toISOString() });
+    }
+  } catch (error) { log('Launcher icon refresh unavailable: ' + error.name); }
   log('Crew Next ' + NEXT_VERSION + ' started on loopback.');
   fs.writeFileSync(path.join(root, 'session.json'),
     JSON.stringify({ pid: process.pid, url, utc: new Date().toISOString() }),
