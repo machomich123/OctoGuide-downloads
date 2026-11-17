@@ -1,6 +1,6 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.3.3:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.3.4:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires
@@ -50,6 +50,15 @@ no browser tabs or address bar, independent of the system default browser.
   path, so the helper permits an unreadable path for its verified child PID
   while still checking the process name and foreground window ownership.
   No VanillaFixes, ClassicAPI, MPQ patch or new unsigned EXE is necessary.
+- Faster auto-login: use supported Windows foreground APIs with a short,
+  bounded focus retry before relying on the old AppActivate fallback. The
+  helper no longer sleeps 4.7 seconds after WoW first displays its window;
+  it checks input readiness and allows the GlueXML interface a shorter
+  settling interval. Password + Enter are sent in one escaped SendKeys batch,
+  instead of one blocking SendWait call for every character. It still refuses
+  to type if the game does not own the active window. Windows can refuse
+  foreground activation depending on its focus policy; a click may still be
+  necessary in that case. No changes to security policy are made.
 - A separate migration helper that stages the new application, performs a
   loopback UI probe, creates desktop/Start Menu shortcuts and restores originals
   after a failed migration. Default use is a dry run.
