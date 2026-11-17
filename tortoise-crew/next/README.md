@@ -1,6 +1,6 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.3.0:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.3.1:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires
@@ -39,6 +39,15 @@ no browser tabs or address bar, independent of the system default browser.
   for each of the four accounts. Passwords remain encrypted via Windows DPAPI.
 - After launching WoW, the dedicated launcher window closes; Node and the
   authenticated game relay continue running until WoW exits.
+- Automatic game login, on by default and optional per account: the launcher
+  authenticates through Crew HTTPS, launches the original WoW.exe and waits
+  for that exact process to own the foreground window. A Windows-hosted
+  helper enters account + password + Enter using normal keyboard input.
+  Passwords travel only through the helper's stdin, never command-line
+  arguments, the clipboard, Config.wtf or launcher logs. With auto-login on,
+  the remembered-account hint is cleared so Vanilla/Octo GlueXML focus the
+  account field. If the window is not safely focused, manual login remains.
+  No VanillaFixes, ClassicAPI, MPQ patch or new unsigned EXE is necessary.
 - A separate migration helper that stages the new application, performs a
   loopback UI probe, creates desktop/Start Menu shortcuts and restores originals
   after a failed migration. Default use is a dry run.
@@ -100,7 +109,10 @@ that any future unsigned EXE would be accepted on other computers.
 
 ## Remaining release criteria
 
-1. Verify real WoW login, realm entry, relay lifetime and graceful exit.
+1. Verify auto-login in a real WoW 1.18.1 session, realm entry and relay
+   lifetime on each family PC. Automated tests validate helper launch,
+   Windows policy acceptance, input-focus checks and config changes, but
+   do not prove credentials were accepted by a live game instance.
 2. Verify first-run migration and browser host policy on JAYKE, BERNARD and
    AUGUST's own Windows machines; a successful test on one PC does not certify
    the others.

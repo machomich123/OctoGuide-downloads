@@ -18,6 +18,7 @@ import { installFromGitHub } from './github-addons.mjs';
 import { accountPreferences, setAccountPreferences } from './preferences.mjs';
 import { addonDetails, imageData } from './addon-details.mjs';
 import { closeAppWindow } from './close-app.mjs';
+import { startAutoLogin } from './wow-autologin.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = new Map([
@@ -73,14 +74,17 @@ function backedUp(file, contents) {
   }
   fs.writeFileSync(file, contents, { encoding: 'utf8' });
 }
-function configureGame(game, user) {
+export function configureGame(game, user, autoLogin = false) {
   if (!ACCOUNTS.includes(user)) throw new Error('Unknown account.');
   backedUp(path.join(game, 'realmlist.wtf'), 'set realmlist 127.0.0.1\r\n');
   const folder = path.join(game, 'WTF');
   fs.mkdirSync(folder, { recursive: true });
   const config = path.join(folder, 'Config.wtf');
   const previousText = fs.existsSync(config) ? fs.readFileSync(config, 'utf8') : '';
-  const newLine = 'SET accountName "' + user + '"';
+  // The client's stock/Octo GlueXML may focus password if a remembered
+  // account exists. With auto-login, clear that hint so it focuses username;
+  // the verified Windows helper types both fields and presses Enter.
+  const newLine = 'SET accountName "' + (autoLogin ? '' : user) + '"';
   const text = /^\s*SET\s+accountName\s+.*$/im.test(previousText) ?
     previousText.replace(/^\s*SET\s+accountName\s+.*$/gim, newLine) :
     previousText.replace(/[\r\n]*$/, '\r\n') + newLine + '\r\n';
@@ -93,7 +97,7 @@ async function stopGame() {
     await relay.stop();
   }
 }
-async function play(account, password, remember, closeOnPlay = true) {
+async function play(account, password, remember, closeOnPlay = true, autoLogin = true) {
   if (gameRunning()) throw new Error('WoW is already running from this launcher.');
   if (!ACCOUNTS.includes(account) || !state.settings.crewApiUrl) throw new Error('Choose an account and Crew service.');
   const gameDir = verifyPath();
@@ -111,7 +115,7 @@ async function play(account, password, remember, closeOnPlay = true) {
   await relay.start();
   state.relay = relay;
   try {
-    configureGame(gameDir, account);
+    configureGame(gameDir, account, autoLogin);
     const child = spawn(state.settings.wowPath, [], {
       cwd: gameDir, windowsHide: false, stdio: 'ignore',
     });
@@ -151,6 +155,22 @@ async function play(account, password, remember, closeOnPlay = true) {
       state.game = null;
       void stopGame();
     });
+    if (autoLogin) {
+      // The signed Windows helper waits until *this* WoW process has an active
+      // window. It never receives credentials via command-line arguments.
+      // If focus cannot be verified, WoW stays open for manual login.
+      try {
+        const login = startAutoLogin({
+          pid: child.pid, exe: state.settings.wowPath,
+          account, password,
+        }, outcome => log('WoW auto-login result: ' + outcome));
+        child.once('exit', () => {
+          if (login.exitCode === null) login.kill();
+        });
+      } catch (error) {
+        log('WoW auto-login unavailable: ' + error.name);
+      }
+    }
     if (closeOnPlay) {
       // Close only the dedicated Edge/Chrome app window. The backend and game
       // relay must remain running while WoW is open.
@@ -160,7 +180,7 @@ async function play(account, password, remember, closeOnPlay = true) {
         }); } catch (error) { log('App window close deferred: ' + error.name); }
       }, 350);
     }
-    return { started: true };
+    return { started: true, autoLoginRequested: autoLogin };
   } catch (error) {
     await stopGame();
     throw error;
@@ -245,9 +265,11 @@ async function operate(action, args) {
       const prefs = setAccountPreferences(root, account, {
         remember: args.remember === true,
         useSaved: args.useSaved === true,
+        autoLogin: args.autoLogin !== false,
         closeOnPlay: args.closeOnPlay !== false,
       }, storedAccounts(root).includes(account));
-      return await play(account, password, prefs.remember, prefs.closeOnPlay);
+      return await play(account, password, prefs.remember, prefs.closeOnPlay,
+        prefs.autoLogin);
     }
     case 'changePassword': {
       const account = state.settings.username;

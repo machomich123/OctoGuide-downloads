@@ -40,10 +40,11 @@
           <label>GAME PASSWORD<input type="password" id="password" autocomplete="current-password" placeholder="Your existing game password" maxlength="16"></label>
           <label class="check"><input type="checkbox" id="useSaved"> Use locally encrypted password for the selected account</label>
           <label class="check"><input type="checkbox" id="remember"> Save successfully verified password on this Windows profile</label>
+          <label class="check"><input type="checkbox" id="autoLogin" checked> Auto-login to WoW using the saved game password</label>
           <label class="check"><input type="checkbox" id="closeOnPlay" checked> Close the launcher window when WoW starts</label>
           <p id="wowLocation" class="footnote">No WoW.exe selected</p>
           <button id="play" class="primary">▶ &nbsp; PLAY TORTOISE WOW</button>
-          <p class="footnote">The game login screen remains manual for now. Saved passwords are protected by Windows, never written into WoW configuration files.</p>
+          <p class="footnote">When auto-login is enabled, the launcher enters your password in the verified WoW window. It remains Windows-encrypted between sessions. If the game cannot accept automated input, you can still log in manually.</p>
         </div>
       </section>
       <section id="addons" class="panel">
