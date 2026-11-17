@@ -102,8 +102,9 @@ function addSetting(entry, value) {
   state.settings = saveSettings(root, next);
 }
 
-function prepareSavedAccount() {
+function prepareSavedAccount(force = false) {
   if (gameRunning()) return;
+  if (!force && preflight.status(state.settings.username).status === 'verifying') return;
   state.lastPrepareAttempt = Date.now();
   const account = state.settings.username;
   preflight.invalidate();
@@ -144,8 +145,8 @@ function prepareSavedAccount() {
   // All work happens in the launcher; this never starts a game process.
   void preflight.prepare({
     account, password, url: state.settings.crewApiUrl, native, fromSaved: true,
-  }).then(() => log('Launcher account verified and credentials prepared.'))
-    .catch(error => log('Launcher preflight unavailable: ' + error.name));
+  }).then(result => { if (result.verified) log('Launcher account verified and credentials prepared.'); })
+    .catch(error => log('Launcher preflight unavailable: ' + error.message));
 }
 
 function backedUp(file, contents) {
@@ -396,18 +397,18 @@ async function operate(action, args) {
       return { browserLoaded: true };
     case 'setAccount':
       addSetting('username', String(args.username || '').toUpperCase());
-      prepareSavedAccount();
+      prepareSavedAccount(true);
       return { settings: state.settings };
     case 'setPreferences': {
       const account = String(args.account || '').toUpperCase();
       const preferences = setAccountPreferences(root, account, args.values,
         storedAccounts(root).includes(account));
-      if (account === state.settings.username) prepareSavedAccount();
+      if (account === state.settings.username) prepareSavedAccount(true);
       return { preferences };
     }
     case 'setClient':
       addSetting('wowPath', String(args.wowPath || ''));
-      prepareSavedAccount();
+      prepareSavedAccount(true);
       return { settings: state.settings };
     case 'installNativeInstant':
       return installNativeInstant(verifyPath(), root, { gameRunning });
@@ -485,7 +486,7 @@ async function operate(action, args) {
         String(args.current || ''), String(args.desired || ''));
       saveCredential(root, account, String(args.desired));
       setAccountPreferences(root, account, { remember: true, useSaved: true }, true);
-      prepareSavedAccount();
+      prepareSavedAccount(true);
       return { changed: true };
     }
     case 'installed':
