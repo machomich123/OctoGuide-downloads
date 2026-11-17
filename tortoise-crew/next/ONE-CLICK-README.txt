@@ -11,6 +11,20 @@ from EXE v1.0.13 and it does not update itself, do this ONCE:
 4. Afterwards use the normal Tortoise Crew desktop shortcut. Future
    source updates are checked on GitHub automatically.
 
+Run this once on EACH Windows PC/profile (BERNARD, JAYKE and AUGUST too).
+Installing an update on MICHAEL's PC cannot update the other PCs remotely.
+The existing game installation, account settings and password vault are kept.
+The Desktop and Start Menu shortcuts are replaced by the app-window launcher,
+with the selected B3 icon. A OneDrive/redirected Windows Desktop is supported.
+
+After upgrading, check Settings for installed launcher version 0.3.7 or newer.
+The older screen's "Official EXE version: 1.0.14" footer is NOT the version of
+its browser application. Do not reopen an old launcher tab or browser bookmark;
+use the updated desktop shortcut. The new window has no browser tabs/address bar.
+If an older launcher is pinned to the taskbar, unpin that old item and pin the
+new app instead. Future updates require closing WoW/the launcher, then opening
+the normal shortcut again; no repeat migration is needed.
+
 If you still have the original EXE launcher and it offers v1.0.14,
 use that built-in update instead; no .cmd is needed.
 
