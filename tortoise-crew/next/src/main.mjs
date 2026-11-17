@@ -81,10 +81,9 @@ export function configureGame(game, user, autoLogin = false) {
   fs.mkdirSync(folder, { recursive: true });
   const config = path.join(folder, 'Config.wtf');
   const previousText = fs.existsSync(config) ? fs.readFileSync(config, 'utf8') : '';
-  // The client's stock/Octo GlueXML may focus password if a remembered
-  // account exists. With auto-login, clear that hint so it focuses username;
-  // the verified Windows helper types both fields and presses Enter.
-  const newLine = 'SET accountName "' + (autoLogin ? '' : user) + '"';
+  // Preserve WoW's Remember Username setting. An empty accountName
+  // disables the checkbox and removes the prefilled username.
+  const newLine = 'SET accountName "' + user + '"';
   const text = /^\s*SET\s+accountName\s+.*$/im.test(previousText) ?
     previousText.replace(/^\s*SET\s+accountName\s+.*$/gim, newLine) :
     previousText.replace(/[\r\n]*$/, '\r\n') + newLine + '\r\n';

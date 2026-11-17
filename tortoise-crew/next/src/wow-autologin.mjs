@@ -33,7 +33,10 @@ const SCRIPT = [
   '$shell = New-Object -ComObject WScript.Shell',
   'function GameWindow {',
   '  $p = Get-Process -Id $gameId -ErrorAction SilentlyContinue',
-  '  if ($null -eq $p -or $p.HasExited -or -not [string]::Equals($p.Path, $exe, [StringComparison]::OrdinalIgnoreCase)) { return [IntPtr]::Zero }',
+  '  if ($null -eq $p -or $p.HasExited -or $p.ProcessName -ne "WoW") { return [IntPtr]::Zero }',
+  '  $resolvedPath = ""',
+  '  try { $resolvedPath = [string]$p.Path } catch { }',
+  '  if ($resolvedPath -and -not [string]::Equals($resolvedPath, $exe, [StringComparison]::OrdinalIgnoreCase)) { return [IntPtr]::Zero }',
   '  return [IntPtr]$p.MainWindowHandle',
   '}',
   'function GameHasFocus {',
@@ -71,17 +74,8 @@ const SCRIPT = [
   '  Start-Sleep -Milliseconds 220',
   '}',
   'if (-not (GameHasFocus)) { Write-Output "NOT_FOREGROUND"; exit 12 }',
-  '# The launcher clears the remembered name before auto-login.',
-  '# Vanilla and the Octo account manager then focus the account field.',
-  '[System.Windows.Forms.SendKeys]::SendWait("^a")',
-  'foreach ($letter in $account.ToCharArray()) {',
-  '  if (-not (GameHasFocus)) { Write-Output "FOCUS_LOST"; exit 13 }',
-  '  [System.Windows.Forms.SendKeys]::SendWait((EncodeKey $letter))',
-  '}',
-  'if (-not (GameHasFocus)) { Write-Output "FOCUS_LOST"; exit 14 }',
-  '[System.Windows.Forms.SendKeys]::SendWait("{TAB}")',
-  'Start-Sleep -Milliseconds 130',
-  'if (-not (GameHasFocus)) { Write-Output "FOCUS_LOST"; exit 15 }',
+  '# The launcher preserves the remembered account name.',
+  '# Vanilla normally focuses the password box when an account is remembered.',
   '[System.Windows.Forms.SendKeys]::SendWait("^a")',
   'foreach ($letter in $password.ToCharArray()) {',
   '  if (-not (GameHasFocus)) { Write-Output "FOCUS_LOST"; exit 16 }',
@@ -122,8 +116,11 @@ export function startAutoLogin(request, onResult = () => {}) {
   child.stdout.on('data', bytes => { feedback += bytes.toString('utf8').slice(0, 64); });
   child.stderr.on('data', () => {}); // stderr must not expose credentials.
   child.once('error', () => finish('helper-unavailable'));
-  child.once('close', code => finish(
-    code === 0 && feedback.includes('LOGIN_KEYS_SENT') ? 'keys-sent' : 'manual-login-needed'));
+  child.once('close', code => {
+    const message = /NO_WOW_WINDOW|NOT_FOREGROUND|FOCUS_LOST|LOGIN_KEYS_SENT/.exec(feedback)?.[0];
+    finish(code === 0 && message === 'LOGIN_KEYS_SENT' ?
+      'keys-sent' : 'manual-login-needed-' + (message || 'code-' + String(code)).toLowerCase());
+  });
   child.stdin.on('error', () => {});
   child.stdin.end(JSON.stringify({
     pid: request.pid, exe: request.exe,

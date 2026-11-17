@@ -1,6 +1,6 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.3.1:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.3.2:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires
@@ -41,12 +41,14 @@ no browser tabs or address bar, independent of the system default browser.
   authenticated game relay continue running until WoW exits.
 - Automatic game login, on by default and optional per account: the launcher
   authenticates through Crew HTTPS, launches the original WoW.exe and waits
-  for that exact process to own the foreground window. A Windows-hosted
-  helper enters account + password + Enter using normal keyboard input.
+  for its exact process to own the foreground window. It preserves the
+  remembered account name so Vanilla/Octo GlueXML can focus the password
+  field; the Windows-hosted helper enters only the password and presses Enter.
   Passwords travel only through the helper's stdin, never command-line
-  arguments, the clipboard, Config.wtf or launcher logs. With auto-login on,
-  the remembered-account hint is cleared so Vanilla/Octo GlueXML focus the
-  account field. If the window is not safely focused, manual login remains.
+  arguments, the clipboard, Config.wtf or launcher logs. If the window is not
+  safely focused, manual login remains. Windows may hide WoW's executable
+  path, so the helper permits an unreadable path for its verified child PID
+  while still checking the process name and foreground window ownership.
   No VanillaFixes, ClassicAPI, MPQ patch or new unsigned EXE is necessary.
 - A separate migration helper that stages the new application, performs a
   loopback UI probe, creates desktop/Start Menu shortcuts and restores originals
