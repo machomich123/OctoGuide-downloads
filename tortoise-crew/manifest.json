@@ -1,16 +1,16 @@
 {
-  "launcherVersion": "1.0.13",
+  "launcherVersion": "1.0.14",
   "launcherUrl": "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/TortoiseCrewLauncher.exe",
-  "launcherSha256": "1D0D809AB8E4C66D6755E1C5B8B5ED8D87C9EFC909DB839E4FFEEB83165D9FDA",
+  "launcherSha256": "978BAE0DD8214BDD258604D5FE4A3AB31042EF99D48EA8F38CBBB7A87B0F608F",
   "host": "us-iad01.altare.global",
   "sshPort": 25034,
   "authPort": 3724,
   "worldPort": 8085,
-  "message": "v1.0.13: migrate to Tortoise Crew Next with local Node UI and guarded shortcuts; keep the previous launcher for recovery.",
+  "message": "v1.0.14: one-click migration from classic EXE to Crew Next 0.3.0 app-window with hidden background service and GitHub updates.",
   "crewApiUrl": "https://helmet-trunk-marie-jerry.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
-  "windowsPolicyVerifiedSha256": "1D0D809AB8E4C66D6755E1C5B8B5ED8D87C9EFC909DB839E4FFEEB83165D9FDA",
-  "windowsTestedSha256": "1D0D809AB8E4C66D6755E1C5B8B5ED8D87C9EFC909DB839E4FFEEB83165D9FDA",
-  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/43975718861"
+  "windowsPolicyVerifiedSha256": "978BAE0DD8214BDD258604D5FE4A3AB31042EF99D48EA8F38CBBB7A87B0F608F",
+  "windowsTestedSha256": "978BAE0DD8214BDD258604D5FE4A3AB31042EF99D48EA8F38CBBB7A87B0F608F",
+  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/44055567498"
 }
