@@ -13,7 +13,7 @@ import {
 } from '../src/addons.mjs';
 import { encodeFrame, FrameDecoder } from '../src/relay.mjs';
 import { planMigration, migrate, nativeShortcut } from '../src/migrate.mjs';
-import { createServer } from '../src/main.mjs';
+import { createServer, configureGame } from '../src/main.mjs';
 import {
   browserCandidates, selectAppBrowser, desktopAppArguments,
 } from '../src/desktop-window.mjs';
@@ -26,6 +26,7 @@ import { compareVersion, validateUpdateManifest, applyUpdate } from '../bootstra
 import { installOnce } from '../install-once.mjs';
 import { accountPreferences, setAccountPreferences } from '../src/preferences.mjs';
 import { addonDetails, githubReadmeImages, allowedImageUrl, imageData } from '../src/addon-details.mjs';
+import { validateAutoLoginRequest, loginHelperSource } from '../src/wow-autologin.mjs';
 const RELEASE_VERSION = JSON.parse(fs.readFileSync(
   path.resolve('tortoise-crew', 'next', 'package.json'), 'utf8')).version;
 
@@ -380,12 +381,88 @@ test('saved-password and close-on-play choices persist by account across restart
     remember: true, useSaved: true, closeOnPlay: true,
   }, true);
   assert.deepEqual(accountPreferences(root, 'MICHAEL', true),
-    { remember: true, useSaved: true, autoLogin: false, closeOnPlay: true });
+    { remember: true, useSaved: true, autoLogin: true, closeOnPlay: true });
   assert.equal(accountPreferences(root, 'BERNARD', false).remember, false);
   assert.equal(accountPreferences(root, 'MICHAEL', false).useSaved, false);
   const json = fs.readFileSync(path.join(root, 'account-preferences.json'), 'utf8');
   assert.doesNotMatch(json, /password|token|secret/i);
   assert.throws(() => setAccountPreferences(root, 'MICHAEL', { unexpected: true }));
+});
+
+test('auto-login defaults on, migrates legacy placeholder false and honors later opt-out', t => {
+  const root = fixture(t);
+  fs.writeFileSync(path.join(root, 'account-preferences.json'),
+    JSON.stringify({ MICHAEL: { remember: true, useSaved: true, autoLogin: false } }));
+  assert.equal(accountPreferences(root, 'MICHAEL', true).autoLogin, true);
+  setAccountPreferences(root, 'MICHAEL', { autoLogin: false }, true);
+  assert.equal(accountPreferences(root, 'MICHAEL', true).autoLogin, false);
+  setAccountPreferences(root, 'MICHAEL', { autoLogin: true }, true);
+  assert.equal(accountPreferences(root, 'MICHAEL', true).autoLogin, true);
+  assert.equal(accountPreferences(root, 'BERNARD', false).autoLogin, true);
+});
+
+test('Windows auto-login checks the exact game process and keeps secrets off argv', () => {
+  const request = {
+    pid: 1234, exe: path.resolve('test', 'WoW.exe'),
+    account: 'BERNARD', password: 'A+b^c%{ }',
+  };
+  if (process.platform === 'win32') {
+    assert.doesNotThrow(() => validateAutoLoginRequest(request));
+  }
+  assert.throws(() => validateAutoLoginRequest({ ...request, account: 'STRANGER' }));
+  assert.throws(() => validateAutoLoginRequest({ ...request, exe: 'not-wow.exe' }));
+  assert.throws(() => validateAutoLoginRequest({ ...request, password: 'a\nb' }));
+  assert.throws(() => validateAutoLoginRequest({ ...request, password: 'x'.repeat(17) }));
+  const script = loginHelperSource();
+  assert.match(script, /GetWindowThreadProcessId/);
+  assert.match(script, /GetForegroundWindow/);
+  assert.match(script, /GameHasFocus/);
+  assert.match(script, /AppActivate/);
+  assert.match(script, /\{ENTER\}/);
+  assert.doesNotMatch(script, /Set-Content|Out-File|Add-Content|Clipboard|CredWrite|Invoke-WebRequest/);
+});
+
+test('auto-login PowerShell syntax parses without opening a game or window', () => {
+  if (process.platform !== 'win32') return;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive',
+    '-Command', [
+      '$tokens=$null; $errors=$null;',
+      '[void][System.Management.Automation.Language.Parser]::ParseInput(',
+      '[Console]::In.ReadToEnd(),[ref]$tokens,[ref]$errors);',
+      'if($errors.Count) { $errors|ForEach-Object{$_.Message};exit 1 }',
+      '"PS_SCRIPT_SYNTAX_OK"',
+    ].join(' ')], {
+      input: loginHelperSource(), encoding: 'utf8', windowsHide: true, timeout: 9000,
+    });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /PS_SCRIPT_SYNTAX_OK/);
+});
+
+test('signed Windows host accepts auto-login helper without sending input', () => {
+  if (process.platform !== 'win32') return;
+  const result = spawnSync('powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Sta', '-Command', loginHelperSource()], {
+      input: JSON.stringify({ probe: true }),
+      encoding: 'utf8', windowsHide: true, timeout: 18000,
+    });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /HELPER_PROBE_OK/);
+});
+
+test('auto-login clears username hint but never puts the password in game config', t => {
+  const root = fixture(t), gameDir = path.join(root, 'client');
+  const folder = path.join(gameDir, 'WTF');
+  fs.mkdirSync(folder, { recursive: true });
+  const config = path.join(folder, 'Config.wtf');
+  fs.writeFileSync(config, 'SET accountName "AUGUST"\r\nSET screenshotQuality "8"\r\n');
+  configureGame(gameDir, 'MICHAEL', true);
+  const contents = fs.readFileSync(config, 'utf8');
+  assert.match(contents, /SET accountName ""/);
+  assert.match(contents, /SET screenshotQuality "8"/);
+  assert.doesNotMatch(contents, /password|secret/i);
+  assert.match(fs.readFileSync(config + '.crew-backup', 'utf8'), /AUGUST/);
+  configureGame(gameDir, 'JAYKE', false);
+  assert.match(fs.readFileSync(config, 'utf8'), /SET accountName "JAYKE"/);
 });
 
 test('README extracts Markdown and HTML screenshot links without unsafe hosts', () => {

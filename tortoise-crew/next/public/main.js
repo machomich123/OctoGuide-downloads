@@ -74,21 +74,24 @@ function applyAccountPreferences() {
   $('remember').checked = prefs.remember ?? saved;
   $('useSaved').checked = saved && (prefs.useSaved ?? true);
   $('useSaved').disabled = !saved;
+  $('autoLogin').checked = prefs.autoLogin !== false;
   $('closeOnPlay').checked = prefs.closeOnPlay !== false;
 }
 async function saveAccountPreferences() {
   const values = { remember: $('remember').checked,
-    useSaved: $('useSaved').checked, closeOnPlay: $('closeOnPlay').checked };
+    useSaved: $('useSaved').checked, autoLogin: $('autoLogin').checked,
+    closeOnPlay: $('closeOnPlay').checked };
   const result = await api('setPreferences', { account: account(), values });
   accountPreferenceMap[account()] = result.preferences;
 }
-for (const field of ['remember', 'useSaved', 'closeOnPlay'])
+for (const field of ['remember', 'useSaved', 'autoLogin', 'closeOnPlay'])
   $(field).addEventListener('change', () =>
     saveAccountPreferences().catch(error => message(error.message, true)));
 protect($('refreshPresence'), updatePresence);
 protect($('play'), async () => {
   await run('play', { username: account(), password: $('password').value,
     remember: $('remember').checked, useSaved: $('useSaved').checked,
+    autoLogin: $('autoLogin').checked,
     closeOnPlay: $('closeOnPlay').checked }, 'Game launch');
   $('password').value = '';
   if ($('remember').checked) {
