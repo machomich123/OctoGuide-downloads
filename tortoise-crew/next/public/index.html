@@ -40,9 +40,10 @@
           <label>GAME PASSWORD<input type="password" id="password" autocomplete="current-password" placeholder="Your existing game password" maxlength="16"></label>
           <label class="check"><input type="checkbox" id="useSaved"> Use locally encrypted password for the selected account</label>
           <label class="check"><input type="checkbox" id="remember"> Save successfully verified password on this Windows profile</label>
+          <label class="check"><input type="checkbox" id="closeOnPlay" checked> Close the launcher window when WoW starts</label>
           <p id="wowLocation" class="footnote">No WoW.exe selected</p>
           <button id="play" class="primary">▶ &nbsp; PLAY TORTOISE WOW</button>
-          <p class="footnote">The login screen remains manual. No DLL injection, keyboard automation, or password arguments.</p>
+          <p class="footnote">The game login screen remains manual for now. Saved passwords are protected by Windows, never written into WoW configuration files.</p>
         </div>
       </section>
       <section id="addons" class="panel">
@@ -84,12 +85,21 @@
           </div>
         </div>
         <dialog id="addonDetails" class="addon-details">
-          <div class="actions" style="justify-content:space-between;align-items:center">
-            <h2 id="detailTitle">Addon details</h2><button id="closeAddonDetails" class="small">Close</button>
+          <div class="detail-head">
+            <div><h2 id="detailTitle">Addon details</h2><p id="detailDescription"></p></div>
+            <button id="closeAddonDetails" class="small">Close</button>
           </div>
-          <p id="detailDescription"></p><p id="detailMetadata" class="addon-meta"></p>
-          <p><a id="detailSource" target="_blank" rel="noopener noreferrer">Open source repository</a></p>
-          <div class="actions"><button id="detailInstall" class="primary">Install addon</button></div>
+          <div id="detailMetadata" class="detail-stats"></div>
+          <div class="detail-actions">
+            <a id="detailSource" target="_blank" rel="noopener noreferrer">Open source repository</a>
+            <button id="detailInstall" class="primary">Install safely</button>
+          </div>
+          <h3>Screenshots</h3>
+          <p id="detailGalleryMessage" class="footnote">Loading screenshots…</p>
+          <div id="detailGallery" class="detail-gallery"></div>
+          <h3>README · documentation</h3>
+          <p id="detailReadmeStatus" class="footnote">Loading full GitHub README…</p>
+          <div id="detailReadme" class="detail-readme"></div>
         </dialog>
       </section>
       <section id="settings" class="panel">

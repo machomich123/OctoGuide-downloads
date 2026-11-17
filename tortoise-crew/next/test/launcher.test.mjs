@@ -24,6 +24,8 @@ import { collectAddonFolders, installFromGitHub } from '../src/github-addons.mjs
 import { hiddenScript, installHiddenShortcuts } from '../src/hidden-start.mjs';
 import { compareVersion, validateUpdateManifest, applyUpdate } from '../bootstrap.mjs';
 import { installOnce } from '../install-once.mjs';
+import { accountPreferences, setAccountPreferences } from '../src/preferences.mjs';
+import { addonDetails, githubReadmeImages, allowedImageUrl, imageData } from '../src/addon-details.mjs';
 const RELEASE_VERSION = JSON.parse(fs.readFileSync(
   path.resolve('tortoise-crew', 'next', 'package.json'), 'utf8')).version;
 
@@ -357,8 +359,8 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
     root, start: false, shortcuts: { desktop: d, start: s },
     download: async url => {
       if (url.includes('update.json?nonce=')) return Buffer.from(JSON.stringify(manifest));
-      if (url.endsWith('bootstrap.mjs')) return boot;
-      if (url.endsWith('/safe-zip.mjs')) return extractor;
+      if (url.includes('bootstrap.mjs?nonce=')) return boot;
+      if (url.includes('/safe-zip.mjs?nonce=')) return extractor;
       if (url.endsWith('.zip')) return archive;
       throw new Error('Unexpected fixture URL.');
     },
@@ -368,4 +370,62 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
   assert.ok(fs.existsSync(path.join(root, 'start-hidden.vbs')));
   assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, RELEASE_VERSION);
   assert.ok(fs.existsSync(path.join(result.backup, 'src', 'main.mjs')));
+});
+
+test('saved-password and close-on-play choices persist by account across restarts', t => {
+  const root = fixture(t);
+  assert.equal(accountPreferences(root, 'MICHAEL', false).closeOnPlay, true);
+  assert.equal(accountPreferences(root, 'MICHAEL', true).useSaved, true);
+  setAccountPreferences(root, 'MICHAEL', {
+    remember: true, useSaved: true, closeOnPlay: true,
+  }, true);
+  assert.deepEqual(accountPreferences(root, 'MICHAEL', true),
+    { remember: true, useSaved: true, autoLogin: false, closeOnPlay: true });
+  assert.equal(accountPreferences(root, 'BERNARD', false).remember, false);
+  assert.equal(accountPreferences(root, 'MICHAEL', false).useSaved, false);
+  const json = fs.readFileSync(path.join(root, 'account-preferences.json'), 'utf8');
+  assert.doesNotMatch(json, /password|token|secret/i);
+  assert.throws(() => setAccountPreferences(root, 'MICHAEL', { unexpected: true }));
+});
+
+test('README extracts Markdown and HTML screenshot links without unsafe hosts', () => {
+  const repo = gitHubRepo('https://github.com/shagu/ShaguTweaks');
+  const markdown = '# Tweak\n![Settings](screenshots/settings.jpg)\n' +
+    '<img src="screenshots/menu.jpg">\n![external](https://evil.example/img.png)\n' +
+    '![other][screen]\n[screen]: screenshots/other.png';
+  const urls = githubReadmeImages(markdown, repo, 'master');
+  assert.equal(urls.length, 3);
+  assert.equal(urls[0], 'https://raw.githubusercontent.com/shagu/ShaguTweaks/master/screenshots/settings.jpg');
+  assert.ok(urls.some(x => x.endsWith('/screenshots/menu.jpg')));
+  assert.equal(allowedImageUrl('http://127.0.0.1/secret.png'), null);
+  assert.equal(allowedImageUrl('https://evil.example/screen.png'), null);
+});
+
+test('full addon details contain metadata, README, screenshots and safe image data', async () => {
+  const body = Buffer.from('# Demo\n![Screen](screenshots/a.png)').toString('base64');
+  const fetcher = async url => ({
+    ok: true, status: 200,
+    text: async () => JSON.stringify(url.endsWith('/readme') ?
+      { encoding: 'base64', content: body } : {
+        name: 'Demo', description: 'Complete description',
+        default_branch: 'main', owner: { login: 'example' },
+        stargazers_count: 17, forks_count: 5, topics: ['vanilla'],
+        license: { spdx_id: 'MIT' },
+      }),
+  });
+  const result = await addonDetails('https://github.com/example/Demo', fetcher);
+  assert.equal(result.readme, '# Demo\n![Screen](screenshots/a.png)');
+  assert.equal(result.license, 'MIT');
+  assert.equal(result.stars, 17);
+  assert.equal(result.images.length, 1);
+  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
+  const media = await imageData('https://raw.githubusercontent.com/example/Demo/main/a.png',
+    async () => ({
+      ok: true, status: 200,
+      headers: new Headers({ 'Content-Type': 'image/png' }),
+      body: [png],
+    }));
+  assert.equal(media.mime, 'image/png');
+  assert.deepEqual(media.bytes, png);
+  await assert.rejects(() => imageData('http://localhost/secret'));
 });

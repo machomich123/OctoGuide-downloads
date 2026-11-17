@@ -15,6 +15,9 @@ import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
 import { openDesktopApp } from './desktop-window.mjs';
 import { loadCatalog, searchGitHub, clientLocations } from './catalog.mjs';
 import { installFromGitHub } from './github-addons.mjs';
+import { accountPreferences, setAccountPreferences } from './preferences.mjs';
+import { addonDetails, imageData } from './addon-details.mjs';
+import { closeAppWindow } from './close-app.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = new Map([
@@ -90,7 +93,7 @@ async function stopGame() {
     await relay.stop();
   }
 }
-async function play(account, password, remember) {
+async function play(account, password, remember, closeOnPlay = true) {
   if (gameRunning()) throw new Error('WoW is already running from this launcher.');
   if (!ACCOUNTS.includes(account) || !state.settings.crewApiUrl) throw new Error('Choose an account and Crew service.');
   const gameDir = verifyPath();
@@ -98,6 +101,12 @@ async function play(account, password, remember) {
     throw new Error('Enter the current WoW account password.');
   }
   const token = await crewLogin(state.settings.crewApiUrl, account, password);
+  // Save after Crew authentication, not after a later game launch succeeds:
+  // clients that fail to start should still retain the verified credential.
+  if (remember) {
+    saveCredential(root, account, password);
+    setAccountPreferences(root, account, { remember: true, useSaved: true }, true);
+  }
   const relay = new GameRelay(state.settings.crewApiUrl, token);
   await relay.start();
   state.relay = relay;
@@ -117,8 +126,6 @@ async function play(account, password, remember) {
     const verifiedFile = path.join(root, 'verified-account.json');
     fs.writeFileSync(verifiedFile + '.new', JSON.stringify({ account, utc: new Date().toISOString() }));
     fs.renameSync(verifiedFile + '.new', verifiedFile);
-    // Store only the password just verified by the Crew service.
-    if (remember) saveCredential(root, account, password);
     const migrated = path.join(root, 'migration.json');
     if (fs.existsSync(migrated)) {
       try {
@@ -144,6 +151,15 @@ async function play(account, password, remember) {
       state.game = null;
       void stopGame();
     });
+    if (closeOnPlay) {
+      // Close only the dedicated Edge/Chrome app window. The backend and game
+      // relay must remain running while WoW is open.
+      setTimeout(() => {
+        try { closeAppWindow(root, ok => {
+          if (!ok) log('Could not close launcher app window after WoW startup.');
+        }); } catch (error) { log('App window close deferred: ' + error.name); }
+      }, 350);
+    }
     return { started: true };
   } catch (error) {
     await stopGame();
@@ -156,11 +172,15 @@ function fail(error) {
 }
 async function operate(action, args) {
   switch (action) {
-    case 'state':
+    case 'state': {
+      const saved = storedAccounts(root);
       return { accounts: ACCOUNTS, settings: state.settings,
         gameRunning: gameRunning(),
-        savedAccounts: storedAccounts(root).filter(a => a === state.lastVerified),
+        savedAccounts: saved,
+        preferences: Object.fromEntries(ACCOUNTS.map(account =>
+          [account, accountPreferences(root, account, saved.includes(account))])),
         version: NEXT_VERSION };
+    }
     case 'handshake':
       fs.mkdirSync(root, { recursive: true });
       fs.writeFileSync(path.join(root, 'startup-proof.json'),
@@ -169,6 +189,11 @@ async function operate(action, args) {
     case 'setAccount':
       addSetting('username', String(args.username || '').toUpperCase());
       return { settings: state.settings };
+    case 'setPreferences': {
+      const account = String(args.account || '').toUpperCase();
+      return { preferences: setAccountPreferences(root, account, args.values,
+        storedAccounts(root).includes(account)) };
+    }
     case 'setClient':
       addSetting('wowPath', String(args.wowPath || ''));
       return { settings: state.settings };
@@ -215,9 +240,14 @@ async function operate(action, args) {
       // Existing saved passwords can be used only for the selected account.
       let password = String(args.password || '');
       if (!password && account === state.settings.username &&
-          account === state.lastVerified && args.useSaved === true)
+          args.useSaved === true)
         password = readCredential(root, account);
-      return await play(account, password, args.remember === true);
+      const prefs = setAccountPreferences(root, account, {
+        remember: args.remember === true,
+        useSaved: args.useSaved === true,
+        closeOnPlay: args.closeOnPlay !== false,
+      }, storedAccounts(root).includes(account));
+      return await play(account, password, prefs.remember, prefs.closeOnPlay);
     }
     case 'changePassword': {
       const account = state.settings.username;
@@ -225,12 +255,15 @@ async function operate(action, args) {
       await changePassword(state.settings.crewApiUrl, account,
         String(args.current || ''), String(args.desired || ''));
       saveCredential(root, account, String(args.desired));
+      setAccountPreferences(root, account, { remember: true, useSaved: true }, true);
       return { changed: true };
     }
     case 'installed':
       return { installed: installedAddons(verifyPath()) };
     case 'catalog':
       return loadCatalog({ force: args.force === true, root, legacy: previous });
+    case 'addonDetails':
+      return addonDetails(String(args.url || ''));
     case 'githubSearch':
       return { items: await searchGitHub(String(args.query || '')) };
     case 'scanClients':
@@ -295,13 +328,23 @@ export async function createServer() {
         const result = await operate(payload.action, payload.args || {});
         return reply(response, 200, { ok: true, result });
       }
+      if (request.method === 'GET' && target.pathname === '/addon-image' &&
+          target.searchParams.get('key') === secret) {
+        const media = await imageData(target.searchParams.get('url') || '');
+        response.writeHead(200, {
+          'Content-Type': media.mime, 'Content-Length': media.bytes.length,
+          'Cache-Control': 'private, max-age=600', 'X-Content-Type-Options': 'nosniff',
+          'Referrer-Policy': 'no-referrer',
+        });
+        return response.end(media.bytes);
+      }
       if (request.method === 'GET' && FILES.has(target.pathname) &&
           (target.pathname !== '/' || target.searchParams.get('key') === secret)) {
         const [file, type] = FILES.get(target.pathname);
         const contents = fs.readFileSync(path.join(APP, 'public', file));
         response.writeHead(200, {
           'Content-Type': type, 'Content-Length': contents.length, 'Cache-Control': 'no-store',
-          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://github.com; connect-src 'self'",
+          'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://github.com https://*.githubusercontent.com; connect-src 'self'",
           'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
         });
         return response.end(contents);

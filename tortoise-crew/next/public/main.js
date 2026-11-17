@@ -66,11 +66,37 @@ async function updatePresence() {
   } catch { $('players').textContent = 'Status unknown'; }
 }
 function account() { return $('account').value; }
+let savedAccountSet = new Set();
+let accountPreferenceMap = {};
+function applyAccountPreferences() {
+  const prefs = accountPreferenceMap[account()] || {};
+  const saved = savedAccountSet.has(account());
+  $('remember').checked = prefs.remember ?? saved;
+  $('useSaved').checked = saved && (prefs.useSaved ?? true);
+  $('useSaved').disabled = !saved;
+  $('closeOnPlay').checked = prefs.closeOnPlay !== false;
+}
+async function saveAccountPreferences() {
+  const values = { remember: $('remember').checked,
+    useSaved: $('useSaved').checked, closeOnPlay: $('closeOnPlay').checked };
+  const result = await api('setPreferences', { account: account(), values });
+  accountPreferenceMap[account()] = result.preferences;
+}
+for (const field of ['remember', 'useSaved', 'closeOnPlay'])
+  $(field).addEventListener('change', () =>
+    saveAccountPreferences().catch(error => message(error.message, true)));
 protect($('refreshPresence'), updatePresence);
 protect($('play'), async () => {
   await run('play', { username: account(), password: $('password').value,
-    remember: $('remember').checked, useSaved: $('useSaved').checked }, 'Game launch');
+    remember: $('remember').checked, useSaved: $('useSaved').checked,
+    closeOnPlay: $('closeOnPlay').checked }, 'Game launch');
   $('password').value = '';
+  if ($('remember').checked) {
+    savedAccountSet.add(account());
+    $('useSaved').disabled = false;
+    $('useSaved').checked = true;
+  }
+  if ($('closeOnPlay').checked) window.close();
 });
 protect($('saveClient'), async () => {
   const saved = await run('setClient', { wowPath: $('wowPath').value }, 'Client verification');
@@ -153,7 +179,11 @@ function renderAddons() {
     const image = addonNode('img', 'addon-art');
     image.alt = '';
     image.loading = 'lazy';
-    if (item.icon) image.src = item.icon;
+    image.onerror = () => {
+      image.replaceWith(addonNode('div', 'addon-art-fallback',
+        (item.name || '?').slice(0, 1).toUpperCase()));
+    };
+    if (item.icon) image.src = imageProxy(item.icon);
     const info = addonNode('div', 'addon-info');
     info.append(addonNode('h3', 'addon-name', item.name),
       addonNode('p', 'addon-desc', item.description || item.skipped || 'Installed addon'));
@@ -178,7 +208,8 @@ function renderAddons() {
       controls.append(importButton);
     }
     info.append(controls);
-    card.append(image, info);
+    card.append(item.icon ? image : addonNode('div', 'addon-art-fallback',
+      (item.name || '?').slice(0, 1).toUpperCase()), info);
     $('addonList').append(card);
   }
 }
@@ -216,16 +247,124 @@ async function refreshCatalog(force) {
     catalogView.busy = false;
   }
 }
-function showAddonDetails(item) {
+function imageProxy(url) {
+  return '/addon-image?key=' + encodeURIComponent(key) +
+    '&url=' + encodeURIComponent(url);
+}
+function addReadmeInline(container, source) {
+  const tokens = String(source || '').split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g);
+  for (const token of tokens) {
+    const emphasis = token.match(/^\*\*([^*]+)\*\*$/);
+    const link = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+    if (emphasis) container.append(addonNode('strong', '', emphasis[1]));
+    else if (link) {
+      const anchor = addonNode('a', '', link[1]);
+      try {
+        const url = new URL(link[2]);
+        if (url.protocol === 'https:') {
+          anchor.href = url.href;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer';
+        }
+      } catch { /* Invalid README hyperlinks display as ordinary text. */ }
+      container.append(anchor);
+    } else container.append(document.createTextNode(token));
+  }
+}
+function renderReadme(markdown) {
+  const host = $('detailReadme');
+  host.replaceChildren();
+  const lines = String(markdown || '').split(/\r?\n/);
+  let list = null, code = null;
+  for (const line of lines.slice(0, 3000)) {
+    if (line.trim().startsWith(String.fromCharCode(96).repeat(3))) {
+      if (code) { code = null; } else {
+        code = addonNode('pre');
+        host.append(code);
+      }
+      list = null;
+      continue;
+    }
+    if (code) { code.textContent += line + '\n'; continue; }
+    if (/^\s*<img\b/i.test(line) || /^\s*!\[/.test(line)) continue;
+    if (!line.trim()) { list = null; continue; }
+    const heading = line.match(/^(#{1,5})\s+(.+)$/);
+    if (heading) {
+      list = null;
+      const h = addonNode('h' + Math.min(4, heading[1].length + 1));
+      addReadmeInline(h, heading[2]);
+      host.append(h);
+      continue;
+    }
+    const li = line.match(/^\s*(?:[-*+]|\d+\.)\s+(.+)$/);
+    if (li) {
+      if (!list) { list = addonNode('ul'); host.append(list); }
+      const item = addonNode('li');
+      addReadmeInline(item, li[1]);
+      list.append(item);
+      continue;
+    }
+    list = null;
+    const quote = line.match(/^\s*>\s*(.*)$/);
+    const para = addonNode(quote ? 'blockquote' : 'p');
+    addReadmeInline(para, quote ? quote[1] : line);
+    host.append(para);
+  }
+  if (!host.childNodes.length) host.append(addonNode('p', 'footnote',
+    'The author has not published a README. Open the source repository for details.'));
+}
+async function showAddonDetails(item) {
   catalogView.selected = item;
   $('detailTitle').textContent = item.name;
   $('detailDescription').textContent = item.description || 'No description provided.';
-  $('detailMetadata').textContent = (item.author || 'Community author') + ' · ★ ' + item.stars +
-    ' · ' + (item.updated || 'Update date unknown');
+  $('detailMetadata').replaceChildren();
+  $('detailGallery').replaceChildren();
+  $('detailReadme').replaceChildren();
+  $('detailGalleryMessage').textContent = 'Loading screenshots from GitHub…';
+  $('detailReadmeStatus').textContent = 'Loading full README and project metadata…';
   $('detailSource').href = item.url;
   $('detailInstall').disabled = !item.installable;
   $('detailInstall').textContent = item.installable ? 'Install safely' : 'No compatible direct download';
   $('addonDetails').showModal();
+  try {
+    const result = await api('addonDetails', { url: item.url });
+    // Guard against updates from an earlier details request after a new card
+    // was selected, without ever inserting untrusted README HTML.
+    if (catalogView.selected !== item || !$('addonDetails').open) return;
+    for (const [label, value] of [
+      ['Author', result.author || item.author || 'Community'],
+      ['Stars', result.stars ?? item.stars], ['Forks', result.forks],
+      ['Open issues', result.issues], ['License', result.license],
+      ['Updated', result.updated?.slice(0, 10)], ['Branch', result.branch],
+    ]) {
+      if (value !== undefined && value !== '') {
+        $('detailMetadata').append(addonNode('span', '', label + ': ' + value));
+      }
+    }
+    $('detailReadmeStatus').textContent = result.warning || 'Complete project README';
+    renderReadme(result.readme || result.description || item.description);
+    for (const url of result.images || []) {
+      const link = addonNode('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      const screenshot = addonNode('img');
+      screenshot.alt = item.name + ' screenshot';
+      screenshot.loading = 'lazy';
+      screenshot.src = imageProxy(url);
+      screenshot.onerror = () => link.replaceWith(addonNode('div', 'footnote',
+        'Screenshot unavailable'));
+      link.append(screenshot);
+      $('detailGallery').append(link);
+    }
+    $('detailGalleryMessage').textContent = result.images?.length ?
+      result.images.length + ' screenshots · click to view original' :
+      'No screenshots are included in the project README.';
+  } catch (error) {
+    $('detailReadmeStatus').textContent = 'Could not load README: ' + error.message;
+    $('detailGalleryMessage').textContent = 'Screenshots unavailable.';
+    renderReadme(item.description);
+  }
 }
 async function installAddon(item) {
   if (!item.installable) return;
@@ -305,7 +444,7 @@ protect($('restartLauncher'), async () => {
 });
 $('account').addEventListener('change', async () => {
   $('password').value = '';
-  $('useSaved').checked = false;
+  applyAccountPreferences();
   await run('setAccount', { username: account() }, 'Select account').catch(() => {});
 });
 async function initial() {
@@ -322,9 +461,11 @@ async function initial() {
     const option = new Option(user, user, false, user === state.settings.username);
     $('account').add(option);
   }
+  savedAccountSet = new Set(state.savedAccounts);
+  accountPreferenceMap = state.preferences || {};
+  applyAccountPreferences();
   $('wowPath').value = state.settings.wowPath;
   $('wowLocation').textContent = state.settings.wowPath || 'No WoW.exe selected';
-  $('useSaved').disabled = !state.savedAccounts.includes(account());
   await run('refreshManifest', {}, 'Check server settings').catch(() => {});
   try {
     await api('status');
