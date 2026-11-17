@@ -11,6 +11,10 @@ from EXE v1.0.13 and it does not update itself, do this ONCE:
 4. Afterwards use the normal Tortoise Crew desktop shortcut. Future
    source updates are checked on GitHub automatically.
 
+The .cmd is also available as a single-file download: no ZIP extraction or
+game reinstallation is required. It reuses either the runtime supplied with
+the old launcher, the normal Program Files runtime or Node already on PATH.
+
 Run this once on EACH Windows PC/profile (BERNARD, JAYKE and AUGUST too).
 Installing an update on MICHAEL's PC cannot update the other PCs remotely.
 The existing game installation, account settings and password vault are kept.
