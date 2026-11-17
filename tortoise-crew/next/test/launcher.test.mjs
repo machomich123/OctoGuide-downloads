@@ -24,6 +24,8 @@ import { collectAddonFolders, installFromGitHub } from '../src/github-addons.mjs
 import { hiddenScript, installHiddenShortcuts } from '../src/hidden-start.mjs';
 import { compareVersion, validateUpdateManifest, applyUpdate } from '../bootstrap.mjs';
 import { installOnce } from '../install-once.mjs';
+const RELEASE_VERSION = JSON.parse(fs.readFileSync(
+  path.resolve('tortoise-crew', 'next', 'package.json'), 'utf8')).version;
 
 function fixture(t) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-next-test-'));
@@ -238,6 +240,7 @@ test('safe ZIP and GitHub addon importer skip executables and preserve existing 
   const folder = path.join(repo, 'Octoscope');
   fs.mkdirSync(folder, { recursive: true });
   fs.writeFileSync(path.join(folder, 'Octoscope.toc'), '## Interface: 11800\n');
+  fs.writeFileSync(path.join(folder, 'Octoscope-tbc.toc'), '## Interface: 20500\n');
   fs.writeFileSync(path.join(folder, 'Core.lua'), '-- compatible addon');
   fs.writeFileSync(path.join(folder, 'addon.dll'), 'no native binaries');
   const zip = path.join(root, 'addon.zip');
@@ -263,6 +266,7 @@ test('safe ZIP and GitHub addon importer skip executables and preserve existing 
   assert.equal(installed.imported, 1);
   assert.ok(fs.existsSync(path.join(client, 'Interface', 'AddOns', 'Octoscope', 'Core.lua')));
   assert.equal(fs.existsSync(path.join(client, 'Interface', 'AddOns', 'Octoscope', 'addon.dll')), false);
+  assert.equal(fs.existsSync(path.join(client, 'Interface', 'AddOns', 'Octoscope', 'Octoscope-tbc.toc')), false);
   assert.ok(fs.existsSync(path.join(installed.backup, 'Octoscope', 'Old.lua')));
   assert.throws(() => unpackZip(Buffer.from('not-zip'), path.join(root, 'unsafe')), /ZIP/);
 });
@@ -289,11 +293,11 @@ test('verified GitHub package applies atomically and keeps an app backup', async
     fs.cpSync(path.join(current, part), path.join(app, part), { recursive: true });
   }
   fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ version: '0.1.9' }));
-  const archive = fs.readFileSync(path.join(current, 'crew-next-0.2.0.zip'));
+  const archive = fs.readFileSync(path.join(current, 'crew-next-' + RELEASE_VERSION + '.zip'));
   const sha256 = (await import('node:crypto')).createHash('sha256').update(archive).digest('hex');
   const release = {
-    version: '0.2.0',
-    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.0.zip',
+    version: RELEASE_VERSION,
+    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-' + RELEASE_VERSION + '.zip',
     sha256,
   };
   await assert.rejects(() => applyUpdate(root, { ...release, sha256: 'f'.repeat(64) },
@@ -302,7 +306,7 @@ test('verified GitHub package applies atomically and keeps an app backup', async
   const result = await applyUpdate(root, release,
     { allowRunningGame: true, download: async () => archive });
   assert.equal(result.updated, true);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, '0.2.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, RELEASE_VERSION);
   assert.equal(JSON.parse(fs.readFileSync(path.join(result.oldApp, 'package.json'), 'utf8')).version, '0.1.9');
 });
 
@@ -335,13 +339,13 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
   fs.mkdirSync(path.join(app, 'src'));
   fs.writeFileSync(path.join(app, 'src', 'main.mjs'), '// previous launcher');
   const dir = path.resolve('tortoise-crew', 'next');
-  const archive = fs.readFileSync(path.join(dir, 'crew-next-0.2.0.zip'));
+  const archive = fs.readFileSync(path.join(dir, 'crew-next-' + RELEASE_VERSION + '.zip'));
   const boot = fs.readFileSync(path.join(dir, 'bootstrap.mjs'));
   const extractor = fs.readFileSync(path.join(dir, 'src', 'safe-zip.mjs'));
   const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
   const manifest = {
-    version: '0.2.0',
-    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.0.zip',
+    version: RELEASE_VERSION,
+    bundleUrl: 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-' + RELEASE_VERSION + '.zip',
     sha256: digest(archive),
     bootstrapSha256: digest(boot),
     extractorSha256: digest(extractor),
@@ -358,9 +362,9 @@ test('one-time migration delivers a hidden launcher to a disconnected crew fixtu
       throw new Error('Unexpected fixture URL.');
     },
   });
-  assert.equal(result.installed, '0.2.0');
+  assert.equal(result.installed, RELEASE_VERSION);
   assert.ok(fs.existsSync(path.join(root, 'bootstrap.mjs')));
   assert.ok(fs.existsSync(path.join(root, 'start-hidden.vbs')));
-  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, '0.2.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version, RELEASE_VERSION);
   assert.ok(fs.existsSync(path.join(result.backup, 'src', 'main.mjs')));
 });

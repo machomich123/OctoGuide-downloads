@@ -1,7 +1,7 @@
 {
-    "version":  "0.2.0",
-    "bundleUrl":  "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.0.zip",
-    "sha256":  "88EE612B3CB0E4246C5A6828A5C86E58ECDCB1E0F013C6CB3996D5DA5A46B1AE",
+    "version":  "0.2.1",
+    "bundleUrl":  "https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/next/crew-next-0.2.1.zip",
+    "sha256":  "E9DB9286424045C6185CE4F6A8B967ECE12915A3B28B51621DC3B5CDFEED3A18",
     "bootstrapSha256":  "9B1FDA2DB4F2F1387C07093A4AAC7577E9DC8B1B6F3C752E54702863D27DC456",
     "extractorSha256":  "22DC3ECA3F3C011C87D0E72936B9A53A749EA4D6A3DE7A93E1149539D0D1D254",
     "format":  "crew-next-v1"
