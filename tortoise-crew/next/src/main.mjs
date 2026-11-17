@@ -201,7 +201,7 @@ async function operate(action, args) {
         JSON.stringify({ pid: process.pid, utc: new Date().toISOString() }));
       try { fs.unlinkSync(path.join(root, 'session.json')); } catch { }
       const child = spawn('wscript.exe', ['//B', '//Nologo', script],
-        { detached: true, stdio: 'ignore', windowsHide: true });
+        { cwd: root, detached: true, stdio: 'ignore', windowsHide: true });
       child.unref();
       setTimeout(() => process.exit(0), 850);
       return { restarting: true };

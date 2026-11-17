@@ -14,6 +14,7 @@ export function hiddenScript(node, entry) {
   const command = '"' + node + '" "' + entry + '"';
   return 'Option Explicit\r\n' +
     'Dim shell : Set shell = CreateObject("WScript.Shell")\r\n' +
+    'shell.CurrentDirectory = "' + path.dirname(entry).replace(/"/g, '""') + '"\r\n' +
     'shell.Run "' + command.replace(/"/g, '""') + '", 0, False\r\n';
 }
 
