@@ -456,6 +456,11 @@ async function initial() {
     return;
   }
   const state = await run('state', {}, 'Load preferences');
+  const installedVersion = /^[0-9]+([.][0-9]+){2}$/.test(state.version) ?
+    'v' + state.version : 'Unknown';
+  $('launcherVersion').textContent = installedVersion;
+  $('sidebarVersion').textContent = installedVersion;
+  $('settingsVersion').textContent = 'Installed launcher version: ' + installedVersion;
   // Migration must see a real browser-to-backend handshake promptly.
   // Slow external realm-status requests must not cause a false rollback.
   await api('handshake');

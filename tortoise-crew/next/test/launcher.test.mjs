@@ -30,6 +30,20 @@ import { validateAutoLoginRequest, loginHelperSource } from '../src/wow-autologi
 const RELEASE_VERSION = JSON.parse(fs.readFileSync(
   path.resolve('tortoise-crew', 'next', 'package.json'), 'utf8')).version;
 
+test('installed launcher version appears on all screens and matches the backend version', () => {
+  const root = path.resolve('tortoise-crew', 'next');
+  const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
+  const client = fs.readFileSync(path.join(root, 'public', 'main.js'), 'utf8');
+  const settings = fs.readFileSync(path.join(root, 'src', 'config.mjs'), 'utf8');
+  for (const id of ['launcherVersion', 'sidebarVersion', 'settingsVersion']) {
+    assert.match(html, new RegExp('id="' + id + '"'));
+    assert.match(client, new RegExp("\\$\\('" + id + "'\\)\\.textContent = installedVersion|\\$\\('" +
+      id + "'\\)\\.textContent = 'Installed launcher version: ' \\+ installedVersion"));
+  }
+  assert.match(client, /state[.]version/);
+  assert.match(settings, new RegExp("NEXT_VERSION = '" + RELEASE_VERSION.replaceAll('.', '[.]') + "'"));
+});
+
 function fixture(t) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'crew-next-test-'));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));

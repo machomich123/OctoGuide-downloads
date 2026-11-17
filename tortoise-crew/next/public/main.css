@@ -19,6 +19,8 @@ button.primary { background:var(--mint); border-color:var(--mint); color:#073430
 .player { display:flex; justify-content:space-between; border-bottom:1px solid #223247; padding:7px 1px; font-size:13px; }
 .player .online { color:var(--mint); }
 .topbar { flex:0 0 auto; display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:11px; letter-spacing:.08em; border-bottom:1px solid var(--line); padding:10px 25px; }
+.topbar-status { display:flex; align-items:center; justify-content:flex-end; gap:14px; flex-wrap:wrap; }
+.launcher-version { color:var(--mint); font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .panel { display:none; flex:1 1 auto; min-height:0; width:100%; max-width:980px; margin:0 auto; padding:17px 25px; overflow-y:auto; overscroll-behavior:contain; }
 .panel.active { display:block; }
 .hero { padding:7px 0 12px; }

@@ -24,10 +24,16 @@
         <div id="players">Loading presence…</div>
         <button id="refreshPresence" class="small">Refresh status</button>
       </div>
-      <p class="footnote">CREW NEXT · WINDOWS APP</p>
+      <p class="footnote">CREW NEXT · <span id="sidebarVersion">v…</span></p>
     </aside>
     <main>
-      <div class="topbar"><span>WORLD OF WARCRAFT / VANILLA</span><span id="serviceStatus">● Checking realm…</span></div>
+      <div class="topbar">
+        <span>WORLD OF WARCRAFT / VANILLA</span>
+        <div class="topbar-status">
+          <span id="launcherVersion" class="launcher-version" aria-label="Installed launcher version">v…</span>
+          <span id="serviceStatus">● Checking realm…</span>
+        </div>
+      </div>
       <section id="realm" class="panel active">
         <div class="hero">
           <span class="eyebrow mint">THE WORLD IS WAITING</span>
@@ -106,6 +112,7 @@
       <section id="settings" class="panel">
         <h1>Launcher <em>settings.</em></h1>
         <div class="surface">
+          <p class="footnote" id="settingsVersion">Installed launcher version: loading…</p>
           <label>VERIFIED 1.18.1 CLIENT EXECUTABLE<input id="wowPath" type="text" placeholder="C:\Games\client-turtle\WoW.exe"></label>
           <button id="saveClient">Verify and save client</button>
           <h2>Account password</h2>
