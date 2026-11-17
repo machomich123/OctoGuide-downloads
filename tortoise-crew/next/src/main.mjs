@@ -159,10 +159,12 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
       // window. It never receives credentials via command-line arguments.
       // If focus cannot be verified, WoW stays open for manual login.
       try {
+        const loginStartedAt = Date.now();
         const login = startAutoLogin({
           pid: child.pid, exe: state.settings.wowPath,
           account, password,
-        }, outcome => log('WoW auto-login result: ' + outcome));
+        }, outcome => log('WoW auto-login result: ' + outcome +
+          ' elapsedMs=' + String(Date.now() - loginStartedAt)));
         child.once('exit', () => {
           if (login.exitCode === null) login.kill();
         });

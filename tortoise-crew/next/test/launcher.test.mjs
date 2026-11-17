@@ -431,12 +431,28 @@ test('Windows auto-login checks the exact game process and keeps secrets off arg
   assert.match(script, /GetWindowThreadProcessId/);
   assert.match(script, /GetForegroundWindow/);
   assert.match(script, /GameHasFocus/);
+  assert.match(script, /SetForegroundWindow/);
+  assert.match(script, /AttachThreadInput/);
+  assert.match(script, /BringWindowToTop/);
   assert.match(script, /ProcessName -ne "WoW"/);
   assert.match(script, /\$resolvedPath -and/);
   assert.match(script, /AppActivate/);
   assert.match(script, /\{ENTER\}/);
   assert.doesNotMatch(script, /\$account\.ToCharArray\(\)/);
   assert.doesNotMatch(script, /Set-Content|Out-File|Add-Content|Clipboard|CredWrite|Invoke-WebRequest/);
+});
+
+test('fast login focuses the verified game and submits the password as one sequence', () => {
+  const script = loginHelperSource();
+  assert.match(script, /CrewFocus\]::Activate\(\$window\)/);
+  assert.match(script, /GameHasFocus/);
+  assert.match(script, /WaitForInputIdle\(900\)/);
+  assert.match(script, /Start-Sleep -Milliseconds 1050/);
+  assert.match(script, /\$sequence[.]Append\(\(EncodeKey \$letter\)\)/);
+  assert.match(script, /\$sequence[.]Append\("\{ENTER\}"\)/);
+  assert.match(script, /SendWait\(\$sequence[.]ToString\(\)\)/);
+  assert.doesNotMatch(script, /Start-Sleep -Milliseconds 4700/);
+  assert.doesNotMatch(script, /SendWait\(\(EncodeKey \$letter\)\)/);
 });
 
 test('auto-login PowerShell syntax parses without opening a game or window', () => {
