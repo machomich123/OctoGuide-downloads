@@ -19,6 +19,11 @@ import { accountPreferences, setAccountPreferences } from './preferences.mjs';
 import { addonDetails, imageData } from './addon-details.mjs';
 import { closeAppWindow } from './close-app.mjs';
 import { startAutoLogin } from './wow-autologin.mjs';
+import {
+  inspectNativeInstant, installNativeInstant, uninstallNativeInstant,
+} from './native-instant.mjs';
+import { saveNativeCredential } from './native-vault.mjs';
+import { focusVerifiedGame } from './focus-wow.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = new Map([
@@ -30,6 +35,7 @@ const root = process.env.CREW_NEXT_DATA_DIR || dataDir();
 const previous = process.env.CREW_LEGACY_DATA_DIR || legacyDir();
 const remembered = readJson(path.join(root, 'verified-account.json'), {});
 const state = { settings: loadSettings(root, previous), game: null, relay: null,
+  nativeWatch: null, nativeLastError: '',
   lastVerified: ACCOUNTS.includes(remembered.account) ? remembered.account : '',
   shuttingDown: false };
 const secret = crypto.randomBytes(32).toString('hex');
@@ -52,6 +58,15 @@ function gameRunning() {
   } catch {
     throw new Error('Could not verify that WoW is closed.');
   }
+}
+function observedWowPid() {
+  if (process.platform !== 'win32') return null;
+  const table = execFileSync('tasklist.exe',
+    ['/FI', 'IMAGENAME eq WoW.exe', '/FO', 'CSV', '/NH'], {
+      timeout: 3500, windowsHide: true, encoding: 'utf8',
+    });
+  const match = /"WoW[.]exe"\s*,\s*"([0-9]+)"/i.exec(table);
+  return match ? Number(match[1]) : null;
 }
 function verifyPath() {
   if (!state.settings.wowPath) throw new Error('Choose a WoW.exe first.');
@@ -90,6 +105,10 @@ export function configureGame(game, user, autoLogin = false) {
   backedUp(config, text);
 }
 async function stopGame() {
+  if (state.nativeWatch) {
+    clearInterval(state.nativeWatch);
+    state.nativeWatch = null;
+  }
   if (state.relay) {
     const relay = state.relay;
     state.relay = null;
@@ -113,9 +132,24 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
   const relay = new GameRelay(state.settings.crewApiUrl, token);
   await relay.start();
   state.relay = relay;
+  state.nativeLastError = '';
   try {
     configureGame(gameDir, account, autoLogin);
-    const child = spawn(state.settings.wowPath, [], {
+    const native = autoLogin && inspectNativeInstant(gameDir, root).installed;
+    if (native) {
+      if (!remember) {
+        throw new Error('Enable Remember password to use native instant login.');
+      }
+      // Crew HTTPS has already authenticated these credentials. Copy them
+      // directly into ClassicAPI's encrypted Windows vault before WoW starts.
+      // Nothing is written to WoW config, Lua, a command line or a plaintext
+      // file. The DLL consumes the vault entry inside the game process.
+      saveNativeCredential(account, password);
+      log('ClassicAPI credential safely provisioned for local Crew realm.');
+    }
+    const executable = native ?
+      path.join(gameDir, 'VanillaFixes.exe') : state.settings.wowPath;
+    const child = spawn(executable, [], {
       cwd: gameDir, windowsHide: false, stdio: 'ignore',
     });
     await new Promise((resolve, reject) => {
@@ -149,12 +183,64 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
         log('Legacy executable retirement deferred: ' + error.name);
       }
     }
-    child.once('exit', code => {
-      log('WoW exited, code=' + String(code));
-      state.game = null;
-      void stopGame();
-    });
-    if (autoLogin) {
+    if (native) {
+      // VanillaFixes starts WoW suspended, attaches the already-installed
+      // ClassicAPI DLL and exits. It does not remain alive for the game
+      // session, so the relay must outlive its launcher process.
+      child.once('exit', code => {
+        state.game = null;
+        if (code !== 0) {
+          state.nativeLastError = 'Native loader exited with code ' + String(code);
+          log(state.nativeLastError);
+          void stopGame();
+          return;
+        }
+        const startedAt = Date.now();
+        const wait = setInterval(() => {
+          let running;
+          try { running = gameRunning(); } catch { running = false; }
+          if (running) {
+            clearInterval(wait);
+            try {
+              const gamePid = observedWowPid();
+              if (gamePid) {
+                focusVerifiedGame(gamePid, focused =>
+                  log('Native WoW focus requested: ' + focused));
+              }
+            } catch (error) {
+              log('Native game window focus unavailable: ' + error.name);
+            }
+            if (closeOnPlay) {
+              try { closeAppWindow(root); } catch {}
+            }
+            state.nativeWatch = setInterval(() => {
+              try {
+                if (!gameRunning()) {
+                  log('Native WoW exited; releasing Crew relay.');
+                  void stopGame();
+                }
+              } catch (error) {
+                log('Native WoW status check unavailable: ' + error.name);
+              }
+            }, 1200);
+            state.nativeWatch.unref();
+          } else if (Date.now() - startedAt > 12000) {
+            clearInterval(wait);
+            state.nativeLastError = 'Native loader ended without a running WoW.exe';
+            log(state.nativeLastError);
+            void stopGame();
+          }
+        }, 350);
+        wait.unref();
+      });
+    } else {
+      child.once('exit', code => {
+        log('WoW exited, code=' + String(code));
+        state.game = null;
+        void stopGame();
+      });
+    }
+    if (autoLogin && !native) {
       // The signed Windows helper waits until *this* WoW process has an active
       // window. It never receives credentials via command-line arguments.
       // If focus cannot be verified, WoW stays open for manual login.
@@ -172,7 +258,7 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
         log('WoW auto-login unavailable: ' + error.name);
       }
     }
-    if (closeOnPlay) {
+    if (closeOnPlay && !native) {
       // Close only the dedicated Edge/Chrome app window. The backend and game
       // relay must remain running while WoW is open.
       setTimeout(() => {
@@ -181,7 +267,8 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
         }); } catch (error) { log('App window close deferred: ' + error.name); }
       }, 350);
     }
-    return { started: true, autoLoginRequested: autoLogin };
+    return { started: true, autoLoginRequested: autoLogin,
+      nativeInstant: native, nativePendingConsent: native };
   } catch (error) {
     await stopGame();
     throw error;
@@ -195,8 +282,16 @@ async function operate(action, args) {
   switch (action) {
     case 'state': {
       const saved = storedAccounts(root);
+      let native = { installed: false };
+      try {
+        if (state.settings.wowPath)
+          native = inspectNativeInstant(path.dirname(state.settings.wowPath), root);
+      } catch (error) {
+        native = { installed: false, error: error.message };
+      }
       return { accounts: ACCOUNTS, settings: state.settings,
         gameRunning: gameRunning(),
+        nativeInstant: { ...native, lastError: state.nativeLastError },
         savedAccounts: saved,
         preferences: Object.fromEntries(ACCOUNTS.map(account =>
           [account, accountPreferences(root, account, saved.includes(account))])),
@@ -218,6 +313,10 @@ async function operate(action, args) {
     case 'setClient':
       addSetting('wowPath', String(args.wowPath || ''));
       return { settings: state.settings };
+    case 'installNativeInstant':
+      return installNativeInstant(verifyPath(), root, { gameRunning });
+    case 'uninstallNativeInstant':
+      return uninstallNativeInstant(verifyPath(), root, { gameRunning });
     case 'refreshManifest': {
       const data = await manifest();
       if (data.crewApiUrl && !state.settings.crewApiUrl)

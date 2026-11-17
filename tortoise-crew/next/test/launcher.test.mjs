@@ -27,6 +27,11 @@ import { installOnce } from '../install-once.mjs';
 import { accountPreferences, setAccountPreferences } from '../src/preferences.mjs';
 import { addonDetails, githubReadmeImages, allowedImageUrl, imageData } from '../src/addon-details.mjs';
 import { validateAutoLoginRequest, loginHelperSource } from '../src/wow-autologin.mjs';
+import {
+  nativeFiles, inspectNativeInstant, uninstallNativeInstant, nativePatcherBytes,
+} from '../src/native-instant.mjs';
+import { nativeVaultScript } from '../src/native-vault.mjs';
+import { focusScript } from '../src/focus-wow.mjs';
 const RELEASE_VERSION = JSON.parse(fs.readFileSync(
   path.resolve('tortoise-crew', 'next', 'package.json'), 'utf8')).version;
 
@@ -49,6 +54,66 @@ function fixture(t) {
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   return base;
 }
+
+test('native instant login ships as loose GlueXML without changing WoW.exe', t => {
+  const files = nativeFiles();
+  assert.deepEqual(Object.keys(files).sort(),
+    ['GlueXML.toc', 'CrewInstantLogin.lua', 'CrewInstantLogin.xml'].sort());
+  const toc = files['GlueXML.toc'].toString('utf8');
+  assert.match(toc, /AccountLogin[.]xml/);
+  assert.match(toc, /CharacterSelect[.]xml/);
+  assert.match(toc, /CrewInstantLogin[.]xml/);
+  const lua = files['CrewInstantLogin.lua'].toString('utf8');
+  assert.match(lua, /LoginWithSavedAccount/);
+  assert.match(lua, /GetSavedAccounts/);
+  assert.match(lua, /CrewInstantSplash/);
+  assert.match(lua, /CharacterSelect_OnShow/);
+  assert.match(lua, /SaveAccount/);
+  assert.doesNotMatch(lua, /SetCVar[^(]*[(]"password"|ImportFile|EncryptPassword|password[ \t]*=[ \t]*["']\w+/);
+  const dir = fixture(t);
+  assert.deepEqual(inspectNativeInstant(dir, dir), { installed: false });
+  assert.deepEqual(uninstallNativeInstant(dir, dir), { removed: false });
+});
+
+test('native integration refuses untrusted VfPatcher DLL and avoids game mutation', async t => {
+  const dir = fixture(t);
+  const payload = path.join(dir, 'VfPatcher.dll');
+  fs.writeFileSync(payload, 'not the official loader');
+  await assert.rejects(() => nativePatcherBytes({ sourceFile: payload }),
+    /checksum mismatch/i);
+});
+
+test('native Windows vault script scopes credentials and never uses command-line passwords', () => {
+  const script = nativeVaultScript();
+  assert.match(script, /CredWriteW/);
+  assert.match(script, /ClassicAPI\/WoW\//);
+  assert.match(script, /127[.]0[.]0[.]1/);
+  assert.match(script, /Console\]::In[.]ReadToEnd/);
+  assert.match(script, /Marshal\]::FreeHGlobal/);
+  assert.doesNotMatch(script, /Set-Content|Out-File|Invoke-WebRequest|clipboard|Write-Host/);
+});
+
+test('native vault PowerShell is parseable without sending any credentials', () => {
+  if (process.platform !== 'win32') return;
+  const script = nativeVaultScript();
+  const run = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive',
+    '-Command', '$tokens=$null;$errors=$null;' +
+    '[void][System.Management.Automation.Language.Parser]::ParseInput(' +
+    '[Console]::In.ReadToEnd(),[ref]$tokens,[ref]$errors);' +
+    'if($errors.Count){$errors|%{$_.Message};exit 2};"VAULT_SYNTAX_OK"'], {
+    input: script, encoding: 'utf8', windowsHide: true, timeout: 9000,
+  });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /VAULT_SYNTAX_OK/);
+});
+
+test('native focus helper targets only the WoW window without keystrokes', () => {
+  const source = focusScript();
+  assert.match(source, /ProcessName -ne "WoW"/);
+  assert.match(source, /SetForegroundWindow/);
+  assert.match(source, /MainWindowHandle/);
+  assert.doesNotMatch(source, /SendKeys|SendInput|password|Inject|Set-ExecutionPolicy/);
+});
 function game(base) {
   fs.mkdirSync(path.join(base, 'Interface', 'AddOns'), { recursive: true });
   fs.mkdirSync(path.join(base, 'WTF'), { recursive: true });

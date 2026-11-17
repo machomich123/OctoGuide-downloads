@@ -89,7 +89,7 @@ for (const field of ['remember', 'useSaved', 'autoLogin', 'closeOnPlay'])
     saveAccountPreferences().catch(error => message(error.message, true)));
 protect($('refreshPresence'), updatePresence);
 protect($('play'), async () => {
-  await run('play', { username: account(), password: $('password').value,
+  const result = await run('play', { username: account(), password: $('password').value,
     remember: $('remember').checked, useSaved: $('useSaved').checked,
     autoLogin: $('autoLogin').checked,
     closeOnPlay: $('closeOnPlay').checked }, 'Game launch');
@@ -99,11 +99,31 @@ protect($('play'), async () => {
     $('useSaved').disabled = false;
     $('useSaved').checked = true;
   }
-  if ($('closeOnPlay').checked) window.close();
+  if (result.nativeInstant) {
+    message('Native login started. If asked, approve the known ClassicAPI DLL list once.');
+  } else if ($('closeOnPlay').checked) window.close();
 });
 protect($('saveClient'), async () => {
   const saved = await run('setClient', { wowPath: $('wowPath').value }, 'Client verification');
   $('wowLocation').textContent = saved.settings.wowPath;
+});
+function showNativeStatus(native) {
+  const line = native?.installed ?
+    'Native instant login test installed. Uses ClassicAPI secure vault; first login may be manual.' :
+    native?.error ? 'Native login needs attention: ' + native.error :
+    'Not installed. Normal WoW login is available.';
+  $('nativeLoginStatus').textContent = line;
+  $('instantLoginStatus').textContent = line;
+}
+protect($('installNativeLogin'), async () => {
+  if (!confirm('Install experimental ClassicAPI login integration into this client? Close WoW first. The original WoW.exe is not changed.')) return;
+  await run('installNativeInstant', {}, 'Install native instant login');
+  showNativeStatus({ installed: true });
+});
+protect($('removeNativeLogin'), async () => {
+  if (!confirm('Remove only Tortoise Crew native login files and restore the old WoW login? Close WoW first.')) return;
+  await run('uninstallNativeInstant', {}, 'Restore original login');
+  showNativeStatus({ installed: false });
 });
 protect($('changePassword'), async () => {
   if (!confirm('Change the game password for ' + account() + '?')) return;
@@ -472,6 +492,7 @@ async function initial() {
   savedAccountSet = new Set(state.savedAccounts);
   accountPreferenceMap = state.preferences || {};
   applyAccountPreferences();
+  showNativeStatus(state.nativeInstant);
   $('wowPath').value = state.settings.wowPath;
   $('wowLocation').textContent = state.settings.wowPath || 'No WoW.exe selected';
   await run('refreshManifest', {}, 'Check server settings').catch(() => {});
