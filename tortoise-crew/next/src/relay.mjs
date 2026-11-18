@@ -3,6 +3,7 @@ import tls from 'node:tls';
 import crypto from 'node:crypto';
 import { Duplex } from 'node:stream';
 import { crewBaseUrl } from './config.mjs';
+import { crewTrustOptions } from './remote.mjs';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const LIMIT = 2 * 1024 * 1024;
@@ -75,11 +76,15 @@ export async function connectWebSocket(base, mode, token, { trace = null } = {})
   if (!/^[0-9a-f]{64}$/i.test(token) || !['auth', 'world'].includes(mode)) {
     throw new Error('Invalid relay session.');
   }
-  const host = new URL(crewBaseUrl(base)).hostname;
+  const endpoint = new URL(crewBaseUrl(base));
+  const host = endpoint.hostname;
   return new Promise((resolve, reject) => {
     const key = crypto.randomBytes(16).toString('base64');
     const accept = crypto.createHash('sha1').update(key + GUID).digest('base64');
-    const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: true });
+    const socket = tls.connect({
+      host, port: Number(endpoint.port || 443), servername: host,
+      rejectUnauthorized: true, ...crewTrustOptions(endpoint.origin),
+    });
     socket.setNoDelay(true);
     socket.setKeepAlive(true, 30000);
     trace?.bind(socket);
@@ -94,7 +99,7 @@ export async function connectWebSocket(base, mode, token, { trace = null } = {})
     socket.once('timeout', () => fail(Object.assign(new Error('Relay handshake timed out.'), { code: 'ETIMEDOUT' })));
     socket.once('secureConnect', () => socket.write([
       'GET /v1/relay/' + mode + ' HTTP/1.1',
-      'Host: ' + host, 'Upgrade: websocket', 'Connection: Upgrade',
+      'Host: ' + endpoint.host, 'Upgrade: websocket', 'Connection: Upgrade',
       'Sec-WebSocket-Version: 13', 'Sec-WebSocket-Key: ' + key,
       'Authorization: Bearer ' + token, '', '',
     ].join('\r\n')));

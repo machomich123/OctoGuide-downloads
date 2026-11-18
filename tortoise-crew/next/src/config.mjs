@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 
 export const GAME_SHA256 = '97EA82AB7A82ED88BC5A155AB9BBF7E0BCDB5B9F892A47C6F8EDABE1496BFC75';
-export const NEXT_VERSION = '0.3.8';
+export const NEXT_VERSION = '0.3.9';
 export const ACCOUNTS = Object.freeze(['MICHAEL', 'JAYKE', 'BERNARD', 'AUGUST']);
 export const MANIFEST_URL = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/manifest.json';
 
@@ -88,10 +88,12 @@ export function validateGameExe(exe) {
   return path.dirname(path.resolve(exe));
 }
 
+export const DIRECT_CREW_ORIGIN = 'https://vanilla-realm-lab.go.altare.global:25975';
+
 export function crewBaseUrl(value) {
   const parsed = new URL(value);
   const host = parsed.hostname.toLowerCase();
-  if (parsed.protocol !== 'https:' || parsed.port || parsed.username || parsed.password ||
+  if (parsed.protocol !== 'https:' || (parsed.port && parsed.origin !== DIRECT_CREW_ORIGIN) || parsed.username || parsed.password ||
       parsed.pathname !== '/' || parsed.search || parsed.hash ||
       !['.trycloudflare.com', '.altare.global', '.go.altare.global'].some(suffix => host.endsWith(suffix))) {
     throw new Error('The Crew HTTPS service address is not approved.');

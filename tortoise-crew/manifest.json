@@ -7,10 +7,11 @@
   "authPort": 3724,
   "worldPort": 8085,
   "message": "v1.0.14: one-click migration from classic EXE to Crew Next 0.3.0 app-window with hidden background service and GitHub updates.",
-  "crewApiUrl": "https://formal-classes-darwin-accounts.trycloudflare.com",
+  "crewApiUrl": "https://madonna-soil-asthma-scotland.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
   "windowsPolicyVerifiedSha256": "978BAE0DD8214BDD258604D5FE4A3AB31042EF99D48EA8F38CBBB7A87B0F608F",
   "windowsTestedSha256": "978BAE0DD8214BDD258604D5FE4A3AB31042EF99D48EA8F38CBBB7A87B0F608F",
-  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/44055567498"
+  "windowsTestRun": "https://github.com/machomich123/OctoGuide-downloads/actions/runs/44055567498",
+  "crewDirectApiUrl": "https://vanilla-realm-lab.go.altare.global:25975"
 }

@@ -109,9 +109,15 @@ function addSetting(entry, value) {
 async function refreshCrewEndpoint() {
   const data = await manifest();
   const saved = state.settings.crewApiUrl;
-  const retired = 'https://helmet-trunk-marie-jerry.trycloudflare.com';
-  if (data.crewApiUrl && (!saved || saved === retired) && data.crewApiUrl !== saved) {
-    addSetting('crewApiUrl', data.crewApiUrl);
+  const formerlyPublished = [
+    'https://helmet-trunk-marie-jerry.trycloudflare.com',
+    'https://formal-classes-darwin-accounts.trycloudflare.com',
+    'https://madonna-soil-asthma-scotland.trycloudflare.com',
+    data.crewApiUrl,
+  ];
+  const endpoint = data.crewDirectApiUrl || data.crewApiUrl;
+  if (endpoint && (!saved || formerlyPublished.includes(saved)) && endpoint !== saved) {
+    addSetting('crewApiUrl', endpoint);
     preflight.invalidate();
   }
   return data;
