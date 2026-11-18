@@ -106,6 +106,17 @@ function addSetting(entry, value) {
   state.settings = saveSettings(root, next);
 }
 
+async function refreshCrewEndpoint() {
+  const data = await manifest();
+  const saved = state.settings.crewApiUrl;
+  const retired = 'https://helmet-trunk-marie-jerry.trycloudflare.com';
+  if (data.crewApiUrl && (!saved || saved === retired) && data.crewApiUrl !== saved) {
+    addSetting('crewApiUrl', data.crewApiUrl);
+    preflight.invalidate();
+  }
+  return data;
+}
+
 function prepareSavedAccount(force = false) {
   if (gameRunning()) return;
   if (!force && preflight.status(state.settings.username).status === 'verifying') return;
@@ -427,9 +438,8 @@ async function operate(action, args) {
       return { ...preflight.status(state.settings.username),
         nativeError: state.nativeLastError };
     case 'refreshManifest': {
-      const data = await manifest();
-      if (data.crewApiUrl && !state.settings.crewApiUrl)
-        addSetting('crewApiUrl', data.crewApiUrl);
+      const data = await refreshCrewEndpoint();
+      prepareSavedAccount();
       return { version: data.launcherVersion, updatesPaused: !!data.updatesPaused,
         crewApiUrl: state.settings.crewApiUrl };
     }
@@ -655,7 +665,11 @@ async function main() {
   }
   // Start verifying the saved account only after the UI can connect.
   // No WoW.exe process is created until the user explicitly presses Play.
-  setTimeout(prepareSavedAccount, 200).unref();
+  setTimeout(() => {
+    void refreshCrewEndpoint()
+      .catch(error => log('Crew settings refresh unavailable: ' + error.message))
+      .finally(() => prepareSavedAccount());
+  }, 200).unref();
   const refresh = setInterval(() => {
     if (Date.now() - (state.lastUiSeen || 0) > 15000) {
       preflight.invalidate();
