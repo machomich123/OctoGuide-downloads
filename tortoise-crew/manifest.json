@@ -7,7 +7,7 @@
   "authPort": 3724,
   "worldPort": 8085,
   "message": "v1.0.14: one-click migration from classic EXE to Crew Next 0.3.0 app-window with hidden background service and GitHub updates.",
-  "crewApiUrl": "https://helmet-trunk-marie-jerry.trycloudflare.com",
+  "crewApiUrl": "https://formal-classes-darwin-accounts.trycloudflare.com",
   "updatesPaused": false,
   "releaseSignature": "unsigned",
   "windowsPolicyVerifiedSha256": "978BAE0DD8214BDD258604D5FE4A3AB31042EF99D48EA8F38CBBB7A87B0F608F",
