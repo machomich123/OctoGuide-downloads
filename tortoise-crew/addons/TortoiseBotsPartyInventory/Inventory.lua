@@ -683,7 +683,10 @@ refreshControl, settingsControl = refreshButton, settingsButton
 local settingsPanel = CreateFrame("Frame", "TBMPartyInventorySettingsPanel", frame)
 settingsPanel:SetWidth(244)
 settingsPanel:SetHeight(171)
-settingsPanel:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -33, -40)
+-- In the Classic client, restoring from fullscreen can briefly retain the
+-- taller logical parent coordinates on 1366x768. A small inset keeps the
+-- settings flyout fully within UIParent without altering header placement.
+settingsPanel:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -33, -52)
 settingsPanel:SetFrameLevel(frame:GetFrameLevel() + 20)
 panelOutline(settingsPanel, COLORS.panel, COLORS.outline, true)
 settingsPanel:EnableMouse(true)
