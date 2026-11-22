@@ -119,6 +119,9 @@ local updateSellButton
 local requestFreshInventory
 local updateViewport
 local selfServerProtocolAvailable -- nil unknown, false old server, true verified
+-- A self inventory snapshot does not imply that older server builds support
+-- the newer self equip/unequip commands. Enable them only by explicit advert.
+local selfServerEquipmentAvailable = false
 -- True charcoal/near-black surfaces, not the earlier blue-tinted slate UI.
 -- Original WoW inventory/gear icons retain their unmodified native colors.
 local COLORS = {
@@ -1060,10 +1063,17 @@ local function unequipLocalGear(slot)
         status("The item cursor is busy or this client cannot unequip gear.")
         return
     end
+    if selfServerEquipmentAvailable == true then
+        -- Use the same validated equipment transaction as owned ALTs.
+        -- This also avoids carrying a native cursor item across bag packets.
+        command("item self unequip 255 " .. slot)
+        invalidateSelfSnapshot()
+        return
+    end
     if slot >= 19 and slot <= 22 then
         -- Unlike the native client, the local server helper can evacuate a
         -- nonempty bag into OTHER bags after a complete capacity preflight.
-        if selfServerProtocolAvailable == false then
+        if not selfServerEquipmentAvailable then
             status("Server version does not support safe self-bag unequip. Update TortoiseBots Core.")
             return
         end
@@ -1094,7 +1104,7 @@ local function unequipLocalGear(slot)
         PickupContainerItem(dest.bag, dest.slot)
         if not CursorHasItem() then
             status("Unequipped to your bags.")
-            if repaintSelf then repaintSelf(true) end
+            if repaintSelf then repaintSelf(false) end
             refreshAt = GetTime() + 0.04
             return
         end
@@ -1282,6 +1292,7 @@ local function receive(destinationButton)
                     .. targetGuid .. " " .. targetCount
                 if source.item.guid and source.item.guid > 0 then
                     optimisticPlacements[norm(source.owner)] = {
+                        name = source.owner,
                         sourceBag = source.item.bag, sourceSlot = source.item.slot,
                         destinationBag = destination.item.bag,
                         destinationSlot = destination.item.slot,
@@ -1456,12 +1467,17 @@ local function wireSlot(button)
                             or location ~= "INVTYPE_NON_EQUIP"
                     end
                 end
-                if equippable and UseContainerItem then
+                if equippable and (UseContainerItem or selfServerEquipmentAvailable) then
                     pendingSelfEquip = nil
                     invalidateSelfSnapshot()
-                    UseContainerItem(this.item.playerBag, this.item.playerSlot)
-                    status("Quick-equipping to your character.")
-                    if repaintSelf then repaintSelf(true) end
+                    if selfServerEquipmentAvailable then
+                        command("item self equip " .. this.item.bag .. " " .. this.item.slot)
+                        status("Equipping your character through the server.")
+                    else
+                        UseContainerItem(this.item.playerBag, this.item.playerSlot)
+                        status("Quick-equipping to your character.")
+                    end
+                    if repaintSelf then repaintSelf(false) end
                     refreshAt = GetTime() + 0.04
                 else
                     -- Actual Turtle 1.18.1 bug: a genuine wearable sword
@@ -1618,6 +1634,16 @@ toggleSaleMark = function(button)
         status("The item is not yet identified by the server. Refresh first.")
         return
     end
+    local key = norm(card.character)
+    if markedForSale[key] and markedForSale[key][item.guid] then
+        -- A previously selected item must always be removable, even if its
+        -- vendor metadata or quest status was learned after marking it.
+        markedForSale[key][item.guid] = nil
+        status("Removed item from " .. card.character .. "'s vendor list.")
+        showSaleFrame(button, false)
+        updateSellButton(card)
+        return
+    end
     local itemClass
     if GetItemInfo then
         local _, _, _, _, _, nativeClass = GetItemInfo(item.id)
@@ -1627,19 +1653,17 @@ toggleSaleMark = function(button)
         status("Quest and invalid items cannot be marked for vendor sale.")
         return
     end
-    local key = norm(card.character)
-    markedForSale[key] = markedForSale[key] or {}
-    if markedForSale[key][item.guid] then
-        markedForSale[key][item.guid] = nil
-        status("Removed item from " .. card.character .. "'s vendor list.")
-    else
-        markedForSale[key][item.guid] = {
-            bag = item.bag, slot = item.slot, id = item.id,
-            guid = item.guid, count = item.count,
-        }
-        status("Marked item for sale. The ALT will only sell explicitly marked instances.")
+    if item.vendorEligible == false then
+        status("The server confirms that this item cannot be sold to a vendor.")
+        return
     end
-    showSaleFrame(button, markedForSale[key][item.guid] ~= nil)
+    markedForSale[key] = markedForSale[key] or {}
+    markedForSale[key][item.guid] = {
+        bag = item.bag, slot = item.slot, id = item.id,
+        guid = item.guid, count = item.count,
+    }
+    status("Marked item for sale. The ALT will only sell explicitly marked instances.")
+    showSaleFrame(button, true)
     updateSellButton(card)
 end
 
@@ -3619,12 +3643,19 @@ TB.OnSystemMessage = function(message)
         snapshot = { name = norm(beginName), items = {}, equipped = {},
             receivedAt = GetTime(), selfRevision = selfInventoryRevision }
     elseif guid and snapshot then
+        local vendorEligible
+        -- WoW 1.12 GetItemInfo has no reliable vendor-price return value.
+        -- New servers send authoritative v/n flags, while old servers omit
+        -- both (unknown eligibility, always checked again before sale).
+        if string.find(flags, "v", 1, true) then vendorEligible = true
+        elseif string.find(flags, "n", 1, true) then vendorEligible = false end
         snapshot.items[tonumber(bag) * 256 + tonumber(position)] = {
             id = tonumber(itemId), count = tonumber(count), guid = tonumber(guid),
             salePrice = saleCopper, texture = itemIcon,
             quality = itemQuality,
             wearable = string.find(flags, "w", 1, true) ~= nil,
             quest = string.find(flags, "q", 1, true) ~= nil,
+            vendorEligible = vendorEligible,
         }
     elseif equipSlot and snapshot then
         snapshot.equipped[tonumber(equipSlot)] = {
@@ -3701,7 +3732,19 @@ TB.OnSystemMessage = function(message)
         status(result or "Seller declined the price request.")
     elseif intent == "item place" or intent == "item sort" then
         if intent == "item place" then
+            -- Older cores omit the actor name in ACTION_ERR. We cannot
+            -- identify which pending owner was refused. Retire all previews,
+            -- refresh each affected ALT once and repaint from the last
+            -- server inventory. Never leave unrelated ALTs visually stuck.
+            local affected = {}
+            for _, placement in pairs(optimisticPlacements) do
+                if placement.name then table.insert(affected, placement.name) end
+            end
             optimisticPlacements = {}
+            if frame:IsShown() then render(false) end
+            for _, name in ipairs(affected) do
+                requestFreshInventory(name, true)
+            end
         end
         status(result or "The inventory change was refused.")
     elseif intent == "inv" and result then
@@ -3726,8 +3769,26 @@ TB.OnSystemMessage = function(message)
             status("Transfer acknowledged by server; refreshing snapshots.")
         end
     elseif string.find(message, "^TBM:ACTION_ACK|item place|") then
-        for _, placement in pairs(optimisticPlacements) do placement.acked = true end
-        status("ALT placement accepted; checking the confirmed slot.")
+        local _, _, acknowledgedName = string.find(message,
+            "^TBM:ACTION_ACK|item place|bot:([^|]+)")
+        if acknowledgedName then
+            local placement = optimisticPlacements[norm(acknowledgedName)]
+            if placement then
+                placement.acked = true
+                placement.ackAt = GetTime()
+            end
+        else
+            local single
+            for _, placement in pairs(optimisticPlacements) do
+                if single then single = nil; break end
+                single = placement
+            end
+            if single then
+                single.acked = true
+                single.ackAt = GetTime()
+            end
+        end
+        status("ALT placement accepted; awaiting its confirmed inventory.")
     elseif string.find(message, "^TBM:ACTION_ACK|item sort|") then
         status("Inventory sorted. Special-purpose bags were preserved.")
     elseif string.find(message, "^TBM:ACTION_ACK|item equip|")
@@ -3791,6 +3852,10 @@ end
 -- the server's strict item GUID/native trade path; a lost reply moves nothing.
 local previousGuidSystemMessage = TB.OnSystemMessage
 TB.OnSystemMessage = function(message)
+    if message == "TBM:SELF_ITEM_CAP|v1" then
+        selfServerEquipmentAvailable = true
+        return
+    end
     if message == "TBM:ITEM_GUID_CAP|v1" then
         guidResolveCapable = true
         return
@@ -3858,6 +3923,7 @@ TB.SetInventory = function(name, inventory)
                 item.quality = source.quality
                 item.wearable = source.wearable
                 item.quest = source.quest
+                item.vendorEligible = source.vendorEligible
             end
         end
         for slot, item in pairs(inventory.equipped or {}) do
@@ -3891,9 +3957,12 @@ TB.SetInventory = function(name, inventory)
                 stillAtSource = true
             end
         end
-        if confirmed or not stillAtSource or visual.acked then
+        local afterAck = visual.acked and snapshotStartedAt
+            and snapshotStartedAt >= (visual.ackAt or 0)
+        if confirmed or (not stillAtSource and snapshotStartedAt
+            and snapshotStartedAt >= visual.startedAt) or afterAck then
             optimisticPlacements[norm(name)] = nil
-            if not confirmed and visual.acked then
+            if not confirmed and afterAck then
                 status("ALT inventory differs from the preview; restored server state.")
             end
         end
@@ -3909,7 +3978,8 @@ TB.SetInventory = function(name, inventory)
         local updated = {}
         for _, item in ipairs(inventory.items or {}) do
             local old = item.guid and original[item.guid]
-            if old and old.id == item.id and old.count == item.count then
+            if old and old.id == item.id and old.count == item.count
+                and item.vendorEligible ~= false and not item.quest then
                 updated[item.guid] = {guid=item.guid, id=item.id,
                     count=item.count, bag=item.bag, slot=item.slot}
             end
@@ -4137,7 +4207,7 @@ frame:SetScript("OnEvent", function()
         repaintSelf(false)
         verifyActivePurchase()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-        repaintSelf(true)
+        repaintSelf(false)
     elseif event == "UNIT_INVENTORY_CHANGED" or event == "UNIT_MODEL_CHANGED"
         or event == "UNIT_PORTRAIT_UPDATE" then
         if arg1 and UnitExists(arg1) then
@@ -4147,7 +4217,7 @@ frame:SetScript("OnEvent", function()
                     -- snapshot path may already have rebuilt the model.
                     if not card.lastModelRefreshAt
                         or GetTime() - card.lastModelRefreshAt >= 0.12 then
-                        card.modelUnit = nil
+                        if card.characterType ~= "self" then card.modelUnit = nil end
                         repaintMember(card.character)
                     else
                         -- Do not discard rapid successive equipment events:
@@ -4168,8 +4238,48 @@ frame:SetScript("OnEvent", function()
         refreshAt = GetTime() + 0.05
     end
 end)
+
+local function finishVerifiedSelfEquip(wanted)
+    local texture, count = GetContainerItemInfo(wanted.playerBag, wanted.playerSlot)
+    local link = GetContainerItemLink and
+        GetContainerItemLink(wanted.playerBag, wanted.playerSlot)
+    if CursorHasItem and CursorHasItem() then
+        status("Clear the item currently on your cursor before equipping.")
+        return
+    end
+    if not texture or count ~= wanted.count or itemIdFromLink(link) ~= wanted.id then
+        status("Item changed before equip; no action taken.")
+        return
+    end
+    invalidateSelfSnapshot()
+    if selfServerEquipmentAvailable then
+        command("item self equip " .. wanted.serverBag .. " " .. wanted.serverSlot)
+        status("Server confirmed wearable item; equipping character.")
+    elseif UseContainerItem then
+        UseContainerItem(wanted.playerBag, wanted.playerSlot)
+        status("Server confirmed wearable item; quick-equip requested.")
+    end
+    if repaintSelf then repaintSelf(false) end
+    refreshAt = GetTime() + 0.04
+end
+
+local function recoverMissingPlacementSnapshots()
+    local now = GetTime()
+    for _, placement in pairs(optimisticPlacements) do
+        -- Successful place sends its own INV_END. Query again only if that
+        -- native reply has been delayed or lost; avoid duplicating large
+        -- snapshots on every fast ALT bag move.
+        if placement.acked and not placement.recoveryRequested
+            and now - (placement.ackAt or placement.startedAt) >= 1.1 then
+            placement.recoveryRequested = true
+            requestFreshInventory(placement.name, true)
+        end
+    end
+end
+
 frame:SetScript("OnUpdate", function()
     syncNativeTradeFrame()
+    recoverMissingPlacementSnapshots()
     if pendingCoinTransfer and
         GetTime() - pendingCoinTransfer.started > 10 and
         not pendingCoinTransfer.timeoutWarned then
@@ -4184,24 +4294,7 @@ frame:SetScript("OnUpdate", function()
         local wanted = pendingSelfEquip
         if wanted.confirmed then
             pendingSelfEquip = nil
-            local texture, count = GetContainerItemInfo(
-                wanted.playerBag, wanted.playerSlot)
-            local link = GetContainerItemLink and
-                GetContainerItemLink(wanted.playerBag, wanted.playerSlot)
-            if not CursorHasItem or not CursorHasItem() then
-                if texture and count == wanted.count
-                    and itemIdFromLink(link) == wanted.id and UseContainerItem then
-                    invalidateSelfSnapshot()
-                    UseContainerItem(wanted.playerBag, wanted.playerSlot)
-                    status("Server confirmed wearable item; quick-equip requested.")
-                    if repaintSelf then repaintSelf(true) end
-                    refreshAt = GetTime() + 0.04
-                else
-                    status("Item changed before equip; no action taken.")
-                end
-            else
-                status("Clear the item currently on your cursor before equipping.")
-            end
+            finishVerifiedSelfEquip(wanted)
         elseif GetTime() - wanted.startedAt > 8 then
             pendingSelfEquip = nil
             status("Equipment verification timed out; no item was used.")
