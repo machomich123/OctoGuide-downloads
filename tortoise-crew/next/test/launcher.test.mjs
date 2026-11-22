@@ -21,6 +21,9 @@ import { saveCredential, readCredential } from '../src/secrets.mjs';
 import { gitHubRepo, parseRegistry, loadCatalog } from '../src/catalog.mjs';
 import { unpackZip } from '../src/safe-zip.mjs';
 import { collectAddonFolders, installFromGitHub } from '../src/github-addons.mjs';
+import { PARTY_INVENTORY, featuredAddon, validatePartyRelease,
+  inspectPartyInventory, partyInventoryStatus, installPartyInventory,
+} from '../src/managed-addons.mjs';
 import { hiddenScript, installHiddenShortcuts } from '../src/hidden-start.mjs';
 import { compareVersion, validateUpdateManifest, applyUpdate } from '../bootstrap.mjs';
 import { installOnce } from '../install-once.mjs';
@@ -428,14 +431,118 @@ test('old Turtle catalog parses all valid GitHub and GitLab listings', async t =
   fs.writeFileSync(path.join(legacy, 'addon-registry.json'), text);
   const { items } = await loadCatalog({ root: path.join(root, 'next'), legacy,
     fetchText: async () => { throw new Error('Offline fixture'); } });
-  assert.equal(items.length, 3);
+  assert.equal(items.length, 4);
   assert.equal(items[0].name, 'TortoiseBotsManager');
-  assert.equal(items[1].name, 'Octoscope');
-  assert.equal(items[2].installable, false);
+  assert.equal(items[1].name, 'TBM Party Inventory');
+  assert.equal(items[1].managedId, 'party-inventory');
+  assert.equal(items[2].name, 'Octoscope');
+  assert.equal(items[3].installable, false);
   assert.equal(parseRegistry(text).length, 2);
   assert.deepEqual(gitHubRepo('https://github.com/author/Octoscope'),
     { owner: 'author', repo: 'Octoscope', url: 'https://github.com/author/Octoscope' });
   assert.equal(gitHubRepo('https://evil.com/a/b'), null);
+});
+
+test('managed Party Inventory can be installed and updated safely from verified release files', async t => {
+  const root = fixture(t), client = game(path.join(root, 'client'));
+  const toc = Buffer.from('## Interface: 11200\n## Title: TBM Party Inventory\n' +
+    '## Dependencies: TortoiseBotsManager\nInventory.lua\n');
+  const source = (version, lua) => {
+    const inventory = Buffer.from(lua);
+    const assets = {
+      'Assets/Refresh.tga': Buffer.from('refresh texture fixture'),
+      'Assets/Settings.tga': Buffer.from('settings texture fixture'),
+      'Assets/SellMarked.tga': Buffer.from('sell texture fixture'),
+    };
+    const release = { schema: 1, addon: PARTY_INVENTORY.name, version,
+      files: { 'TortoiseBotsPartyInventory.toc': crypto.createHash('sha256').update(toc).digest('hex'),
+        'Inventory.lua': crypto.createHash('sha256').update(inventory).digest('hex'),
+        ...Object.fromEntries(Object.entries(assets).map(([name, bytes]) =>
+          [name, crypto.createHash('sha256').update(bytes).digest('hex')])) } };
+    const bytes = { 'release.json': Buffer.from(JSON.stringify(release)),
+      'TortoiseBotsPartyInventory.toc': toc, 'Inventory.lua': inventory, ...assets };
+    return { release, download: async (url, limit) => {
+      assert.ok(url.startsWith('https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/'));
+      const filename = Object.keys(bytes).find(name => url.endsWith('/' + name));
+      const result = bytes[filename];
+      assert.ok(result && result.length <= limit);
+      return result;
+    } };
+  };
+  assert.ok(featuredAddon().installable);
+  assert.throws(() => validatePartyRelease({ addon: PARTY_INVENTORY.name, schema: 1,
+    version: '1', files: { '../unsafe.lua': '0'.repeat(64) } }), /manifest/);
+  const old = addon(client, PARTY_INVENTORY.name);
+  fs.writeFileSync(path.join(old, 'PersonalNote.lua'), '-- preserved by backup');
+  const first = source('2026.11.22.1', '-- verified inventory v1');
+  assert.equal(inspectPartyInventory(client).managed, false);
+  const autoBeforeInstall = await installPartyInventory(client, { download: first.download, auto: true });
+  assert.equal(autoBeforeInstall.changed, false);
+  assert.ok(fs.existsSync(path.join(old, 'PersonalNote.lua')));
+  const installed = await installPartyInventory(client, { download: first.download });
+  assert.equal(installed.imported, 1);
+  assert.equal(installed.changed, true);
+  assert.ok(fs.existsSync(path.join(old, 'Assets', 'Settings.tga')));
+  assert.ok(fs.existsSync(path.join(installed.backup, PARTY_INVENTORY.name, 'PersonalNote.lua')));
+  assert.equal(inspectPartyInventory(client).managed, true);
+  assert.equal((await partyInventoryStatus(client, { download: first.download })).updateAvailable, false);
+  const unchanged = await installPartyInventory(client, { download: first.download });
+  assert.equal(unchanged.changed, false);
+  assert.equal(unchanged.upToDate, true);
+
+  const next = source('2026.11.22.2', '-- verified inventory v2');
+  assert.equal((await partyInventoryStatus(client, { download: next.download })).updateAvailable, true);
+  const upgraded = await installPartyInventory(client, { download: next.download, auto: true });
+  assert.equal(upgraded.changed, true);
+  assert.equal(fs.readFileSync(path.join(old, 'Inventory.lua'), 'utf8'), '-- verified inventory v2');
+  assert.ok(fs.existsSync(path.join(upgraded.backup, PARTY_INVENTORY.name, 'Inventory.lua')));
+  fs.writeFileSync(path.join(old, 'Inventory.lua'), '-- local customization');
+  const guarded = await installPartyInventory(client, { download: next.download, auto: true });
+  assert.equal(guarded.skipped, 'locally modified');
+  assert.equal(fs.readFileSync(path.join(old, 'Inventory.lua'), 'utf8'), '-- local customization');
+  const repaired = await installPartyInventory(client, { download: next.download });
+  assert.equal(repaired.changed, true);
+  assert.equal(fs.readFileSync(path.join(repaired.backup, PARTY_INVENTORY.name, 'Inventory.lua'), 'utf8'),
+    '-- local customization');
+
+  const broken = source('2026.11.22.3', '-- valid release v3');
+  const sabotage = async (url, limit) => url.endsWith('/Inventory.lua') ?
+    Buffer.from('-- malicious or truncated') : broken.download(url, limit);
+  await assert.rejects(() => installPartyInventory(client, { download: sabotage }), /checksum mismatch/);
+  assert.equal(fs.readFileSync(path.join(old, 'Inventory.lua'), 'utf8'), '-- verified inventory v2');
+  await assert.rejects(() => installPartyInventory(client, { download: broken.download,
+    isGameRunning: () => true }), /Close WoW/);
+  assert.equal(fs.readFileSync(path.join(old, 'Inventory.lua'), 'utf8'), '-- verified inventory v2');
+});
+
+test('Party Inventory release builder stages exactly the approved Lua, TOC and TGA assets', t => {
+  const root = fixture(t), output = path.join(root, 'release');
+  const toc = path.join(root, 'approved.toc'), lua = path.join(root, 'approved.lua');
+  const assets = path.join(root, 'Assets');
+  fs.mkdirSync(assets);
+  for (const name of ['Refresh.tga', 'Settings.tga', 'SellMarked.tga'])
+    fs.writeFileSync(path.join(assets, name), 'approved-' + name);
+  fs.writeFileSync(toc, '## Interface: 11200\n## Dependencies: TortoiseBotsManager\nInventory.lua\n');
+  fs.writeFileSync(lua, '-- frozen QA-approved addon\n');
+  const builder = path.resolve('tortoise-crew', 'next', 'scripts', 'Prepare-Party-Inventory.mjs');
+  const invoke = version => spawnSync(process.execPath,
+    [builder, '--lua', lua, '--toc', toc, '--assets', assets,
+      '--version', version, '--output', output],
+    { encoding: 'utf8', windowsHide: true, timeout: 10000 });
+  const first = invoke('2026.11.22.1');
+  assert.equal(first.status, 0, first.stderr);
+  const release = validatePartyRelease(JSON.parse(fs.readFileSync(path.join(output, 'release.json'), 'utf8')));
+  for (const [name, hash] of Object.entries(release.files))
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(output, ...name.split('/'))))
+      .digest('hex'), hash);
+  const previous = invoke('2026.11.22.1');
+  assert.notEqual(previous.status, 0);
+  assert.match(previous.stderr, /newer/);
+  assert.equal(fs.readFileSync(path.join(output, 'Inventory.lua'), 'utf8'), '-- frozen QA-approved addon\n');
+  fs.writeFileSync(lua, '-- next QA-approved addon\n');
+  const next = invoke('2026.11.22.2');
+  assert.equal(next.status, 0, next.stderr);
+  assert.equal(fs.readFileSync(path.join(output, 'Inventory.lua'), 'utf8'), '-- next QA-approved addon\n');
 });
 
 test('safe ZIP and GitHub addon importer skip executables and preserve existing addon', async t => {

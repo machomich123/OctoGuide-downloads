@@ -1,5 +1,11 @@
 # Tortoise Crew Next — dedicated Windows app window
 
+**Version 0.3.10:** Includes the independently tested TBM Party Inventory
+addon in Discover and a signed-hash-verified GitHub install/update path.
+The loader preserves a locally edited addon and attempts non-blocking managed
+updates before Play. This release retains the 0.3.9 direct pinned TLS
+connection and prepared-login behavior.
+
 **Version 0.3.6:** Fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,

@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "addon": "TortoiseBotsPartyInventory",
+  "version": "2026.11.22.5",
+  "files": {
+    "Inventory.lua": "e4422c42f4dd2ba428037f3a09a25c39c78d27011205f25e79fab857daf0f6f8",
+    "TortoiseBotsPartyInventory.toc": "3bf597ced69fdea3ce56da29b871042800830276bc3259dbcddbffeecdd9d4e6",
+    "Assets/Refresh.tga": "8f08b52c92f7f219bc2793ee6ead1890d0e5fc72a1f3af65776269dbcb627edb",
+    "Assets/Settings.tga": "4ffefab1cea72c73e78c2fd5780ee39b88fbda9e7c03ad8619f43657a7f13761",
+    "Assets/SellMarked.tga": "77f57cd8af617829e02d3dc83c3c41e2dcaf37de68e8518dba0ee9485282219e"
+  }
+}

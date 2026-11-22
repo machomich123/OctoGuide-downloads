@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir, legacyDir } from './config.mjs';
+import { featuredAddon } from './managed-addons.mjs';
 
 const REGISTRY = 'https://raw.githubusercontent.com/bnema/turtlectl/main/data/addons.json';
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
@@ -12,7 +13,9 @@ const CREW_ADDONS = [{ name: 'TortoiseBotsManager', author: 'Sagiroth',
 export function withCrewAddons(items) {
   const curated = CREW_ADDONS.map(row => normalizeEntry(row, 'Tortoise Crew'));
   const urls = new Set(curated.map(row => row.url.toLowerCase().replace(/\/$/, '')));
-  return [...curated, ...items.filter(row => !urls.has(row.url.toLowerCase().replace(/\/$/, '')))];
+  const managed = featuredAddon();
+  return [...curated, managed, ...items.filter(row =>
+    row.name !== managed.name && !urls.has(row.url.toLowerCase().replace(/\/$/, '')))];
 }
 
 function clipped(value, length = 500) {

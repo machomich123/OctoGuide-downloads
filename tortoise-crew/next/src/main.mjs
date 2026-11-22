@@ -15,6 +15,8 @@ import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
 import { openDesktopApp } from './desktop-window.mjs';
 import { loadCatalog, searchGitHub, clientLocations } from './catalog.mjs';
 import { installFromGitHub } from './github-addons.mjs';
+import { inspectPartyInventory, partyInventoryStatus,
+  installPartyInventory, waitForPartyInventoryUpdates } from './managed-addons.mjs';
 import { accountPreferences, setAccountPreferences } from './preferences.mjs';
 import { addonDetails, imageData } from './addon-details.mjs';
 import { closeAppWindow } from './close-app.mjs';
@@ -47,7 +49,7 @@ const remembered = readJson(path.join(root, 'verified-account.json'), {});
 const state = { settings: loadSettings(root, previous), game: null, relay: null,
   nativeWatch: null, nativeGuardian: null, nativeLastError: '',
   lastVerified: ACCOUNTS.includes(remembered.account) ? remembered.account : '',
-  shuttingDown: false };
+  shuttingDown: false, gameStartPending: false };
 const preflight = new LoginPreflight({
   authenticate: crewLogin,
   provision: saveNativeCredential,
@@ -226,6 +228,8 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
   if (gameRunning()) throw new Error('WoW is already running from this launcher.');
   if (!ACCOUNTS.includes(account) || !state.settings.crewApiUrl) throw new Error('Choose an account and Crew service.');
   const gameDir = verifyPath();
+  await waitForPartyInventoryUpdates();
+  if (gameRunning()) throw new Error('WoW started while preparing Party Inventory.');
   if (typeof password !== 'string' || password.length < 1 || password.length > 16) {
     throw new Error('Enter the current WoW account password.');
   }
@@ -253,6 +257,17 @@ async function play(account, password, remember, closeOnPlay = true, autoLogin =
   if (remember && !ticket.fromSaved) {
     saveCredential(root, account, password);
     setAccountPreferences(root, account, { remember: true, useSaved: true }, true);
+  }
+  // Update this launcher-managed addon before creating the game process. A
+  // missing/offline GitHub release must never block an otherwise valid login.
+  try {
+    if (inspectPartyInventory(gameDir).managed) {
+      const updated = await installPartyInventory(gameDir,
+        { isGameRunning: gameRunning, auto: true });
+      if (updated.changed) log('Party Inventory updated to ' + updated.version);
+    }
+  } catch (error) {
+    log('Party Inventory automatic update skipped: ' + error.message);
   }
   const relay = ticket.prepared || new GameRelay(state.settings.crewApiUrl, ticket.token, { diagnostics });
   await relay.start();
@@ -485,8 +500,8 @@ async function operate(action, args) {
     case 'presence':
       return { online: await crewPresence(state.settings.crewApiUrl) };
     case 'play': {
-      if (state.launching) throw new Error('WoW is already starting.');
-      state.launching = true;
+      if (state.gameStartPending) throw new Error('Game launch is already in progress.');
+      state.gameStartPending = true;
       try {
       const account = String(args.username || state.settings.username).toUpperCase();
       // Existing saved passwords can be used only for the selected account.
@@ -502,7 +517,9 @@ async function operate(action, args) {
       }, storedAccounts(root).includes(account));
       return await play(account, password, prefs.remember, prefs.closeOnPlay,
         prefs.autoLogin);
-      } finally { state.launching = false; }
+      } finally {
+        state.gameStartPending = false;
+      }
     }
     case 'changePassword': {
       const account = state.settings.username;
@@ -525,24 +542,30 @@ async function operate(action, args) {
     case 'scanClients':
       return { clients: clientLocations() };
     case 'installRepository': {
-      if (gameRunning()) throw new Error('Close WoW before installing an addon.');
+      if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before installing an addon.');
       return installFromGitHub(String(args.url || ''), verifyPath(), {
         isGameRunning: gameRunning,
       });
+    }
+    case 'partyInventoryStatus':
+      return partyInventoryStatus(verifyPath());
+    case 'installPartyInventory': {
+      if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before installing Party Inventory.');
+      return installPartyInventory(verifyPath(), { isGameRunning: gameRunning });
     }
     case 'missing':
       return { missing: missingDependencies(verifyPath()) };
     case 'previewImport':
       return importPlan(String(args.source || ''), verifyPath());
     case 'import': {
-      if (gameRunning()) throw new Error('Close WoW before importing addons.');
+      if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before importing addons.');
       const summary = importAddons(String(args.source || ''), verifyPath(), {
         isGameRunning: gameRunning,
       });
       return summary;
     }
     case 'repair': {
-      if (gameRunning()) throw new Error('Close WoW before repairing addons.');
+      if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before repairing addons.');
       return repairAddons(verifyPath(), { isGameRunning: gameRunning });
     }
     default:
