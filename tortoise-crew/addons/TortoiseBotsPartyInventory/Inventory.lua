@@ -122,6 +122,10 @@ local selfServerProtocolAvailable -- nil unknown, false old server, true verifie
 -- A self inventory snapshot does not imply that older server builds support
 -- the newer self equip/unequip commands. Enable them only by explicit advert.
 local selfServerEquipmentAvailable = false
+-- Server equipment commands address current slots. Keep one self gear action
+-- in flight so rapid clicks cannot accidentally act on a different item that
+-- moved into the same slot while an earlier command was still in the queue.
+TB._partySelfGearCommand = nil
 -- True charcoal/near-black surfaces, not the earlier blue-tinted slate UI.
 -- Original WoW inventory/gear icons retain their unmodified native colors.
 local COLORS = {
@@ -482,6 +486,27 @@ local function command(text, sendingText)
     local immediate = TB.SendBotCommand(text)
     status((sendingText or "Awaiting server confirmation...") ..
         (immediate and "" or " (queued by the safe command throttle)"))
+    return true
+end
+
+TB.SubmitPartySelfGearCommand = function(text, op)
+    local active = TB._partySelfGearCommand
+    if active then
+        if not active.recoveryRequested and GetTime() - active.startedAt > 8 then
+            active.recoveryRequested = true
+            active.recoverAt = GetTime()
+            TB.SendBotCommand("inv self")
+            status("Previous equipment action was not verified. Refreshing self inventory; retry after it settles.")
+        else
+            status(active.recoveryRequested and
+                "Waiting for a current self inventory snapshot before the next equipment move." or
+                "Previous equipment move is still being confirmed by the server.")
+        end
+        return false
+    end
+    TB._partySelfGearCommand = {op = op, startedAt = GetTime()}
+    command(text)
+    invalidateSelfSnapshot()
     return true
 end
 
@@ -1009,6 +1034,12 @@ local function stopDrag()
 end
 
 local function nativeMove(source, destination)
+    if TB._partySelfGearCommand then
+        -- The queued self equipment command still addresses its original
+        -- native bag/gear slot, so avoid moving that source behind its back.
+        TB.SubmitPartySelfGearCommand(nil, nil)
+        return
+    end
     if CursorHasItem and CursorHasItem() then
         status("Put the item currently on your cursor away first.")
         return
@@ -1066,8 +1097,7 @@ local function unequipLocalGear(slot)
     if selfServerEquipmentAvailable == true then
         -- Use the same validated equipment transaction as owned ALTs.
         -- This also avoids carrying a native cursor item across bag packets.
-        command("item self unequip 255 " .. slot)
-        invalidateSelfSnapshot()
+        TB.SubmitPartySelfGearCommand("item self unequip 255 " .. slot, "unequip")
         return
     end
     if slot >= 19 and slot <= 22 then
@@ -1265,18 +1295,43 @@ local function receive(destinationButton)
         status("Party membership changed. Refresh before moving items.")
         return
     end
+    if TB._partySelfGearCommand and
+        (source.type == "self" or destination.type == "self") then
+        TB.SubmitPartySelfGearCommand(nil, nil)
+        return
+    end
     if source.owner == destination.owner then
         if source.kind == destination.kind
             and (source.kind ~= "gear" or source.gearSlot == destination.gearSlot)
             and (source.kind ~= "bag" or source.item == destination.item) then return end
         if source.type == "self" then
-            if source.kind == "gear" and source.gearSlot >= 19
-                and source.gearSlot <= 22 and destination.kind == "bag" then
-                command("item self unequip 255 " .. source.gearSlot)
-            elseif source.kind == "bag" and destination.kind == "gear"
+            if source.kind == "gear" and destination.kind == "gear"
+                and source.gearSlot >= 19 and source.gearSlot <= 22
                 and destination.gearSlot >= 19 and destination.gearSlot <= 22 then
-                command("item self equip " .. source.item.bag .. " "
-                    .. source.item.slot .. " " .. destination.gearSlot)
+                if selfServerEquipmentAvailable then
+                    TB.SubmitPartySelfGearCommand("item self bagswap " .. source.gearSlot .. " "
+                        .. destination.gearSlot, "bagswap")
+                else
+                    status("This server cannot safely swap equipped bags. Update TortoiseBots Core.")
+                end
+            elseif source.kind == "gear" and destination.kind == "bag" then
+                if selfServerEquipmentAvailable then
+                    TB.SubmitPartySelfGearCommand("item self unequip 255 " .. source.gearSlot,
+                        "unequip")
+                elseif source.gearSlot >= 19 and source.gearSlot <= 22 then
+                    status("This server cannot safely unequip a worn bag. Update TortoiseBots Core.")
+                else
+                    nativeMove(source, destination)
+                end
+            elseif source.kind == "bag" and destination.kind == "gear" then
+                if selfServerEquipmentAvailable then
+                    TB.SubmitPartySelfGearCommand("item self equip " .. source.item.bag .. " "
+                        .. source.item.slot .. " " .. destination.gearSlot, "equip")
+                elseif destination.gearSlot >= 19 and destination.gearSlot <= 22 then
+                    status("This server cannot safely equip a carried bag. Update TortoiseBots Core.")
+                else
+                    nativeMove(source, destination)
+                end
             else
                 nativeMove(source, destination)
             end
@@ -1447,6 +1502,10 @@ local function wireSlot(button)
                 command("item " .. card.character .. " equip " .. this.item.bag
                     .. " " .. this.item.slot)
             elseif card.characterType == "self" and this.item.playerBag ~= nil then
+                if TB._partySelfGearCommand then
+                    TB.SubmitPartySelfGearCommand(nil, nil)
+                    return
+                end
                 local bag, slot = this.item.playerBag, this.item.playerSlot
                 if CursorHasItem and CursorHasItem() then
                     status("Put the item on your cursor away before equipping.")
@@ -1469,11 +1528,12 @@ local function wireSlot(button)
                 end
                 if equippable and (UseContainerItem or selfServerEquipmentAvailable) then
                     pendingSelfEquip = nil
-                    invalidateSelfSnapshot()
                     if selfServerEquipmentAvailable then
-                        command("item self equip " .. this.item.bag .. " " .. this.item.slot)
+                        if not TB.SubmitPartySelfGearCommand("item self equip "
+                            .. this.item.bag .. " " .. this.item.slot, "equip") then return end
                         status("Equipping your character through the server.")
                     else
+                        invalidateSelfSnapshot()
                         UseContainerItem(this.item.playerBag, this.item.playerSlot)
                         status("Quick-equipping to your character.")
                     end
@@ -3908,6 +3968,31 @@ TB.OnSystemMessage = function(message)
     return previousGuidSystemMessage(message)
 end
 
+-- Distinguish the authenticated player's equipment receipt from matching
+-- equipment actions issued to other party members. The native server sends
+-- ACTION_ACK before its authoritative INV_BEGIN/INV_END inventory response.
+TB._partyPreviousSelfGearSystemMessage = TB.OnSystemMessage
+TB.OnSystemMessage = function(message)
+    local active = TB._partySelfGearCommand
+    if active and type(message) == "string" then
+        local _, _, action, actor = string.find(message,
+            "^TBM:ACTION_ACK|item ([^|]+)|bot:([^|]+)|")
+        if action == active.op and norm(actor) == norm(UnitName("player")) then
+            active.ackAt = GetTime()
+        else
+            local _, _, rejected = string.find(message,
+                "^TBM:ACTION_ERR|item ([^|]+)|")
+            if rejected == active.op then
+                -- Legacy error replies omit actor. Resynchronize the actual
+                -- self inventory before permitting another gear mutation.
+                active.errorAt = GetTime()
+                TB.SendBotCommand("inv self")
+            end
+        end
+    end
+    return TB._partyPreviousSelfGearSystemMessage(message)
+end
+
 local previousSetInventory = TB.SetInventory
 TB.SetInventory = function(name, inventory)
     local previousStagedCount = table.getn(pendingTrade)
@@ -3942,6 +4027,15 @@ TB.SetInventory = function(name, inventory)
         end
     end
     previousSetInventory(name, inventory)
+    if TB._partySelfGearCommand and inventory and name
+        and norm(name) == norm(UnitName("player")) and snapshotStartedAt then
+        local active = TB._partySelfGearCommand
+        if (active.ackAt and snapshotStartedAt >= active.ackAt)
+            or (active.errorAt and snapshotStartedAt >= active.errorAt)
+            or (active.recoveryRequested and snapshotStartedAt >= active.recoverAt) then
+            TB._partySelfGearCommand = nil
+        end
+    end
     local visual = name and optimisticPlacements[norm(name)]
     if visual and inventory then
         -- The server's actual item GUID and destination decide success. A
@@ -4251,11 +4345,12 @@ local function finishVerifiedSelfEquip(wanted)
         status("Item changed before equip; no action taken.")
         return
     end
-    invalidateSelfSnapshot()
     if selfServerEquipmentAvailable then
-        command("item self equip " .. wanted.serverBag .. " " .. wanted.serverSlot)
+        if not TB.SubmitPartySelfGearCommand("item self equip "
+            .. wanted.serverBag .. " " .. wanted.serverSlot, "equip") then return end
         status("Server confirmed wearable item; equipping character.")
     elseif UseContainerItem then
+        invalidateSelfSnapshot()
         UseContainerItem(wanted.playerBag, wanted.playerSlot)
         status("Server confirmed wearable item; quick-equip requested.")
     end
