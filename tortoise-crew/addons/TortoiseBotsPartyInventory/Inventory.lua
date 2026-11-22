@@ -492,9 +492,12 @@ end
 TB.SubmitPartySelfGearCommand = function(text, op)
     local active = TB._partySelfGearCommand
     if active then
-        if not active.recoveryRequested and GetTime() - active.startedAt > 8 then
+        if not active.recoveryRequested and
+            (GetTime() - active.startedAt > 8 or
+                (active.possibleErrorAt and GetTime() - active.possibleErrorAt > 1.1)) then
             active.recoveryRequested = true
-            active.recoverAt = GetTime()
+            -- Transport may queue this read-only request. A snapshot that
+            -- arrives before actual dispatch cannot prove the slot is safe.
             TB.SendBotCommand("inv self")
             status("Previous equipment action was not verified. Refreshing self inventory; retry after it settles.")
         else
@@ -513,6 +516,12 @@ end
 local previousCommandSent = TB.OnCommandSent
 TB.OnCommandSent = function(text)
     if previousCommandSent then previousCommandSent(text) end
+    local pending = TB._partySelfGearCommand
+    if pending and pending.recoveryRequested and not pending.recoverySentAt
+        and text == "inv self" then
+        -- Called on actual chat/addon transport dispatch, not queue insert.
+        pending.recoverySentAt = GetTime()
+    end
     local _, _, altName = string.find(text or "", "^sellmarked%s+([^%s]+)")
     if altName and activeMarkedSale[norm(altName)] then
         local active = activeMarkedSale[norm(altName)]
@@ -1982,13 +1991,24 @@ for index = 1, 5 do
     card.sortButton = controlButton(card, "Auto Sort", 72, 22)
     card.sortButton:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -6, 24)
     card.sortButton:SetScript("OnClick", function()
-        if pendingTransfer or not card.character then return end
+        if pendingTransfer or deferredGuidTransfer or pendingSelfEquip
+            or not card.character then return end
         local eligible = card.characterType == "self"
             or card.characterType == "own" or card.characterType == "ai"
         if not eligible then return end
         local who = card.characterType == "self" and "self" or card.character
+        -- Sorting can change bag slots targeted by a queued self equip.
+        -- Serialize both directions using the native sort ACK + self snapshot.
+        if who == "self" and selfServerEquipmentAvailable then
+            if not TB.SubmitPartySelfGearCommand("item self sort", "sort") then return end
+        else
+            if who ~= "self" and optimisticPlacements[norm(who)] then
+                status("Wait for the previous ALT placement to finish before sorting.")
+                return
+            end
+            command("item " .. who .. " sort")
+        end
         status("Sorting " .. card.character .. "'s standard bags. Special bags are unchanged.")
-        command("item " .. who .. " sort")
     end)
     card.sellButton = controlButton(card, "Sell Marked (0)", 112, 22, true)
     card.sellButton:SetPoint("BOTTOM", card, "BOTTOM", 0, 53)
@@ -3983,10 +4003,11 @@ TB.OnSystemMessage = function(message)
             local _, _, rejected = string.find(message,
                 "^TBM:ACTION_ERR|item ([^|]+)|")
             if rejected == active.op then
-                -- Legacy error replies omit actor. Resynchronize the actual
-                -- self inventory before permitting another gear mutation.
-                active.errorAt = GetTime()
-                TB.SendBotCommand("inv self")
+                -- Older cores omit which actor failed. An ALT error can
+                -- share this verb, so do not treat it as proof our SELF
+                -- command failed. Require an explicit recovery snapshot
+                -- after the safe command queue has had time to drain.
+                active.possibleErrorAt = GetTime()
             end
         end
     end
@@ -4031,8 +4052,7 @@ TB.SetInventory = function(name, inventory)
         and norm(name) == norm(UnitName("player")) and snapshotStartedAt then
         local active = TB._partySelfGearCommand
         if (active.ackAt and snapshotStartedAt >= active.ackAt)
-            or (active.errorAt and snapshotStartedAt >= active.errorAt)
-            or (active.recoveryRequested and snapshotStartedAt >= active.recoverAt) then
+            or (active.recoverySentAt and snapshotStartedAt >= active.recoverySentAt) then
             TB._partySelfGearCommand = nil
         end
     end
