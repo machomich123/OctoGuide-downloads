@@ -1,3 +1,5 @@
-# The managed WoW addon release is SHA-256-pinned to its exact LF bytes.
-# Never rewrite Inventory.lua line endings on Windows checkout.
+# The managed WoW addon release is SHA-256-pinned to its exact bytes.
+# Never rewrite the managed payload on Windows checkout.
 tortoise-crew/addons/TortoiseBotsPartyInventory/Inventory.lua -text
+tortoise-crew/addons/TortoiseBotsPartyInventory/TortoiseBotsPartyInventory.toc -text
+tortoise-crew/addons/TortoiseBotsPartyInventory/Assets/*.tga -text
