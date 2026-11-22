@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: TBM Party Inventory
+## Notes: View party gear and bags side by side.
+## Dependencies: TortoiseBotsManager
+## Version: 0.1.0
+Inventory.lua
+
+## SavedVariables: TBMPartyInventorySettings
