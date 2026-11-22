@@ -12,7 +12,9 @@ test('published Party Inventory release has all five exact file hashes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(addon, 'release.json'), 'utf8'));
   assert.equal(manifest.schema, 1);
   assert.equal(manifest.addon, 'TortoiseBotsPartyInventory');
-  assert.equal(manifest.version, '2026.11.22.6');
+  // New managed addon releases must not require a new launcher build or
+  // edits to this test: the manifest and verified hashes are authoritative.
+  assert.match(manifest.version, /^\d{4}\.\d{2}\.\d{2}\.[1-9]\d*$/);
   const expected = [
     'Inventory.lua', 'TortoiseBotsPartyInventory.toc',
     'Assets/Refresh.tga', 'Assets/Settings.tga', 'Assets/SellMarked.tga',
