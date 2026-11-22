@@ -1,6 +1,8 @@
 # Tortoise Crew Next — dedicated Windows app window
 
-**Version 0.3.6:** Fit-to-window realm screen, scrollable addon list, Turtle
+**Version 0.3.7:** GitHub-managed TBM Party Inventory release with independent
+installation, SHA-256 checks, rollback backups and automatic update checks
+before Play. The existing 0.3.6 fit-to-window realm screen, scrollable addon list, Turtle
 catalog (894 entries, of which 882 are directly installable GitHub repositories),
 safe repository ZIP installation, local import/repair, GitHub source updates,
 recovery backups and hidden Windows startup. Real realm login still requires
@@ -107,6 +109,22 @@ no browser tabs or address bar, independent of the system default browser.
 - Hidden startup through Microsoft-signed wscript.exe; no flash of node.exe's
   console should be visible. If Windows blocks Script Host, restore the saved
   shortcut to the existing Node entrypoint rather than changing security policy.
+
+### Publishing Party Inventory separately
+
+The addon lives in `tortoise-crew/addons/TortoiseBotsPartyInventory`, outside
+the launcher updater ZIP. After the final `Inventory.lua` passes in-game QA,
+prepare the release from the **exact tested Lua, TOC and three TGA assets** using:
+
+`node tortoise-crew/next/scripts/Prepare-Party-Inventory.mjs --lua <QA-Inventory.lua> --toc <QA-TortoiseBotsPartyInventory.toc> --assets <QA-Assets-directory> --version 2026.11.22.1`
+
+Review `release.json` and all five SHA-256 hashes before committing. The launcher
+fetches only those five checked files from the published GitHub path and keeps
+the previous addon in `WTF/CrewNextImport-*`. Updating a locally modified addon
+requires a deliberate manual action in the addon tab; automatic updates only
+apply to a previously verified, unmodified release. The addon requires
+`TortoiseBotsManager` and compatible realm-side ALT commands; releasing this
+Lua package does not install the server-side protocol.
 
 ## Development
 

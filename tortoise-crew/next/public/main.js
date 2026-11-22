@@ -158,8 +158,9 @@ protect($('repair'), async () => {
 // scrolls; the realm and settings panes use the available window space.
 const catalogView = {
   tab: 'discover', items: [], githubItems: [], installed: [],
-  page: 0, loaded: false, busy: false, selected: null,
+  page: 0, loaded: false, busy: false, selected: null, managedStatus: null,
 };
+const PARTY_INVENTORY_FOLDER = 'TortoiseBotsPartyInventory';
 const PACKS = [
   { name: 'Comfy Atmosphere', description: 'Review local atmosphere and MPQ files. Client patches are not activated.', source: 'Local game patch' },
   { name: 'HD Switch / HD Pack', description: 'OctoWoW HD packs may be realm-specific; import only compatible addon files.', source: 'OctoWoW client patch' },
@@ -189,6 +190,7 @@ function renderAddons() {
   if (catalogView.tab === 'discover') {
     const sort = $('addonSort').value;
     filtered = [...filtered].sort((a, b) => {
+      if (Boolean(a.managedId) !== Boolean(b.managedId)) return a.managedId ? -1 : 1;
       if (sort === 'downloads')
         return (b.downloads ?? -1) - (a.downloads ?? -1) || b.stars - a.stars;
       if (sort === 'recent')
@@ -232,10 +234,22 @@ function renderAddons() {
       details.addEventListener('click', () => showAddonDetails(item));
       controls.append(details);
       if (item.installable) {
-        const install = addonNode('button', 'primary', 'Install');
+        const managed = item.managedId ? catalogView.managedStatus : null;
+        const upToDate = Boolean(managed?.installed && !managed.updateAvailable);
+        const label = upToDate ? 'Up to date' : managed?.installed ? 'Update' : 'Install';
+        const install = addonNode('button', 'primary', label);
+        install.disabled = upToDate;
         install.addEventListener('click', () => installAddon(item));
         controls.append(install);
       }
+    } else if (catalogView.tab === 'installed' && item.name === PARTY_INVENTORY_FOLDER) {
+      const update = addonNode('button', 'primary', 'Check / update from GitHub');
+      update.addEventListener('click', () => installAddon({
+        name: 'TBM Party Inventory', installable: true,
+        managedId: 'party-inventory',
+        url: 'https://github.com/machomich123/OctoGuide-downloads/tree/main/tortoise-crew/addons/TortoiseBotsPartyInventory',
+      }));
+      controls.append(update);
     } else if (catalogView.tab === 'packs') {
       const importButton = addonNode('button', '', 'Import local');
       importButton.addEventListener('click', () => selectAddonTab('import'));
@@ -258,9 +272,18 @@ function selectAddonTab(tab) {
       catalogView.installed = result.installed;
       renderAddons();
     }).catch(() => {});
+    void refreshManagedStatus();
   } else if (tab === 'discover' && !catalogView.loaded) {
     void refreshCatalog(false);
   }
+}
+async function refreshManagedStatus() {
+  try {
+    catalogView.managedStatus = await api('partyInventoryStatus');
+  } catch {
+    catalogView.managedStatus = null; // Offline or no verified client yet.
+  }
+  renderAddons();
 }
 async function refreshCatalog(force) {
   if (catalogView.busy) return;
@@ -274,6 +297,7 @@ async function refreshCatalog(force) {
     $('addonStatus').textContent = data.items.length + ' addons from Turtle WoW / GitHub' +
       (data.warning ? ' · ' + data.warning : '');
     if ($('addonProvider').value !== 'github') renderAddons();
+    void refreshManagedStatus();
   } catch (error) {
     $('addonStatus').textContent = error.message;
   } finally {
@@ -360,6 +384,12 @@ async function showAddonDetails(item) {
   $('detailInstall').disabled = !item.installable;
   $('detailInstall').textContent = item.installable ? 'Install safely' : 'No compatible direct download';
   $('addonDetails').showModal();
+  if (item.managedId === 'party-inventory') {
+    $('detailGalleryMessage').textContent = 'Party Inventory is maintained by Tortoise Crew.';
+    $('detailReadmeStatus').textContent = 'Github-managed install and updates';
+    renderReadme('## TBM Party Inventory\nRequires the TortoiseBotsManager base addon and compatible ALT commands on the server.\n\nInstall with a backup. The launcher fetches the verified Lua and TOC files from GitHub. Once installed through this manager, new releases are checked before launching WoW. Local modifications are preserved for manual review.');
+    return;
+  }
   try {
     const result = await api('addonDetails', { url: item.url });
     // Guard against updates from an earlier details request after a new card
@@ -407,10 +437,20 @@ async function installAddon(item) {
   $('addonDetails').close();
   $('addonStatus').textContent = 'Downloading and checking ' + item.name + '…';
   try {
-    const result = await api('installRepository', { url: item.url });
-    $('addonStatus').textContent = 'Installed ' + result.imported +
-      ' addon folder(s). Restart WoW to load them.';
-    message('Addon installed. Backup saved at ' + result.backup);
+    const managed = item.managedId === 'party-inventory';
+    const result = await api(managed ? 'installPartyInventory' : 'installRepository',
+      managed ? {} : { url: item.url });
+    $('addonStatus').textContent = result.upToDate ?
+      'Party Inventory is already up to date (' + result.version + ').' :
+      'Installed ' + result.imported + ' addon folder(s). Restart WoW to load them.';
+    message(result.backup ? 'Addon installed. Backup saved at ' + result.backup :
+      'Addon is already up to date.');
+    if (managed) {
+      await refreshManagedStatus();
+      const installed = await api('installed');
+      catalogView.installed = installed.installed;
+      renderAddons();
+    }
   } catch (error) {
     $('addonStatus').textContent = 'Install failed: ' + error.message;
     message(error.message, true);
@@ -464,6 +504,7 @@ protect($('scanClients'), async () => {
 });
 document.querySelector('[data-tab="addons"]').addEventListener('click', () => {
   if (!catalogView.loaded) void refreshCatalog(false);
+  else void refreshManagedStatus();
 });
 protect($('checkUpdates'), async () => {
   const result = await run('updateStatus', {}, 'Check GitHub launcher updates');

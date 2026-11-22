@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir, legacyDir } from './config.mjs';
+import { featuredAddon } from './managed-addons.mjs';
 
 const REGISTRY = 'https://raw.githubusercontent.com/bnema/turtlectl/main/data/addons.json';
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
@@ -63,6 +64,10 @@ export function parseRegistry(raw) {
     .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
 }
 
+function withOfficialAddon(items) {
+  return [featuredAddon(), ...items.filter(x => x.name !== 'TBM Party Inventory')];
+}
+
 async function fetchTextLimited(url, maxBytes, timeout = 16000) {
   const response = await fetch(url, {
     headers: { 'User-Agent': 'TortoiseCrewAddonHub/1.1',
@@ -88,22 +93,23 @@ export async function loadCatalog({ force = false, root = dataDir(),
   const oldCache = path.join(legacy, 'addon-registry.json');
   if (!force && fs.existsSync(currentCache) &&
       Date.now() - fs.statSync(currentCache).mtimeMs < 24 * 3600 * 1000)
-    return { items: parseRegistry(fs.readFileSync(currentCache, 'utf8')), cached: true };
+    return { items: withOfficialAddon(parseRegistry(fs.readFileSync(currentCache, 'utf8'))), cached: true };
   try {
     const contents = await fetchText(REGISTRY, MAX_REGISTRY_BYTES);
     const items = parseRegistry(contents);
     fs.mkdirSync(root, { recursive: true });
     fs.writeFileSync(currentCache + '.new', contents, { mode: 0o600 });
     fs.renameSync(currentCache + '.new', currentCache);
-    return { items, cached: false };
+    return { items: withOfficialAddon(items), cached: false };
   } catch (error) {
     for (const old of [currentCache, oldCache]) {
       if (!fs.existsSync(old)) continue;
-      try { return { items: parseRegistry(fs.readFileSync(old, 'utf8')),
+      try { return { items: withOfficialAddon(parseRegistry(fs.readFileSync(old, 'utf8'))),
         cached: true, warning: 'Offline: showing the most recent saved catalog.' }; }
       catch { /* Continue to the other saved registry. */ }
     }
-    throw error;
+    return { items: withOfficialAddon([]), cached: false,
+      warning: 'Community registry unavailable; official Party Inventory is still available.' };
   }
 }
 
