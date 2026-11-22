@@ -3190,9 +3190,8 @@ local function paint(card, member, request)
     end
 end
 
--- Fit every real bag slot into the available display. Only inventories larger
--- than the built-in 128-cell ceiling need scrolling. The compact trade bar is
--- hidden when there is nothing staged.
+-- Fit real bag slots into the available display, scrolling when a readable
+-- cell cannot fit. The compact trade bar is hidden when nothing is staged.
 local function layoutCards()
     local largest = 16
     local visible = 0
@@ -3245,11 +3244,13 @@ local function layoutCards()
         local availableGridHeight = math.max(20, cardHeight + gridTop - cardFooter)
         local desiredRows = math.max(1, math.min(math.floor(MAX_BAG_CELLS / BAG_COLUMNS),
             math.ceil(largest / BAG_COLUMNS)))
-        -- Prefer to display EVERY real bag row while keeping readable icons.
-        -- The previous width-first layout made all icons as large as the
-        -- column width allowed and then showed only 8/12 rows, despite empty
-        -- space below. A five-party raid is intentionally denser than solo.
-        local minCell = visible >= 4 and 21 or 26
+        -- At larger five-card fullscreen sizes, never shrink items below
+        -- 34 physical pixels just to display more rows simultaneously.
+        -- Preserve the compact layout for smaller screens and other counts;
+        -- rows that cannot fit remain reachable through the bag scrollbar.
+        local minCell = visible == 5 and fullScale >= 1.1
+            and math.max(21, math.ceil(34 / fullScale))
+            or (visible >= 4 and 21 or 26)
         BAG_CELL = math.max(16, math.min(widthCell,
             math.max(minCell, math.floor(availableGridHeight / desiredRows)), 96))
         rows = math.max(1, math.min(desiredRows,
