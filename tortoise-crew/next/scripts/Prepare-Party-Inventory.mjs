@@ -87,7 +87,14 @@ try {
     'Local modifications are never overwritten automatically.\n\n' +
     '**Release:** ' + version + '\n');
   if (fs.existsSync(destination)) {
-    const backups = path.join(repository, 'out', 'party-inventory-release-backups');
+    // A caller's --output may be on a different volume from the repository.
+    // Rename is atomic only within one filesystem: keep custom-output backups
+    // beside that output. The normal repo release retains its ignored out/ dir.
+    const repositoryRelease = path.join(repository, 'tortoise-crew', 'addons',
+      'TortoiseBotsPartyInventory');
+    const backupParent = path.resolve(destination) === path.resolve(repositoryRelease)
+      ? path.join(repository, 'out') : path.dirname(destination);
+    const backups = path.join(backupParent, 'party-inventory-release-backups');
     fs.mkdirSync(backups, { recursive: true });
     previous = path.join(backups, 'before-' + version + '-' + crypto.randomUUID());
     fs.renameSync(destination, previous);
