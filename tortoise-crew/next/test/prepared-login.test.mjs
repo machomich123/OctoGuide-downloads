@@ -6,7 +6,7 @@ import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
 import { interleave, fromLE, clientProof, clientSession, serverChallenge, worldProof } from '../src/wow-srp.mjs';
-import { PreparedLogin, validateAddonBlob, addonFingerprint } from '../src/prepared-login.mjs';
+import { PreparedLogin, CLIENT_ATTACH_GRACE_MS, validateAddonBlob, addonFingerprint } from '../src/prepared-login.mjs';
 import { authenticateWoW, WorldWire, OP, localAuth, authSessionPayload, addonInfoBlob, u32 } from '../src/wow-session.mjs';
 import { LoginPreflight } from '../src/login-preflight.mjs';
 const be = (hex,size) => Buffer.from(hex.padStart(size*2,'0'),'hex').reverse();
@@ -94,6 +94,8 @@ test('live session handoff preserves addon metadata and forwards traffic with di
   const stages=[];
   async function handoff(prepared,blob) {
     t.after(()=>prepared.stop());await prepared.start({authPort:0,worldPort:0});
+    assert.equal(CLIENT_ATTACH_GRACE_MS,90000,'slow 1.12 clients need a full 90s attach window');
+    assert.ok(prepared.expires-Date.now()>88000,'slow real clients must not lose the world session at 45 seconds');
     const start=performance.now();
     const auth=await authenticateWoW(await connect(prepared.authPort),account,password);
     assert.notDeepEqual(auth.key,remoteKey,'local SRP must not replace the upstream key');

@@ -1,5 +1,11 @@
 # Tortoise Crew Next — dedicated Windows app window
 
+**Version 0.3.11:** Extends prepared WoW handoff to 90 seconds for slower
+native clients; bundled Party Inventory 2026.11.22.6 adds responsive ALT bag
+previews and authoritative GUID resolution, item-quality and quest displays.
+Local previews are rolled back when server verification disagrees. The server
+must also be updated before new protocol features work in production.
+
 **Version 0.3.10:** Includes the independently tested TBM Party Inventory
 addon in Discover and a signed-hash-verified GitHub install/update path.
 The loader preserves a locally edited addon and attempts non-blocking managed

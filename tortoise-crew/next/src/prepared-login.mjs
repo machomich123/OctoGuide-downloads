@@ -7,6 +7,12 @@ import { readJson, writeJsonAtomic } from './config.mjs';
 import { openRelayStream } from './relay.mjs';
 import { authenticateWoW, PreparedWorld, localAuth } from './wow-session.mjs';
 
+// On software-rendered/custom clients the visible game can take >45 seconds
+// to reach world authentication after Play. Keep the verified prepared world
+// alive for a bounded 90-second handoff instead of destroying the local game
+// sockets while the human is staring at the ordinary login screen.
+export const CLIENT_ATTACH_GRACE_MS = 90000;
+
 export function addonFingerprint(game, account) {
   const hash = crypto.createHash('sha256');
   const base = path.join(game, 'Interface', 'AddOns');
@@ -115,8 +121,10 @@ export class PreparedLogin {
     // Binding occurs only after Play. Opening the launcher never reserves the
     // game's local ports and never starts a WoW process.
     try {
-      this.started=true;clearTimeout(this.expiry);this.expires=Date.now()+45000;
-      this.expiry=setTimeout(()=>this.enableFallback(),45000);this.expiry.unref();
+      this.started=true;clearTimeout(this.expiry);
+      this.expires=Date.now()+CLIENT_ATTACH_GRACE_MS;
+      this.expiry=setTimeout(()=>this.enableFallback(),CLIENT_ATTACH_GRACE_MS);
+      this.expiry.unref();
       const listen=async handler=>{
         const server=net.createServer(client=>{
           client.setNoDelay(true); this.clients.add(client);

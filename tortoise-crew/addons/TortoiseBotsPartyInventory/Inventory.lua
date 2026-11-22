@@ -38,6 +38,11 @@ local function syncNativeTradeFrame(restore)
     end
 end
 local deferredGuidTransfer
+local guidResolveCapable = false
+-- Only the visual bag grid is optimistic. The actual item ownership, money,
+-- target positions and authority remain on the server. A rejected or timed-out
+-- request discards the preview and restores the last confirmed inventory.
+local optimisticPlacements = {}
 local refreshAt
 local managerWasVisible = false
 local quoteCapable = false
@@ -133,6 +138,17 @@ local COLORS = {
     button = {0.065, 0.065, 0.071, 1},
     buttonOuter = {0.17, 0.17, 0.18, 1},
     buttonHover = {0.145, 0.137, 0.120, 1},
+}
+-- Native WoW item quality outlines, not a uniform dark border for every item.
+-- Server quality takes priority if the client's WDB entry is not yet cached.
+local ITEM_QUALITY_EDGES = {
+    [0] = {0.62, 0.62, 0.62, 1},
+    [1] = COLORS.slotOccupied,
+    [2] = {0.12, 0.91, 0.10, 1},
+    [3] = {0.06, 0.53, 0.96, 1},
+    [4] = {0.73, 0.28, 0.91, 1},
+    [5] = {0.99, 0.54, 0.05, 1},
+    [6] = {0.90, 0.79, 0.48, 1},
 }
 local SELLER_COLORS = {
     {1.00, 0.70, 0.32, 1}, {0.53, 0.77, 1.00, 1},
@@ -378,6 +394,43 @@ local function resolvedItemTexture(id, provided)
         return serverPath
     end
     return itemTexture(id)
+end
+
+local function paintItemAppearance(button, item)
+    if not button or not button.icon then return end
+    local quality = item and tonumber(item.quality)
+    local equipLocation, nativeClass
+    if item and item.id and GetItemInfo then
+        local _, _, nativeQuality, _, _, itemClass, _, _, location = GetItemInfo(item.id)
+        if quality == nil then quality = tonumber(nativeQuality) end
+        nativeClass, equipLocation = itemClass, location
+    end
+    -- An 'e' flag missing on a consumable does not mean unusable gear.
+    -- Older servers omit the new 'w' hint; a cached native equipLoc fills it.
+    local nativeWearable = type(equipLocation) == "string" and
+        string.sub(equipLocation, 1, 8) == "INVTYPE_" and
+        equipLocation ~= "INVTYPE_NON_EQUIP"
+    local wearable = item and (item.wearable == true or nativeWearable)
+    local restricted = wearable and item.equippable == false
+    colorTexture(button.border, restricted and {0.91, 0.12, 0.12, 1}
+        or ITEM_QUALITY_EDGES[quality] or COLORS.slotOccupied)
+    if button.icon.SetVertexColor then
+        if restricted then button.icon:SetVertexColor(1, 0.23, 0.23)
+        else button.icon:SetVertexColor(1, 1, 1) end
+    end
+    local quest = item and (item.quest == true or nativeClass == "Quest")
+    if quest then
+        if not button.questMarker then
+            local marker = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            marker:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -1)
+            marker:SetText("?")
+            marker:SetTextColor(1, 0.84, 0.18)
+            button.questMarker = marker
+        end
+        button.questMarker:Show()
+    elseif button.questMarker then
+        button.questMarker:Hide()
+    end
 end
 
 local function itemIdFromLink(link)
@@ -917,6 +970,17 @@ end
 local function beginDrag(button)
     local card, item = button.card, button.item
     if not card or not card.canInspect or not item or not item.id then return end
+    local key = norm(card.character)
+    local preview = optimisticPlacements[key]
+    if preview and GetTime() - preview.startedAt > 8 then
+        optimisticPlacements[key] = nil
+        requestFreshInventory(card.character, true)
+        preview = nil
+    end
+    if preview then
+        status("This ALT's previous placement is still settling; no new move was sent.")
+        return
+    end
     -- An explicit new drag supersedes an older deferred GUID lookup. Never
     -- let a stale drag intention block all later trades, and never replay the
     -- old intention when its delayed inventory snapshot finally arrives.
@@ -1211,11 +1275,22 @@ local function receive(destinationButton)
                 and destination.item and destination.item.bag ~= nil then
                 local targetGuid = destination.item.guid or 0
                 local targetCount = destination.item.count or 0
-                command("item " .. source.owner .. " place "
+                local commandText = "item " .. source.owner .. " place "
                     .. source.item.bag .. " " .. source.item.slot .. " "
                     .. (source.item.guid or 0) .. " " .. (source.item.count or 0) .. " "
                     .. destination.item.bag .. " " .. destination.item.slot .. " "
-                    .. targetGuid .. " " .. targetCount)
+                    .. targetGuid .. " " .. targetCount
+                if source.item.guid and source.item.guid > 0 then
+                    optimisticPlacements[norm(source.owner)] = {
+                        sourceBag = source.item.bag, sourceSlot = source.item.slot,
+                        destinationBag = destination.item.bag,
+                        destinationSlot = destination.item.slot,
+                        sourceGuid = source.item.guid, sourceId = source.item.id,
+                        targetGuid = targetGuid, startedAt = GetTime(),
+                    }
+                end
+                command(commandText)
+                if render then render(false) end
             elseif source.kind == "bag" and destination.kind == "gear" and source.type == "own" then
                 command("item " .. source.owner .. " equip " .. source.item.bag .. " "
                     .. source.item.slot .. " " .. destination.gearSlot)
@@ -1277,7 +1352,12 @@ local function receive(destinationButton)
                 targetCount = destination.item.count,
                 startedAt = GetTime(),
             }
-            if source.type == "self" then
+            if guidResolveCapable then
+                local from = source.type == "self" and "self" or source.owner
+                command("item " .. from .. " resolve " .. source.item.bag .. " "
+                    .. source.item.slot .. " " .. source.item.id .. " " .. source.item.count)
+                status("Checking the exact stack GUID; moving automatically after confirmation.")
+            elseif source.type == "self" then
                 TB.SendBotCommand("inv self")
             else
                 TB.RequestInventory(source.owner)
@@ -1538,8 +1618,13 @@ toggleSaleMark = function(button)
         status("The item is not yet identified by the server. Refresh first.")
         return
     end
-    if item.noTrade or item.count <= 0 then
-        status("A bound or invalid item cannot be marked for vendor sale.")
+    local itemClass
+    if GetItemInfo then
+        local _, _, _, _, _, nativeClass = GetItemInfo(item.id)
+        itemClass = nativeClass
+    end
+    if item.quest or itemClass == "Quest" or item.count <= 0 then
+        status("Quest and invalid items cannot be marked for vendor sale.")
         return
     end
     local key = norm(card.character)
@@ -1850,7 +1935,7 @@ for index = 1, 5 do
             return
         end
         -- The server checks ownership, vendor accessibility, sell price,
-        -- exact GUID/item/count/slot and that none are equipped or bound.
+        -- exact GUID/item/count/slot and that none are equipped or quest items.
         activeMarkedSale[key] = { selected = confirmed, startedAt = GetTime(),
             name = card.character, count = count }
         updateSellButton(card)
@@ -2617,6 +2702,8 @@ end
 
 local function clearSlot(button, placeholder)
     button.item = nil
+    if button.questMarker then button.questMarker:Hide() end
+    if button.icon.SetVertexColor then button.icon:SetVertexColor(1, 1, 1) end
     button.previewKind = nil
     if button.preview then button.preview:Hide() end
     if button.kind == "gear" then
@@ -2664,6 +2751,9 @@ local function populateSelf()
                 -- the prior position->GUID association was invalidated.
                 equippable = selfEquippableItemIds[id] == true or
                     (matchingServerItem and item.equippable == true) or false,
+                wearable = matchingServerItem and item.wearable or nil,
+                quality = matchingServerItem and item.quality or nil,
+                quest = matchingServerItem and item.quest or nil,
             })
         end
     end
@@ -2704,6 +2794,28 @@ local function populateBot(inventory)
         local listed = (item.bag == 255 and item.slot >= 23 and item.slot <= 38)
         if item.bag >= 19 and item.bag <= 22 then listed = true end
         if not listed then table.insert(result, item) end
+    end
+    local preview = inventory.name and optimisticPlacements[norm(inventory.name)]
+    if preview then
+        local sourceIndex, targetIndex
+        for index, item in ipairs(result) do
+            if item.bag == preview.sourceBag and item.slot == preview.sourceSlot then
+                sourceIndex = index
+            elseif item.bag == preview.destinationBag and item.slot == preview.destinationSlot then
+                targetIndex = index
+            end
+        end
+        if sourceIndex and targetIndex
+            and result[sourceIndex].guid == preview.sourceGuid
+            and (result[targetIndex].guid or 0) == preview.targetGuid then
+            local source, target = result[sourceIndex], result[targetIndex]
+            local sourceVisual, targetVisual = {}, {}
+            for k, v in pairs(source) do sourceVisual[k] = v end
+            for k, v in pairs(target) do targetVisual[k] = v end
+            sourceVisual.bag, sourceVisual.slot = target.bag, target.slot
+            targetVisual.bag, targetVisual.slot = source.bag, source.slot
+            result[sourceIndex], result[targetIndex] = targetVisual, sourceVisual
+        end
     end
     return result
 end
@@ -2844,7 +2956,7 @@ local function paint(card, member, request)
             button.item = item
             setPathTexture(button.icon, texture or item.texture)
             setAlpha(button.icon, 1)
-            colorTexture(button.border, COLORS.slotOccupied)
+            paintItemAppearance(button, item)
             if button.emptyLabel then button.emptyLabel:Hide() end
             button._tbEmptyGear = nil
         else
@@ -2908,8 +3020,13 @@ local function paint(card, member, request)
             setAlpha(cell.icon, 1)
             local count = item.count and item.count > 1 and tostring(item.count) or ""
             if cell.count:GetText() ~= count then cell.count:SetText(count) end
-            colorTexture(cell.border,
-                item.id and COLORS.slotOccupied or COLORS.emptyEdge)
+            if item.id then
+                paintItemAppearance(cell, item)
+            else
+                colorTexture(cell.border, COLORS.emptyEdge)
+                if cell.questMarker then cell.questMarker:Hide() end
+                if cell.icon.SetVertexColor then cell.icon:SetVertexColor(1, 1, 1) end
+            end
             cell.previewKind = nil
             if cell.preview then cell.preview:Hide() end
             previewForSlot(card, cell)
@@ -3473,11 +3590,16 @@ TB.OnSystemMessage = function(message)
     -- item_display_info table. Legacy servers omit both the price and icon.
     local _, _, bag, position, itemId, count, flags, guid, tail =
         string.find(message, "^TBM:INV_ITEM|(%d+)|(%d+)|(%d+)|(%d+)|([^|]*)|(%d+)(.*)$")
-    local saleCopper, itemIcon
+    local saleCopper, itemIcon, itemQuality
     if tail and string.sub(tail, 1, 1) == "|" then
-        local _, _, price, icon = string.find(tail, "^|(%d*)|?(.*)$")
+        local _, _, price, icon, quality = string.find(tail,
+            "^|(%d*)|([^|]*)|(%d+)$")
+        if not price then
+            _, _, price, icon = string.find(tail, "^|(%d*)|?(.*)$")
+        end
         saleCopper = price ~= "" and tonumber(price) or nil
         itemIcon = validTexturePath(icon)
+        itemQuality = tonumber(quality)
         if not itemIcon and price == "" then
             itemIcon = validTexturePath(string.sub(tail, 2))
         end
@@ -3500,6 +3622,9 @@ TB.OnSystemMessage = function(message)
         snapshot.items[tonumber(bag) * 256 + tonumber(position)] = {
             id = tonumber(itemId), count = tonumber(count), guid = tonumber(guid),
             salePrice = saleCopper, texture = itemIcon,
+            quality = itemQuality,
+            wearable = string.find(flags, "w", 1, true) ~= nil,
+            quest = string.find(flags, "q", 1, true) ~= nil,
         }
     elseif equipSlot and snapshot then
         snapshot.equipped[tonumber(equipSlot)] = {
@@ -3575,6 +3700,9 @@ TB.OnSystemMessage = function(message)
         fillWhenQuoted = false
         status(result or "Seller declined the price request.")
     elseif intent == "item place" or intent == "item sort" then
+        if intent == "item place" then
+            optimisticPlacements = {}
+        end
         status(result or "The inventory change was refused.")
     elseif intent == "inv" and result then
         -- ACTION_ERR|inv|no-bot does not identify WHICH requested member
@@ -3589,15 +3717,17 @@ TB.OnSystemMessage = function(message)
         status(result or "The server refused the equipment change.")
     elseif string.find(message, "^TBM:ACTION_ACK|item transfer|") then
         if pendingTransfer and pendingTransfer.kind == "transfer" then
-            pendingTransfer.acked = true
-            requestFreshInventory(pendingTransfer.from, true)
-            requestFreshInventory(pendingTransfer.to, true)
-            status("Transfer accepted; waiting for current source and destination inventories.")
+            local done = pendingTransfer
+            pendingTransfer = nil
+            requestFreshInventory(done.from, true)
+            requestFreshInventory(done.to, true)
+            status("Native server confirmed the item transfer; refreshing current slots.")
         else
             status("Transfer acknowledged by server; refreshing snapshots.")
         end
     elseif string.find(message, "^TBM:ACTION_ACK|item place|") then
-        status("Item placed in the selected inventory slot.")
+        for _, placement in pairs(optimisticPlacements) do placement.acked = true end
+        status("ALT placement accepted; checking the confirmed slot.")
     elseif string.find(message, "^TBM:ACTION_ACK|item sort|") then
         status("Inventory sorted. Special-purpose bags were preserved.")
     elseif string.find(message, "^TBM:ACTION_ACK|item equip|")
@@ -3656,6 +3786,63 @@ TB.OnSystemMessage = function(message)
     return previousChatSystemMessage(message)
 end
 
+-- One small, read-only source lookup avoids flooding the 1.12 chat channel
+-- with a complete inventory before a main->ALT drag. All mutations still use
+-- the server's strict item GUID/native trade path; a lost reply moves nothing.
+local previousGuidSystemMessage = TB.OnSystemMessage
+TB.OnSystemMessage = function(message)
+    if message == "TBM:ITEM_GUID_CAP|v1" then
+        guidResolveCapable = true
+        return
+    end
+    if type(message) == "string" then
+        local _, _, owner, bag, slot, id, count, guid = string.find(message,
+            "^TBM:ITEM_GUID|([^|]+)|(%d+)|(%d+)|(%d+)|(%d+)|(%d+)$")
+        if owner then
+            local wanted = deferredGuidTransfer
+            if wanted and norm(owner) == norm(wanted.from)
+                and tonumber(bag) == wanted.bag and tonumber(slot) == wanted.slot
+                and tonumber(id) == wanted.id and tonumber(count) == wanted.count
+                and tonumber(guid) > 0 then
+                deferredGuidTransfer = nil
+                local nativeMatches = true
+                if wanted.fromType == "self" then
+                    local _, currentCount = GetContainerItemInfo(
+                        wanted.playerBag, wanted.playerSlot)
+                    local currentLink = GetContainerItemLink and
+                        GetContainerItemLink(wanted.playerBag, wanted.playerSlot)
+                    nativeMatches = currentCount == wanted.count
+                        and itemIdFromLink(currentLink) == wanted.id
+                end
+                if nativeMatches and not pendingTransfer
+                    and isInGroup(wanted.from) and isInGroup(wanted.to) then
+                    local from = wanted.fromType == "self" and "self" or wanted.from
+                    local to = wanted.toType == "self" and "self" or wanted.to
+                    pendingTransfer = {kind="transfer", from=wanted.from,
+                        to=wanted.to, startedAt=GetTime()}
+                    command("item " .. from .. " transfer " .. to .. " put "
+                        .. wanted.bag .. " " .. wanted.slot .. " " .. guid .. " "
+                        .. wanted.count .. " " .. wanted.toBag .. " " .. wanted.toSlot)
+                    status("Exact server GUID confirmed; transfer sent, awaiting receipt.")
+                else
+                    status("The selected stack changed before the server reply. Nothing moved.")
+                end
+            end
+            return
+        end
+        if string.find(message, "^TBM:ACTION_ERR|item resolve|") then
+            local wanted = deferredGuidTransfer
+            if wanted then
+                deferredGuidTransfer = nil
+                requestFreshInventory(wanted.from, true)
+                status("The source stack changed. Refreshed without transferring anything.")
+            end
+            return
+        end
+    end
+    return previousGuidSystemMessage(message)
+end
+
 local previousSetInventory = TB.SetInventory
 TB.SetInventory = function(name, inventory)
     local previousStagedCount = table.getn(pendingTrade)
@@ -3668,6 +3855,9 @@ TB.SetInventory = function(name, inventory)
                 item.guid = source.guid
                 item.salePrice = source.salePrice
                 item.texture = source.texture or item.texture
+                item.quality = source.quality
+                item.wearable = source.wearable
+                item.quest = source.quest
             end
         end
         for slot, item in pairs(inventory.equipped or {}) do
@@ -3686,6 +3876,28 @@ TB.SetInventory = function(name, inventory)
         end
     end
     previousSetInventory(name, inventory)
+    local visual = name and optimisticPlacements[norm(name)]
+    if visual and inventory then
+        -- The server's actual item GUID and destination decide success. A
+        -- newer snapshot that disagrees with the preview reverses it safely.
+        local confirmed, stillAtSource = false, false
+        for _, item in ipairs(inventory.items or {}) do
+            if item.guid == visual.sourceGuid
+                and item.bag == visual.destinationBag
+                and item.slot == visual.destinationSlot then
+                confirmed = true
+            elseif item.guid == visual.sourceGuid
+                and item.bag == visual.sourceBag and item.slot == visual.sourceSlot then
+                stillAtSource = true
+            end
+        end
+        if confirmed or not stillAtSource or visual.acked then
+            optimisticPlacements[norm(name)] = nil
+            if not confirmed and visual.acked then
+                status("ALT inventory differs from the preview; restored server state.")
+            end
+        end
+    end
     if inventory and TB.RefreshMoneyBatchDialog then
         TB.RefreshMoneyBatchDialog()
     end
