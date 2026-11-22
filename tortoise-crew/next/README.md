@@ -1,5 +1,11 @@
 # Tortoise Crew Next — dedicated Windows app window
 
+**Version 0.3.12:** Shows actual installed addon versions from TOC metadata,
+compares known installed and available versions in the addon catalog, and
+displays unknown versions explicitly instead of confusing WoW interface
+compatibility with addon versions. The inactive "Up to date" button uses a
+normal cursor rather than suggesting that an update is still in progress.
+
 **Version 0.3.11:** Extends prepared WoW handoff to 90 seconds for slower
 native clients; bundled Party Inventory 2026.11.22.6 adds responsive ALT bag
 previews and authoritative GUID resolution, item-quality and quest displays.

@@ -10,7 +10,7 @@ html,body { margin:0; width:100%; height:100%; overflow:hidden; font:14px/1.4 sy
 nav { display:grid; gap:8px; margin-top:18px; }
 button { border:1px solid var(--line); background:#26394d; color:var(--text); padding:10px 16px; border-radius:9px; cursor:pointer; font-weight:700; text-align:left; }
 button:hover:not(:disabled) { background:#37536a; }
-button:disabled { opacity:.5; cursor:wait; }
+button:disabled { opacity:.5; cursor:default; }
 button.primary { background:var(--mint); border-color:var(--mint); color:#073430; text-align:center; }
 .nav.active { background:#1d3f42; border-color:#3a977f; color:var(--mint); }
 .crew { margin-top:auto; display:grid; gap:10px; }
@@ -58,6 +58,8 @@ input:not([type="checkbox"]), select { font:14px system-ui; color:var(--text); b
 .addon-name { font-size:14px; font-weight:700; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .addon-desc { color:var(--muted); font-size:12px; margin:3px 0 5px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 .addon-meta { color:var(--mint); font-size:11px; }
+.addon-versions { line-height:1.5; overflow-wrap:anywhere; }
+.addon-aux { color:var(--muted); font-size:11px; margin-top:2px; }
 .addon-buttons { display:flex; justify-content:flex-end; gap:6px; margin-top:7px; }
 .addon-buttons button { font-size:11px; padding:5px 9px; }
 .addon-bottom { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }

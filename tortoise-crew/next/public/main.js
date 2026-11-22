@@ -162,6 +162,7 @@ protect($('repair'), async () => {
 const catalogView = {
   tab: 'discover', items: [], githubItems: [], installed: [],
   page: 0, loaded: false, busy: false, selected: null, managedStatus: null,
+  installedLoaded: false, installedBusy: false,
 };
 const PARTY_INVENTORY_FOLDER = 'TortoiseBotsPartyInventory';
 const PACKS = [
@@ -180,6 +181,35 @@ function currentAddonItems() {
   if (catalogView.tab === 'installed') return catalogView.installed;
   if (catalogView.tab === 'packs') return PACKS;
   return $('addonProvider').value === 'github' ? catalogView.githubItems : catalogView.items;
+}
+function addonKey(name) {
+  return String(name || '').toLowerCase().replace(/^!+/, '').replace(/[^a-z0-9]/g, '');
+}
+function uniqueMatch(items, name) {
+  const key = addonKey(name);
+  if (!key) return null;
+  const matches = items.filter(item => !item.skipped && addonKey(item.name) === key);
+  return matches.length === 1 ? matches[0] : null;
+}
+function displayAddonVersion(version) {
+  return version ? (/^[vr]/i.test(version) ? version : 'v' + version) : 'Unknown';
+}
+function addonVersions(item) {
+  const managed = item.managedId === 'party-inventory' || item.name === PARTY_INVENTORY_FOLDER;
+  const local = catalogView.tab === 'installed' ? item :
+    (managed ? catalogView.installed.find(entry => entry.name === PARTY_INVENTORY_FOLDER) :
+      uniqueMatch(catalogView.installed, item.name));
+  const current = managed && catalogView.managedStatus?.installed ?
+    (catalogView.managedStatus.current || local?.version) : local?.version;
+  const catalogEntry = catalogView.tab === 'installed' ?
+    uniqueMatch(catalogView.items, managed ? 'TBM Party Inventory' : item.name) : item;
+  const latest = managed ? catalogView.managedStatus?.latest : catalogEntry?.latestVersion;
+  return {
+    installed: !catalogView.installedLoaded ? 'Not checked' :
+      (!local && catalogView.tab !== 'installed') ? 'Not detected' : displayAddonVersion(current),
+    latest: displayAddonVersion(latest),
+    interfaceVersion: local?.interfaceVersion || '',
+  };
 }
 function renderAddons() {
   const importVisible = catalogView.tab === 'import';
@@ -226,11 +256,20 @@ function renderAddons() {
     const info = addonNode('div', 'addon-info');
     info.append(addonNode('h3', 'addon-name', item.name),
       addonNode('p', 'addon-desc', item.description || item.skipped || 'Installed addon'));
-    info.append(addonNode('div', 'addon-meta', catalogView.tab === 'installed' ?
-      (item.version ? 'TOC ' + item.version : 'Check compatibility') :
-      item.stars !== undefined ? '★ ' + (item.stars || 0) +
-        (item.downloads !== null && item.downloads !== undefined ?
-          ' · ↓ ' + item.downloads.toLocaleString() : '') : item.source));
+    if (catalogView.tab !== 'packs') {
+      const versions = addonVersions(item);
+      info.append(addonNode('div', 'addon-meta addon-versions',
+        'Installed: ' + versions.installed + '  ·  Latest: ' + versions.latest));
+      if (catalogView.tab === 'installed') {
+        info.append(addonNode('div', 'addon-aux', item.skipped ||
+          (versions.interfaceVersion ? 'WoW interface: ' + versions.interfaceVersion : '')));
+      } else {
+        info.append(addonNode('div', 'addon-aux', item.stars !== undefined ?
+          '★ ' + (item.stars || 0) +
+          (item.downloads != null ? ' · ↓ ' + item.downloads.toLocaleString() : '') :
+          (item.source || '')));
+      }
+    } else info.append(addonNode('div', 'addon-aux', item.source || ''));
     const controls = addonNode('div', 'addon-buttons');
     if (catalogView.tab === 'discover') {
       const details = addonNode('button', '', 'Details');
@@ -271,13 +310,25 @@ function selectAddonTab(tab) {
     el.classList.toggle('active', el.dataset.addonTab === tab);
   renderAddons();
   if (tab === 'installed') {
-    run('installed', {}, 'Installed addons').then(result => {
-      catalogView.installed = result.installed;
-      renderAddons();
-    }).catch(() => {});
+    void refreshInstalledAddons();
     void refreshManagedStatus();
   } else if (tab === 'discover' && !catalogView.loaded) {
     void refreshCatalog(false);
+  }
+  if (tab === 'installed' && !catalogView.loaded) void refreshCatalog(false);
+}
+async function refreshInstalledAddons() {
+  if (catalogView.installedBusy) return;
+  catalogView.installedBusy = true;
+  try {
+    const result = await api('installed');
+    catalogView.installed = result.installed;
+    catalogView.installedLoaded = true;
+  } catch {
+    catalogView.installedLoaded = false; // Client path may not be set yet.
+  } finally {
+    catalogView.installedBusy = false;
+    renderAddons();
   }
 }
 async function refreshManagedStatus() {
@@ -448,12 +499,8 @@ async function installAddon(item) {
       'Installed ' + result.imported + ' addon folder(s). Restart WoW to load them.';
     message(result.backup ? 'Addon installed. Backup saved at ' + result.backup :
       'Addon is already up to date.');
-    if (managed) {
-      await refreshManagedStatus();
-      const installed = await api('installed');
-      catalogView.installed = installed.installed;
-      renderAddons();
-    }
+    if (managed) await refreshManagedStatus();
+    await refreshInstalledAddons();
   } catch (error) {
     $('addonStatus').textContent = 'Install failed: ' + error.message;
     message(error.message, true);
@@ -506,6 +553,7 @@ protect($('scanClients'), async () => {
   if (result.clients.length) $('source').value = result.clients[0];
 });
 document.querySelector('[data-tab="addons"]').addEventListener('click', () => {
+  void refreshInstalledAddons();
   if (!catalogView.loaded) void refreshCatalog(false);
   else void refreshManagedStatus();
 });

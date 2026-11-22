@@ -531,8 +531,21 @@ async function operate(action, args) {
       prepareSavedAccount(true);
       return { changed: true };
     }
-    case 'installed':
-      return { installed: installedAddons(verifyPath()) };
+    case 'installed': {
+      const game = verifyPath();
+      const installed = installedAddons(game);
+      const managed = installed.find(item => item.name === 'TortoiseBotsPartyInventory' && !item.skipped);
+      if (managed) {
+        try {
+          const local = inspectPartyInventory(game);
+          if (local.version) {
+            managed.version = local.version;
+            managed.versionSource = 'Managed release';
+          }
+        } catch { /* A broken managed addon must not hide other installed addons. */ }
+      }
+      return { installed };
+    }
     case 'catalog':
       return loadCatalog({ force: args.force === true, root, legacy: previous });
     case 'addonDetails':

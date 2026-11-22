@@ -18,7 +18,7 @@ import {
   browserCandidates, selectAppBrowser, desktopAppArguments,
 } from '../src/desktop-window.mjs';
 import { saveCredential, readCredential } from '../src/secrets.mjs';
-import { gitHubRepo, parseRegistry, loadCatalog } from '../src/catalog.mjs';
+import { gitHubRepo, parseRegistry, loadCatalog, publishedAddonVersion } from '../src/catalog.mjs';
 import { unpackZip } from '../src/safe-zip.mjs';
 import { collectAddonFolders, installFromGitHub } from '../src/github-addons.mjs';
 import { PARTY_INVENTORY, featuredAddon, validatePartyRelease,
@@ -294,6 +294,21 @@ test('addon import preserves old versions and excludes executables', t => {
   assert.ok(result.missingDependencies.some(x => x.dependency === 'MissingAddon'));
 });
 
+test('installed addon versions use TOC Version, never WoW Interface', t => {
+  const client = game(path.join(fixture(t), 'client'));
+  const first = addon(client, 'ExampleAddon');
+  fs.appendFileSync(path.join(first, 'ExampleAddon.toc'), '## Version: v2.4.1\n');
+  const second = addon(client, 'UnversionedAddon');
+  const placeholder = addon(client, 'PlaceholderAddon');
+  fs.appendFileSync(path.join(placeholder, 'PlaceholderAddon.toc'),
+    '## Version: @project-version@\n');
+  const installed = installedAddons(client);
+  assert.equal(installed.find(x => x.name === 'ExampleAddon').version, 'v2.4.1');
+  assert.equal(installed.find(x => x.name === 'ExampleAddon').interfaceVersion, '11800');
+  assert.equal(installed.find(x => x.name === 'UnversionedAddon').version, '');
+  assert.equal(installed.find(x => x.name === 'PlaceholderAddon').version, '');
+});
+
 test('repair preserves original configuration, old SavedVariables and names', t => {
   const root = fixture(t), dst = game(path.join(root, 'client'));
   addon(dst, 'incorrect', '!OctoScope');
@@ -441,6 +456,20 @@ test('old Turtle catalog parses all valid GitHub and GitLab listings', async t =
   assert.deepEqual(gitHubRepo('https://github.com/author/Octoscope'),
     { owner: 'author', repo: 'Octoscope', url: 'https://github.com/author/Octoscope' });
   assert.equal(gitHubRepo('https://evil.com/a/b'), null);
+});
+
+test('catalog publishes version only when the provider names a real release', () => {
+  const entries = parseRegistry(JSON.stringify({ addons: [
+    { name: 'Published', url: 'https://github.com/example/published',
+      version: 'v1.7.2', last_commit: '2026-11-22' },
+    { name: 'ClientBuild', url: 'https://github.com/example/build', version: '11800' },
+    { name: 'NoRelease', url: 'https://github.com/example/unreleased',
+      last_commit: '2026-11-22', stars: 4 },
+  ] }));
+  assert.equal(entries.find(x => x.name === 'Published').latestVersion, 'v1.7.2');
+  assert.equal(entries.find(x => x.name === 'ClientBuild').latestVersion, '');
+  assert.equal(entries.find(x => x.name === 'NoRelease').latestVersion, '');
+  assert.equal(publishedAddonVersion('@project-version@'), '');
 });
 
 test('managed Party Inventory can be installed and updated safely from verified release files', async t => {
