@@ -22,6 +22,14 @@ function clipped(value, length = 500) {
   return typeof value === 'string' ? value.slice(0, length) : '';
 }
 
+// A source must explicitly publish a release version. GitHub stars, commit
+// timestamps and WoW Interface numbers cannot serve as version substitutes.
+export function publishedAddonVersion(value) {
+  const version = clipped(value, 48).trim();
+  return /^(?:v?\d+(?:\.\d+){1,5}(?:[-+][A-Za-z0-9._-]+)?|r\d+)$/i.test(version) ?
+    version : '';
+}
+
 export function gitHubRepo(url) {
   try {
     const parsed = new URL(url);
@@ -54,6 +62,8 @@ export function normalizeEntry(row, source = 'Turtle WoW catalog') {
   const downloads = row.downloads === null || row.downloads === undefined ? null :
     Number(row.downloads);
   const updated = clipped(row.last_commit || row.pushed_at, 50);
+  const latestVersion = publishedAddonVersion(row.latest_version || row.latestVersion ||
+    row.release?.tag_name || row.version);
   return {
     name,
     description: clipped(row.description || 'Community addon for Vanilla / Turtle WoW.', 550),
@@ -63,6 +73,7 @@ export function normalizeEntry(row, source = 'Turtle WoW catalog') {
     stars: Number.isFinite(stars) && stars >= 0 ? Math.floor(stars) : 0,
     downloads: Number.isFinite(downloads) && downloads >= 0 ? Math.floor(downloads) : null,
     updated: Number.isFinite(Date.parse(updated)) ? updated : '',
+    latestVersion,
     icon: repo ? 'https://github.com/' + repo.owner + '.png?size=96' : '',
     installable: Boolean(repo),
   };

@@ -28,10 +28,14 @@ function isProtected(name) {
 
 function tocMetadata(file) {
   const contents = fs.readFileSync(file, 'utf8');
-  const version = contents.match(/^##\s*Interface\s*:\s*(\d+)/im)?.[1] || '';
+  // ## Interface is a WoW client build, not the addon's release number.
+  const interfaceVersion = contents.match(/^##\s*Interface\s*:\s*(\d+)/im)?.[1] || '';
+  const declaredVersion = contents.match(/^##\s*Version\s*:\s*(.+)$/im)?.[1]?.trim() || '';
+  const version = /^(?:v?\d+(?:\.\d+){1,5}(?:[-+][A-Za-z0-9._-]+)?|r\d+)$/i.test(declaredVersion) &&
+    declaredVersion.length <= 48 ? declaredVersion : '';
   const required = [...contents.matchAll(/^##\s*(?:Dependencies|RequiredDeps)\s*:\s*(.+)$/gim)]
     .flatMap(([, text]) => text.split(',').map(x => x.trim()).filter(Boolean));
-  return { version, required };
+  return { interfaceVersion, version, required };
 }
 
 function selectToc(dir) {
@@ -39,7 +43,7 @@ function selectToc(dir) {
     .filter(x => x.isFile() && x.name.toLowerCase().endsWith('.toc') && safeName(x.name))
     .map(x => path.join(dir, x.name));
   const valid = files.map(file => ({ file, ...tocMetadata(file) }))
-    .filter(x => !x.version || /^(11\d\d\d|12\d\d\d)$/.test(x.version));
+    .filter(x => !x.interfaceVersion || /^(11\d\d\d|12\d\d\d)$/.test(x.interfaceVersion));
   if (valid.length === 1) return valid[0];
   if (valid.length > 1) {
     const exact = valid.filter(x => path.basename(x.file, '.toc').toLowerCase() === path.basename(dir).toLowerCase());
@@ -68,7 +72,8 @@ export function installedAddons(game) {
     try {
       const toc = selectToc(full);
       return { name: x.name, manifest: path.basename(toc.file),
-        version: toc.version, dependencies: toc.required };
+        version: toc.version, interfaceVersion: toc.interfaceVersion,
+        versionSource: toc.version ? 'TOC Version' : '', dependencies: toc.required };
     } catch (e) {
       return { name: x.name, skipped: e.message };
     }
