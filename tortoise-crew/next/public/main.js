@@ -106,6 +106,7 @@ protect($('play'), async () => {
 protect($('saveClient'), async () => {
   const saved = await run('setClient', { wowPath: $('wowPath').value }, 'Client verification');
   $('wowLocation').textContent = saved.settings.wowPath;
+  void refreshAddonUpdateCount();
 });
 function showNativeStatus(native) {
   const line = native?.installed ?
@@ -165,6 +166,36 @@ const catalogView = {
   installedLoaded: false, installedBusy: false,
 };
 const PARTY_INVENTORY_FOLDER = 'TortoiseBotsPartyInventory';
+const updateAllButtons = [$('homeUpdateAll'), $('updateAllAddons')];
+let bulkUpdateBusy = false;
+let addonUpdateCount;
+
+function showAddonUpdateCount() {
+  $('homeUpdateAll').textContent = 'Update all addons (' + (addonUpdateCount ?? '…') + ')';
+  for (const button of updateAllButtons)
+    button.disabled = bulkUpdateBusy || addonUpdateCount === undefined || addonUpdateCount === 0;
+}
+async function refreshAddonUpdateCount() {
+  try {
+    addonUpdateCount = (await api('availableAddonUpdates')).count;
+  } catch {
+    addonUpdateCount = undefined;
+  }
+  showAddonUpdateCount();
+}
+for (const button of updateAllButtons) button.addEventListener('click', async () => {
+  if (bulkUpdateBusy || !addonUpdateCount) return;
+  bulkUpdateBusy = true;
+  showAddonUpdateCount();
+  try {
+    const result = await run('updateAllAddons', {}, 'Update all addons');
+    const failures = result.failed.map(({name, error}) => name + ' — ' + error);
+    message('Updated ' + result.updated.length + ' addon(s).' +
+      (failures.length ? ' ' + failures.join(' · ') : ''), failures.length > 0);
+    await Promise.all([refreshInstalledAddons(), refreshManagedStatus(), refreshAddonUpdateCount()]);
+  } catch { /* run reports failure in the launcher status. */ }
+  finally { bulkUpdateBusy = false; showAddonUpdateCount(); }
+});
 const repositoryVersions = new Map();
 let versionObserver;
 const PACKS = [
@@ -545,6 +576,7 @@ async function installAddon(item) {
       'Addon is already up to date.');
     if (managed) await refreshManagedStatus();
     await refreshInstalledAddons();
+    void refreshAddonUpdateCount();
   } catch (error) {
     $('addonStatus').textContent = 'Install failed: ' + error.message;
     message(error.message, true);
@@ -585,7 +617,10 @@ $('addonSearch').addEventListener('keydown', async event => {
 });
 $('addonPrev').addEventListener('click', () => { catalogView.page--; renderAddons(); });
 $('addonNext').addEventListener('click', () => { catalogView.page++; renderAddons(); });
-$('refreshCatalog').addEventListener('click', () => { void refreshCatalog(true); });
+$('refreshCatalog').addEventListener('click', () => {
+  void refreshCatalog(true);
+  void refreshAddonUpdateCount();
+});
 $('closeAddonDetails').addEventListener('click', () => $('addonDetails').close());
 $('detailInstall').addEventListener('click', () => {
   if (catalogView.selected) void installAddon(catalogView.selected);
@@ -644,6 +679,7 @@ async function initial() {
   setInterval(() => { void updatePreAuthStatus().catch(() => {}); }, 2500);
   $('wowPath').value = state.settings.wowPath;
   $('wowLocation').textContent = state.settings.wowPath || 'No WoW.exe selected';
+  void refreshAddonUpdateCount();
   await run('refreshManifest', {}, 'Check server settings').catch(() => {});
   try {
     await api('status');

@@ -51,14 +51,20 @@
           <p id="preAuthStatus" class="footnote">Checking saved account verification…</p>
           <label class="check"><input type="checkbox" id="closeOnPlay" checked> Close the launcher window when WoW starts</label>
           <p id="wowLocation" class="footnote">No WoW.exe selected</p>
-          <button id="play" class="primary">▶ &nbsp; PLAY TORTOISE WOW</button>
+          <div class="actions">
+            <button id="play" class="primary">▶ &nbsp; PLAY TORTOISE WOW</button>
+            <button id="homeUpdateAll" disabled>Update all addons (…)</button>
+          </div>
           <p class="footnote">Your account is verified while this launcher is open, with no WoW process running. After Play, the game starts hidden and appears when Character Selection is ready. Failed login attempts fall back to normal WoW login.</p>
         </div>
       </section>
       <section id="addons" class="panel">
         <div class="addon-head">
           <div><h1>Addon <em>library.</em></h1><p class="intro" id="addonStatus">Browse Turtle WoW addons or import your previous client.</p></div>
-          <button id="refreshCatalog" class="small">Refresh catalog</button>
+          <div class="actions">
+            <button id="updateAllAddons" class="small" disabled>Update all addons</button>
+            <button id="refreshCatalog" class="small">Refresh catalog</button>
+          </div>
         </div>
         <div class="addon-tabs" role="tablist" aria-label="Addon sections">
           <button class="active addon-tab" data-addon-tab="discover">Discover</button>

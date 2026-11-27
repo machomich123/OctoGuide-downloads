@@ -15,6 +15,7 @@ import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
 import { openDesktopApp } from './desktop-window.mjs';
 import { loadCatalog, searchGitHub, clientLocations, repositoryAddonVersion } from './catalog.mjs';
 import { installFromGitHub } from './github-addons.mjs';
+import { availableAddonUpdates, applyAddonUpdates } from './addon-updates.mjs';
 import { inspectPartyInventory, partyInventoryStatus,
   installPartyInventory, waitForPartyInventoryUpdates } from './managed-addons.mjs';
 import { accountPreferences, setAccountPreferences } from './preferences.mjs';
@@ -406,6 +407,7 @@ function fail(error) {
   log('Request failed: ' + error?.name);
   return { ok: false, error: error?.message || 'Operation failed.' };
 }
+let bulkAddonUpdate;
 async function operate(action, args) {
   state.lastUiSeen = Date.now();
   switch (action) {
@@ -552,11 +554,25 @@ async function operate(action, args) {
       return addonDetails(String(args.url || ''));
     case 'addonRepositoryVersion':
       return repositoryAddonVersion(String(args.url || ''), String(args.name || ''));
+    case 'availableAddonUpdates':
+      return {count: (await availableAddonUpdates(verifyPath(), {root, legacy: previous})).length};
+    case 'updateAllAddons': {
+      if (bulkAddonUpdate) return bulkAddonUpdate;
+      if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before updating addons.');
+      const game = verifyPath();
+      bulkAddonUpdate = (async () => {
+        const updates = await availableAddonUpdates(game, {root, legacy: previous});
+        return applyAddonUpdates(game, updates, {isGameRunning: () => state.gameStartPending || gameRunning()});
+      })();
+      try { return await bulkAddonUpdate; }
+      finally { bulkAddonUpdate = null; }
+    }
     case 'githubSearch':
       return { items: await searchGitHub(String(args.query || '')) };
     case 'scanClients':
       return { clients: clientLocations() };
     case 'installRepository': {
+      if (bulkAddonUpdate) throw new Error('Wait for the current addon updates.');
       if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before installing an addon.');
       return installFromGitHub(String(args.url || ''), verifyPath(), {
         isGameRunning: gameRunning,
@@ -565,6 +581,7 @@ async function operate(action, args) {
     case 'partyInventoryStatus':
       return partyInventoryStatus(verifyPath());
     case 'installPartyInventory': {
+      if (bulkAddonUpdate) throw new Error('Wait for the current addon updates.');
       if (state.gameStartPending || gameRunning()) throw new Error('Close WoW before installing Party Inventory.');
       return installPartyInventory(verifyPath(), { isGameRunning: gameRunning });
     }
