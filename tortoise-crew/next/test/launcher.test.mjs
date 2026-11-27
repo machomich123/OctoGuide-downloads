@@ -491,7 +491,7 @@ test('managed Party Inventory can be installed and updated safely from verified 
     const bytes = { 'release.json': Buffer.from(JSON.stringify(release)),
       'TortoiseBotsPartyInventory.toc': toc, 'Inventory.lua': inventory, ...assets };
     return { release, download: async (url, limit) => {
-      assert.ok(url.startsWith('https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/'));
+      assert.ok(url.startsWith('https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/refs/heads/main/'));
       const filename = Object.keys(bytes).find(name => url.endsWith('/' + name));
       const result = bytes[filename];
       assert.ok(result && result.length <= limit);

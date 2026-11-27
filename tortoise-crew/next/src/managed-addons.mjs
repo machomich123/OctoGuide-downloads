@@ -15,7 +15,7 @@ export const PARTY_INVENTORY = Object.freeze({
   description: 'View and manage party ALT equipment, bags and trading in-game. Requires TortoiseBotsManager and the matching Tortoise server commands.',
 });
 
-const RELEASE_ROOT = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/addons/TortoiseBotsPartyInventory/';
+const RELEASE_ROOT = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/refs/heads/main/tortoise-crew/addons/TortoiseBotsPartyInventory/';
 const FILE_LIMITS = Object.freeze({
   'release.json': 16 * 1024,
   'TortoiseBotsPartyInventory.toc': 8 * 1024,
