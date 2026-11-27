@@ -3,7 +3,7 @@
   "addon": "TortoiseBotsPartyInventory",
   "version": "2026.11.27.5",
   "files": {
-    "Inventory.lua": "23b0621049a83a22ce86900c607577282b327087f0082d28b6e58686eae1c8be",
+    "Inventory.lua": "a78a6782ff22faffdcf517b7a71b8fda0e94803b0eade2ede9c736c6bb3ca720",
     "TortoiseBotsPartyInventory.toc": "f7071432e2bd0e6305983a4123d9cd4eea7ade24be6c21a6d52e220ab654bc23",
     "Assets/Refresh.tga": "8f08b52c92f7f219bc2793ee6ead1890d0e5fc72a1f3af65776269dbcb627edb",
     "Assets/Settings.tga": "4ffefab1cea72c73e78c2fd5780ee39b88fbda9e7c03ad8619f43657a7f13761",

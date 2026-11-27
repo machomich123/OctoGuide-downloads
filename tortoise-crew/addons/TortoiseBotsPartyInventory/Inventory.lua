@@ -1026,13 +1026,6 @@ local function beginDrag(button)
         status("This ALT's previous placement is still settling; no new move was sent.")
         return
     end
-    -- An explicit new drag supersedes an older deferred GUID lookup. Never
-    -- let a stale drag intention block all later trades, and never replay the
-    -- old intention when its delayed inventory snapshot finally arrives.
-    if deferredGuidTransfer then
-        deferredGuidTransfer = nil
-        if render then render(false) end
-    end
     if item.noTrade and button.kind ~= "gear" then
         -- Bound stacks can still be equipped by their own bot.
         if not owned(card.character) then
@@ -1322,11 +1315,13 @@ local function receive(destinationButton)
         if source.item ~= destination.item then nativeMove(source, destination) end
         return
     end
-    if deferredGuidTransfer then
-        status("Synchronizing an earlier stack; no item has moved yet.")
-        return
+    if deferredGuidTransfer and source.type == "ai" then
+        deferredGuidTransfer = nil
+        TB._partyTransferQueue = nil
+        if render then render(false) end
     end
     if ((pendingTransfer and pendingTransfer.kind == "transfer") or
+        deferredGuidTransfer or
         (not pendingTransfer and TB._partyTransferQueue and table.getn(TB._partyTransferQueue) > 0))
         and source.owner ~= destination.owner
         and (source.type == "self" or source.type == "own")
@@ -1335,7 +1330,8 @@ local function receive(destinationButton)
         and source.item and source.item.guid and source.item.guid > 0 and not source.item.noTrade
         and destination.item and destination.item.bag ~= nil and not destination.item.id then
         TB._partyTransferQueue = TB._partyTransferQueue or {}
-        local activeMove = pendingTransfer and pendingTransfer.visual
+        local activeMove = (pendingTransfer and pendingTransfer.visual) or
+            (deferredGuidTransfer and deferredGuidTransfer.visual)
         if activeMove and (activeMove.source.guid == source.item.guid or
             (activeMove.to == destination.owner and activeMove.target.bag == destination.item.bag
                 and activeMove.target.slot == destination.item.slot)) then
@@ -1359,6 +1355,10 @@ local function receive(destinationButton)
             target = destination.item})
         status(table.getn(TB._partyTransferQueue) .. " more transfer(s) queued.")
         if render then render(false) end
+        return
+    end
+    if deferredGuidTransfer then
+        status("Synchronizing an earlier stack. Wait for its GUID before moving another unresolved stack.")
         return
     end
     if pendingTransfer or checkoutQueue then
