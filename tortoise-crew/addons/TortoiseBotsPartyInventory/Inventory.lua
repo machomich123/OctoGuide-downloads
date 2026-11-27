@@ -1060,6 +1060,11 @@ local function nativeMove(source, destination)
         status("Native equipment movement is unavailable in this client.")
         return
     end
+    if destination.kind == "bag" and
+        (not destination.item or destination.item.playerBag == nil) then
+        status("Destination bag slot cannot be resolved.")
+        return
+    end
     if source.kind == "gear" then
         invalidateSelfSnapshot()
         PickupInventoryItem(source.gearSlot + 1)
@@ -1074,10 +1079,6 @@ local function nativeMove(source, destination)
     if destination.kind == "gear" then
         PickupInventoryItem(destination.gearSlot + 1)
     else
-        if not destination.item or destination.item.playerBag == nil then
-            status("Destination bag slot cannot be resolved.")
-            return
-        end
         PickupContainerItem(destination.item.playerBag, destination.item.playerSlot)
     end
     if CursorHasItem and CursorHasItem() then
@@ -1093,31 +1094,27 @@ local function nativeMove(source, destination)
     else
         status("Equipment move requested; verifying local inventory...")
     end
-    if repaintSelf then repaintSelf(false) end
+    if repaintSelf then repaintSelf() end
     refreshAt = GetTime() + 0.04
 end
 
 local function unequipLocalGear(slot)
-    if not PickupInventoryItem or not PickupContainerItem or
-        not CursorHasItem or CursorHasItem() then
-        status("The item cursor is busy or this client cannot unequip gear.")
+    if TB._partySelfGearCommand then
+        TB.SubmitPartySelfGearCommand(nil, nil)
         return
     end
-    if selfServerEquipmentAvailable == true then
-        -- Use the same validated equipment transaction as owned ALTs.
-        -- This also avoids carrying a native cursor item across bag packets.
-        TB.SubmitPartySelfGearCommand("item self unequip 255 " .. slot, "unequip")
+    if CursorHasItem and CursorHasItem() then
+        status("Put the item on your cursor away before unequipping.")
         return
     end
-    if slot >= 19 and slot <= 22 then
-        -- Unlike the native client, the local server helper can evacuate a
-        -- nonempty bag into OTHER bags after a complete capacity preflight.
-        if not selfServerEquipmentAvailable then
-            status("Server version does not support safe self-bag unequip. Update TortoiseBots Core.")
-            return
+    if (slot >= 19 and slot <= 22) or not PickupInventoryItem
+        or not PickupContainerItem or not CursorHasItem then
+        -- Equipped bags may require evacuating their contents atomically.
+        if selfServerEquipmentAvailable then
+            TB.SubmitPartySelfGearCommand("item self unequip 255 " .. slot, "unequip")
+        else
+            status("This client or realm cannot safely unequip the selected slot.")
         end
-        command("item self unequip 255 " .. slot)
-        invalidateSelfSnapshot()
         return
     end
     if not GetInventoryItemTexture("player", slot + 1) then return end
@@ -1143,7 +1140,7 @@ local function unequipLocalGear(slot)
         PickupContainerItem(dest.bag, dest.slot)
         if not CursorHasItem() then
             status("Unequipped to your bags.")
-            if repaintSelf then repaintSelf(false) end
+            if repaintSelf then repaintSelf() end
             refreshAt = GetTime() + 0.04
             return
         end
@@ -1524,20 +1521,27 @@ local function wireSlot(button)
                 -- Some custom 1.12 clients return false for a complete item
                 -- hyperlink even though the server item is wearable. Check
                 -- its numeric ID and the item's EQUIP location independently.
-                local nativeId = itemIdFromLink(link) or this.item.id
+                local linkedId = itemIdFromLink(link)
+                if linkedId and linkedId ~= this.item.id then
+                    status("The item in that slot changed. Try again.")
+                    return
+                end
+                local nativeId = linkedId or this.item.id
+                local nativeEquipment = false
                 local equippable = this.item.equippable == true or (IsEquippableItem and
                     (IsEquippableItem(nativeId) or (link and IsEquippableItem(link)))
                     )
                 if GetItemInfo then
                     local _, _, _, _, _, _, _, _, location = GetItemInfo(nativeId)
                     if type(location) == "string" and string.sub(location, 1, 8) == "INVTYPE_" then
-                        equippable = this.item.equippable == true
-                            or location ~= "INVTYPE_NON_EQUIP"
+                        equippable = location ~= "INVTYPE_NON_EQUIP"
+                        nativeEquipment = linkedId ~= nil and location ~= "INVTYPE_NON_EQUIP"
+                            and location ~= "INVTYPE_BAG" and location ~= "INVTYPE_QUIVER"
                     end
                 end
                 if equippable and (UseContainerItem or selfServerEquipmentAvailable) then
                     pendingSelfEquip = nil
-                    if selfServerEquipmentAvailable then
+                    if selfServerEquipmentAvailable and not (nativeEquipment and UseContainerItem) then
                         if not TB.SubmitPartySelfGearCommand("item self equip "
                             .. this.item.bag .. " " .. this.item.slot, "equip") then return end
                         status("Equipping your character through the server.")
@@ -1546,7 +1550,7 @@ local function wireSlot(button)
                         UseContainerItem(this.item.playerBag, this.item.playerSlot)
                         status("Quick-equipping to your character.")
                     end
-                    if repaintSelf then repaintSelf(false) end
+                    if repaintSelf then repaintSelf() end
                     refreshAt = GetTime() + 0.04
                 else
                     -- Actual Turtle 1.18.1 bug: a genuine wearable sword
@@ -2750,7 +2754,7 @@ dialogBuy:SetScript("OnClick", function()
         return
     end
     checkoutQueue = { entries = approved, total = table.getn(approved),
-        nextIndex = 1, nextAt = GetTime() }
+        nextIndex = 1 }
     tradeDialog:Hide()
     startQueuedCheckout()
 end)
@@ -2962,12 +2966,12 @@ local function paint(card, member, request)
     -- equip/unequip. Never re-dress self using that stale remote snapshot.
     local modelItems = not own and inventory and inventory.equipped or nil
     local modelSignature = ""
-    if own and card.canInspect then
+    if modelUnit and (own or not modelItems) then
         local names = {}
         for id = 0, 18 do
             local slot = id + 1
-            local link = GetInventoryItemLink and GetInventoryItemLink("player", slot)
-            local texture = GetInventoryItemTexture("player", slot)
+            local link = GetInventoryItemLink and GetInventoryItemLink(modelUnit, slot)
+            local texture = GetInventoryItemTexture(modelUnit, slot)
             names[id + 1] = link or texture or "0"
         end
         modelSignature = table.concat(names, ",")
@@ -3024,7 +3028,6 @@ local function paint(card, member, request)
             end
             card.modelUnit = modelUnit
             card.modelAppearance = modelSignature
-            card.lastModelRefreshAt = GetTime()
         end
         if not card.model:IsShown() then card.model:Show() end
     else
@@ -3408,10 +3411,7 @@ local function repaintMember(name)
     end
 end
 
-repaintSelf = function(forceModel)
-    if forceModel and columns[1] then
-        columns[1].modelUnit = nil
-    end
+repaintSelf = function()
     repaintMember(UnitName("player"))
 end
 
@@ -3456,7 +3456,6 @@ verifyActivePurchase = function()
     pendingTransfer = nil
     if checkoutQueue then
         checkoutQueue.nextIndex = checkoutQueue.nextIndex + 1
-        checkoutQueue.nextAt = GetTime() + 0.32
         status("Purchase verified " .. (checkoutQueue.nextIndex - 1) .. "/"
             .. checkoutQueue.total .. ". Next item starts only after this settlement.")
     else
@@ -4262,7 +4261,7 @@ TB.SetInventory = function(name, inventory)
         if table.getn(pendingTrade) ~= previousStagedCount then
             -- Seller removal also changes the buyer's preview outline and
             -- trade strip height; those did not receive a server snapshot.
-            repaintSelf(false)
+            repaintSelf()
             layoutCards()
         end
         refreshTrade()
@@ -4273,7 +4272,6 @@ frame:RegisterEvent("BAG_UPDATE")
 frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 frame:RegisterEvent("UNIT_MODEL_CHANGED")
-frame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
 frame:RegisterEvent("PLAYER_MONEY")
 frame:RegisterEvent("PLAYER_TARGET_CHANGED")
 frame:RegisterEvent("TRADE_CLOSED")
@@ -4319,26 +4317,18 @@ frame:SetScript("OnEvent", function()
         -- Party membership and equipment did not change.
         return
     elseif event == "BAG_UPDATE" then
-        repaintSelf(false)
+        repaintSelf()
         verifyActivePurchase()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-        repaintSelf(false)
-    elseif event == "UNIT_INVENTORY_CHANGED" or event == "UNIT_MODEL_CHANGED"
-        or event == "UNIT_PORTRAIT_UPDATE" then
+        repaintSelf()
+    elseif event == "UNIT_INVENTORY_CHANGED" or event == "UNIT_MODEL_CHANGED" then
         if arg1 and UnitExists(arg1) then
             for _, card in ipairs(columns) do
                 if card.unit == arg1 then
-                    -- Multiple UNIT_* events can accompany one equip. The
-                    -- snapshot path may already have rebuilt the model.
-                    if not card.lastModelRefreshAt
-                        or GetTime() - card.lastModelRefreshAt >= 0.12 then
-                        if card.characterType ~= "self" then card.modelUnit = nil end
-                        repaintMember(card.character)
-                    else
-                        -- Do not discard rapid successive equipment events:
-                        -- defer a single final-state repaint past the throttle.
-                        card.modelSettleAt = GetTime() + 0.15
-                    end
+                    -- Inventory notifications can repeat for one change.
+                    -- Compare the actual costume before rebuilding the model.
+                    if event == "UNIT_MODEL_CHANGED" then card.modelUnit = nil end
+                    repaintMember(card.character)
                     break
                 end
             end
@@ -4346,7 +4336,7 @@ frame:SetScript("OnEvent", function()
     elseif event == "PLAYER_MONEY" then
         if frame:IsShown() then refreshCoinBars() end
         if pendingTransfer and pendingTransfer.kind == "buy" then
-            repaintSelf(false)
+            repaintSelf()
             verifyActivePurchase()
         end
     else
@@ -4375,7 +4365,7 @@ local function finishVerifiedSelfEquip(wanted)
         UseContainerItem(wanted.playerBag, wanted.playerSlot)
         status("Server confirmed wearable item; quick-equip requested.")
     end
-    if repaintSelf then repaintSelf(false) end
+    if repaintSelf then repaintSelf() end
     refreshAt = GetTime() + 0.04
 end
 
@@ -4402,8 +4392,7 @@ frame:SetScript("OnUpdate", function()
         pendingCoinTransfer.timeoutWarned = true
         status("Coin transfer receipt delayed. Refresh or relog, but DO NOT pay again until verified.")
     end
-    if checkoutQueue and not pendingTransfer
-        and GetTime() >= (checkoutQueue.nextAt or 0) then
+    if checkoutQueue and not pendingTransfer then
         startQueuedCheckout()
     end
     if pendingSelfEquip then
@@ -4452,18 +4441,6 @@ frame:SetScript("OnUpdate", function()
         and GetTime() >= deferredGuidTransfer.retryAt then
         deferredGuidTransfer.retryAt = nil
         TB.SendBotCommand("inv self")
-    end
-    -- A fast ALT equip/unequip can coalesce both unit events into one native
-    -- frame. Resample the final authoritative snapshot once, after a short
-    -- settle period, rather than showing the old robe indefinitely.
-    if frame:IsShown() then
-        for _, card in ipairs(columns) do
-            if card.modelSettleAt and GetTime() >= card.modelSettleAt then
-                card.modelSettleAt = nil
-                card.modelUnit = nil
-                if card.character then repaintMember(card.character) end
-            end
-        end
     end
     if pendingTransfer and pendingTransfer.kind == "buy" then
         local active = pendingTransfer
@@ -4537,7 +4514,7 @@ frame:SetScript("OnUpdate", function()
     refreshAt = nil
     -- Only local native data can have changed here. Remote panels are updated
     -- by a completed server snapshot or their own unit equipment event.
-    repaintSelf(false)
+    repaintSelf()
 end)
 frame:SetScript("OnHide", function()
     syncNativeTradeFrame(true)
