@@ -1021,7 +1021,10 @@ local function beginDrag(button)
     -- An explicit new drag supersedes an older deferred GUID lookup. Never
     -- let a stale drag intention block all later trades, and never replay the
     -- old intention when its delayed inventory snapshot finally arrives.
-    if deferredGuidTransfer then deferredGuidTransfer = nil end
+    if deferredGuidTransfer then
+        deferredGuidTransfer = nil
+        if render then render(false) end
+    end
     if item.noTrade and button.kind ~= "gear" then
         -- Bound stacks can still be equipped by their own bot.
         if not owned(card.character) then
@@ -1092,7 +1095,15 @@ local function nativeMove(source, destination)
     if CursorHasItem and CursorHasItem() then
         status("Swap needs attention: the displaced item is still on your cursor.")
     else
-        status("Equipment move requested; verifying local inventory...")
+        status("Move sent to the game.")
+        if source.kind == "bag" and destination.kind == "bag" and
+            source.item.id ~= destination.item.id then
+            TB._partyLocalBagMove = {
+                from = source.owner, to = destination.owner,
+                source = source.item, target = destination.item,
+                expires = GetTime() + 0.7,
+            }
+        end
     end
     if repaintSelf then repaintSelf() end
     refreshAt = GetTime() + 0.04
@@ -1280,14 +1291,6 @@ end
 local function receive(destinationButton)
     local source = dragged
     if not source then return end
-    if deferredGuidTransfer then
-        status("Synchronizing an earlier stack; no item has moved yet.")
-        return
-    end
-    if pendingTransfer or checkoutQueue then
-        status("Another item transfer is still being verified. Try again after refresh.")
-        return
-    end
     local card = destinationButton.card
     if not card or not card.canInspect then
         status("Destination inventory is private or not yet authorized.")
@@ -1306,6 +1309,19 @@ local function receive(destinationButton)
         TB.SubmitPartySelfGearCommand(nil, nil)
         return
     end
+    if source.owner == destination.owner and source.type == "self"
+        and source.kind == "bag" and destination.kind == "bag" then
+        if source.item ~= destination.item then nativeMove(source, destination) end
+        return
+    end
+    if deferredGuidTransfer then
+        status("Synchronizing an earlier stack; no item has moved yet.")
+        return
+    end
+    if pendingTransfer or checkoutQueue then
+        status("Another item transfer is still being verified. Try again after refresh.")
+        return
+    end
     if source.owner == destination.owner then
         if source.kind == destination.kind
             and (source.kind ~= "gear" or source.gearSlot == destination.gearSlot)
@@ -1321,7 +1337,7 @@ local function receive(destinationButton)
                     status("This server cannot safely swap equipped bags. Update TortoiseBots Core.")
                 end
             elseif source.kind == "gear" and destination.kind == "bag" then
-                if selfServerEquipmentAvailable then
+                if selfServerEquipmentAvailable and source.gearSlot >= 19 and source.gearSlot <= 22 then
                     TB.SubmitPartySelfGearCommand("item self unequip 255 " .. source.gearSlot,
                         "unequip")
                 elseif source.gearSlot >= 19 and source.gearSlot <= 22 then
@@ -1330,7 +1346,7 @@ local function receive(destinationButton)
                     nativeMove(source, destination)
                 end
             elseif source.kind == "bag" and destination.kind == "gear" then
-                if selfServerEquipmentAvailable then
+                if selfServerEquipmentAvailable and destination.gearSlot >= 19 and destination.gearSlot <= 22 then
                     TB.SubmitPartySelfGearCommand("item self equip " .. source.item.bag .. " "
                         .. source.item.slot .. " " .. destination.gearSlot, "equip")
                 elseif destination.gearSlot >= 19 and destination.gearSlot <= 22 then
@@ -1423,6 +1439,8 @@ local function receive(destinationButton)
                 targetId = destination.item.id,
                 targetCount = destination.item.count,
                 startedAt = GetTime(),
+                visual = {from = source.owner, to = destination.owner,
+                    source = source.item, target = destination.item},
             }
             if guidResolveCapable then
                 local from = source.type == "self" and "self" or source.owner
@@ -1435,6 +1453,7 @@ local function receive(destinationButton)
                 TB.RequestInventory(source.owner)
             end
             status("Synchronizing the selected stack; the exact move is queued.")
+            if render then render(false) end
             return
         end
         status("Source GUID unavailable; requested a fresh inventory snapshot.")
@@ -1454,8 +1473,11 @@ local function receive(destinationButton)
             startedAt = GetTime(),
         }
         if destination.item and destination.item.bag ~= nil then
+            pendingTransfer.visual = {from = source.owner, to = destination.owner,
+                source = source.item, target = destination.item}
             command(prefix .. "put " .. args .. " "
                 .. destination.item.bag .. " " .. destination.item.slot)
+            if render then render(false) end
         else
             command(prefix .. "move " .. args)
         end
@@ -1527,8 +1549,9 @@ local function wireSlot(button)
                     return
                 end
                 local nativeId = linkedId or this.item.id
-                local nativeEquipment = false
-                local equippable = this.item.equippable == true or (IsEquippableItem and
+                local nativeEquipment = linkedId and TB._partyWornItemIds and
+                    TB._partyWornItemIds[linkedId]
+                local equippable = nativeEquipment or this.item.equippable == true or (IsEquippableItem and
                     (IsEquippableItem(nativeId) or (link and IsEquippableItem(link)))
                     )
                 if GetItemInfo then
@@ -2928,6 +2951,23 @@ local function populateBot(inventory)
     return result
 end
 
+function TB.PartyInventoryPreview(card, item)
+    local move = TB._partyLocalBagMove
+    if move and GetTime() < move.expires and card.characterType == "self" then
+        if item.bag == move.source.bag and item.slot == move.source.slot and
+            item.id == move.source.id then return move.target end
+        if item.bag == move.target.bag and item.slot == move.target.slot and
+            item.id == move.target.id then return move.source end
+    end
+    move = (pendingTransfer and pendingTransfer.visual) or
+        (deferredGuidTransfer and deferredGuidTransfer.visual)
+    if not move then return nil end
+    if card.character == move.to and item.bag == move.target.bag and
+        item.slot == move.target.slot and not item.id then return move.source end
+    if card.character == move.from and item.bag == move.source.bag and
+        item.slot == move.source.slot and item.id == move.source.id then return move.target end
+end
+
 local function paint(card, member, request)
     local name = member and member.name
     if card.character ~= name then
@@ -2973,6 +3013,11 @@ local function paint(card, member, request)
             local link = GetInventoryItemLink and GetInventoryItemLink(modelUnit, slot)
             local texture = GetInventoryItemTexture(modelUnit, slot)
             names[id + 1] = link or texture or "0"
+            local itemId = own and itemIdFromLink(link)
+            if itemId then
+                TB._partyWornItemIds = TB._partyWornItemIds or {}
+                TB._partyWornItemIds[itemId] = true
+            end
         end
         modelSignature = table.concat(names, ",")
     elseif modelItems and card.canInspect then
@@ -3117,15 +3162,17 @@ local function paint(card, member, request)
         if card.canInspect and index <= visibleBagCells and item then
             if not cell:IsShown() then cell:Show() end
             cell.item = item
-            if item.id then
-                setPathTexture(cell.icon, resolvedItemTexture(item.id, item.texture))
+            local preview = TB.PartyInventoryPreview(card, item)
+            local visual = preview or item
+            if visual.id then
+                setPathTexture(cell.icon, resolvedItemTexture(visual.id, visual.texture))
             else
                 -- Full-size genuine WoW backpack art instead of the dark
                 -- featureless blocks introduced in the previous update.
                 setPathTexture(cell.icon, EMPTY_SLOT)
             end
-            setAlpha(cell.icon, 1)
-            local count = item.count and item.count > 1 and tostring(item.count) or ""
+            setAlpha(cell.icon, preview and 0.65 or 1)
+            local count = visual.count and visual.count > 1 and tostring(visual.count) or ""
             if cell.count:GetText() ~= count then cell.count:SetText(count) end
             if item.id then
                 paintItemAppearance(cell, item)
@@ -3798,6 +3845,7 @@ TB.OnSystemMessage = function(message)
             status("Item positions changed on server; resyncing both inventories.")
         end
         pendingTransfer = nil
+        if frame:IsShown() then render(false) end
     elseif intent == "item quote" then
         -- The core reports failed quotes without an item name. Retire the
         -- oldest outstanding quote instead of leaving 'Price pending' forever.
@@ -3840,11 +3888,8 @@ TB.OnSystemMessage = function(message)
         status(result or "The server refused the equipment change.")
     elseif string.find(message, "^TBM:ACTION_ACK|item transfer|") then
         if pendingTransfer and pendingTransfer.kind == "transfer" then
-            local done = pendingTransfer
-            pendingTransfer = nil
-            requestFreshInventory(done.from, true)
-            requestFreshInventory(done.to, true)
-            status("Native server confirmed the item transfer; refreshing current slots.")
+            pendingTransfer.acked = true
+            status("Transfer confirmed. Applying the server's inventory snapshots.")
         else
             status("Transfer acknowledged by server; refreshing snapshots.")
         end
@@ -3964,13 +4009,14 @@ TB.OnSystemMessage = function(message)
                     local from = wanted.fromType == "self" and "self" or wanted.from
                     local to = wanted.toType == "self" and "self" or wanted.to
                     pendingTransfer = {kind="transfer", from=wanted.from,
-                        to=wanted.to, startedAt=GetTime()}
+                        to=wanted.to, startedAt=GetTime(), visual=wanted.visual}
                     command("item " .. from .. " transfer " .. to .. " put "
                         .. wanted.bag .. " " .. wanted.slot .. " " .. guid .. " "
                         .. wanted.count .. " " .. wanted.toBag .. " " .. wanted.toSlot)
                     status("Exact server GUID confirmed; transfer sent, awaiting receipt.")
                 else
                     status("The selected stack changed before the server reply. Nothing moved.")
+                    if frame:IsShown() then render(false) end
                 end
             end
             return
@@ -3981,6 +4027,7 @@ TB.OnSystemMessage = function(message)
                 deferredGuidTransfer = nil
                 requestFreshInventory(wanted.from, true)
                 status("The source stack changed. Refreshed without transferring anything.")
+                if frame:IsShown() then render(false) end
             end
             return
         end
@@ -4185,7 +4232,7 @@ TB.SetInventory = function(name, inventory)
                 local to = wanted.toType == "self" and "self" or wanted.to
                 pendingTransfer = {
                     kind = "transfer", from = wanted.from, to = wanted.to,
-                    startedAt = GetTime(),
+                    startedAt = GetTime(), visual = wanted.visual,
                 }
                 command("item " .. from .. " transfer " .. to .. " put "
                     .. wanted.bag .. " " .. wanted.slot .. " " .. serverItem.guid
@@ -4230,6 +4277,7 @@ TB.SetInventory = function(name, inventory)
         if active.fromSeen and active.toSeen then
             pendingTransfer = nil
             status("Both inventories refreshed after transfer.")
+            if frame:IsShown() then render(false) end
         end
     end
     -- Retire paid-trade previews when a newer authorized seller snapshot no
@@ -4317,6 +4365,7 @@ frame:SetScript("OnEvent", function()
         -- Party membership and equipment did not change.
         return
     elseif event == "BAG_UPDATE" then
+        TB._partyLocalBagMove = nil
         repaintSelf()
         verifyActivePurchase()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
@@ -4385,6 +4434,10 @@ end
 
 frame:SetScript("OnUpdate", function()
     syncNativeTradeFrame()
+    if TB._partyLocalBagMove and GetTime() >= TB._partyLocalBagMove.expires then
+        TB._partyLocalBagMove = nil
+        repaintSelf()
+    end
     recoverMissingPlacementSnapshots()
     if pendingCoinTransfer and
         GetTime() - pendingCoinTransfer.started > 10 and
@@ -4458,6 +4511,7 @@ frame:SetScript("OnUpdate", function()
     if deferredGuidTransfer
         and GetTime() - (deferredGuidTransfer.startedAt or GetTime()) > 8 then
         deferredGuidTransfer = nil
+        if frame:IsShown() then render(false) end
         status("Inventory synchronization expired; no item was transferred.")
     end
     -- Delayed item-cache hydration is common after an alt is first invited.
@@ -4508,6 +4562,7 @@ frame:SetScript("OnUpdate", function()
         requestFreshInventory(pendingTransfer.from, true)
         requestFreshInventory(pendingTransfer.to, true)
         pendingTransfer = nil
+        if frame:IsShown() then render(false) end
         status("Transfer confirmation timed out; requested updated inventories.")
     end
     if not refreshAt or GetTime() < refreshAt then return end

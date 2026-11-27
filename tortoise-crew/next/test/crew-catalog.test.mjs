@@ -4,6 +4,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadCatalog, withCrewAddons, repositoryAddonVersion } from '../src/catalog.mjs';
+import { isNewerAddonVersion } from '../src/addon-updates.mjs';
+
+test('bulk addon updates count only strictly newer comparable releases', () => {
+  assert.equal(isNewerAddonVersion('v8.9.0', '8.10.0'), true);
+  assert.equal(isNewerAddonVersion('2026.11.27.3', '2026.11.27.4'), true);
+  assert.equal(isNewerAddonVersion('8.3.0', '5.5.4'), false);
+  assert.equal(isNewerAddonVersion('1.0', 'v1.0.0'), false);
+  assert.equal(isNewerAddonVersion('GIT', '2.0.0'), false);
+  assert.equal(isNewerAddonVersion('1.0', 'Unknown'), false);
+});
 
 test('repository addon version uses the default branch TOC and detects Git builds', async () => {
   const repo = 'https://github.com/example/ExampleAddon';

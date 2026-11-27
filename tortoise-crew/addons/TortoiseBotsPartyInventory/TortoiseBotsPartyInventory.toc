@@ -2,7 +2,7 @@
 ## Title: TBM Party Inventory
 ## Notes: View party gear and bags side by side.
 ## Dependencies: TortoiseBotsManager
-## Version: 2026.11.27.3
+## Version: 2026.11.27.4
 Inventory.lua
 
 ## SavedVariables: TBMPartyInventorySettings
