@@ -483,6 +483,10 @@ local function command(text, sendingText)
     -- TBM Core returns FALSE when its 350ms throttle has *queued* a valid
     -- command, not only when a command is rejected. Treating this as failure
     -- allowed a second sell order to be issued for items already in flight.
+    if pendingTransfer and pendingTransfer.kind == "transfer"
+        and not pendingTransfer.commandText and string.find(text, "^item %S+ transfer ") then
+        pendingTransfer.commandText = text
+    end
     local immediate = TB.SendBotCommand(text)
     status((sendingText or "Awaiting server confirmation...") ..
         (immediate and "" or " (queued by the safe command throttle)"))
@@ -516,6 +520,10 @@ end
 local previousCommandSent = TB.OnCommandSent
 TB.OnCommandSent = function(text)
     if previousCommandSent then previousCommandSent(text) end
+    if pendingTransfer and pendingTransfer.kind == "transfer"
+        and text == pendingTransfer.commandText then
+        pendingTransfer.sentAt = GetTime()
+    end
     local pending = TB._partySelfGearCommand
     if pending and pending.recoveryRequested and not pending.recoverySentAt
         and text == "inv self" then
@@ -1316,6 +1324,41 @@ local function receive(destinationButton)
     end
     if deferredGuidTransfer then
         status("Synchronizing an earlier stack; no item has moved yet.")
+        return
+    end
+    if ((pendingTransfer and pendingTransfer.kind == "transfer") or
+        (not pendingTransfer and TB._partyTransferQueue and table.getn(TB._partyTransferQueue) > 0))
+        and source.owner ~= destination.owner
+        and (source.type == "self" or source.type == "own")
+        and (destination.type == "self" or destination.type == "own")
+        and source.kind == "bag" and destination.kind == "bag"
+        and source.item and source.item.guid and source.item.guid > 0 and not source.item.noTrade
+        and destination.item and destination.item.bag ~= nil and not destination.item.id then
+        TB._partyTransferQueue = TB._partyTransferQueue or {}
+        local activeMove = pendingTransfer and pendingTransfer.visual
+        if activeMove and (activeMove.source.guid == source.item.guid or
+            (activeMove.to == destination.owner and activeMove.target.bag == destination.item.bag
+                and activeMove.target.slot == destination.item.slot)) then
+            status("That stack or destination is already in use by the active transfer.")
+            return
+        end
+        if table.getn(TB._partyTransferQueue) >= 8 then
+            status("Eight transfers are queued. Let them finish before adding more.")
+            return
+        end
+        for _, move in ipairs(TB._partyTransferQueue) do
+            if move.source.guid == source.item.guid or
+                (move.to == destination.owner and move.target.bag == destination.item.bag
+                    and move.target.slot == destination.item.slot) then
+                status("That stack or destination is already queued.")
+                return
+            end
+        end
+        table.insert(TB._partyTransferQueue, {from = source.owner, to = destination.owner,
+            fromType = source.type, toType = destination.type, source = source.item,
+            target = destination.item})
+        status(table.getn(TB._partyTransferQueue) .. " more transfer(s) queued.")
+        if render then render(false) end
         return
     end
     if pendingTransfer or checkoutQueue then
@@ -2951,6 +2994,14 @@ local function populateBot(inventory)
     return result
 end
 
+function TB.PartyInventoryTransferPreview(card, item, entry)
+    if not entry then return nil end
+    if card.character == entry.to and item.bag == entry.target.bag and
+        item.slot == entry.target.slot and not item.id then return entry.source end
+    if card.character == entry.from and item.bag == entry.source.bag and
+        item.slot == entry.source.slot and item.id == entry.source.id then return entry.target end
+end
+
 function TB.PartyInventoryPreview(card, item)
     local move = TB._partyLocalBagMove
     if move and GetTime() < move.expires and card.characterType == "self" then
@@ -2961,11 +3012,12 @@ function TB.PartyInventoryPreview(card, item)
     end
     move = (pendingTransfer and pendingTransfer.visual) or
         (deferredGuidTransfer and deferredGuidTransfer.visual)
-    if not move then return nil end
-    if card.character == move.to and item.bag == move.target.bag and
-        item.slot == move.target.slot and not item.id then return move.source end
-    if card.character == move.from and item.bag == move.source.bag and
-        item.slot == move.source.slot and item.id == move.source.id then return move.target end
+    local visual = TB.PartyInventoryTransferPreview(card, item, move)
+    if visual or not TB._partyTransferQueue then return visual end
+    for _, queued in ipairs(TB._partyTransferQueue) do
+        visual = TB.PartyInventoryTransferPreview(card, item, queued)
+        if visual then return visual end
+    end
 end
 
 local function paint(card, member, request)
@@ -3833,6 +3885,12 @@ TB.OnSystemMessage = function(message)
         status(result or "The vendor errand could not be started.")
         if frame:IsShown() then render(false) end
     elseif intent == "item transfer" or intent == "item buy" then
+        if intent == "item transfer" then
+            TB._partyTransferQueue = nil
+            if frame:IsShown() and DEFAULT_CHAT_FRAME then
+                DEFAULT_CHAT_FRAME:AddMessage("TBM transfer: " .. (result or "Rejected by server."))
+            end
+        end
         if intent == "item buy" and checkoutQueue then
             abortCheckout(result or "the server rejected one purchase")
         end
@@ -3889,6 +3947,7 @@ TB.OnSystemMessage = function(message)
     elseif string.find(message, "^TBM:ACTION_ACK|item transfer|") then
         if pendingTransfer and pendingTransfer.kind == "transfer" then
             pendingTransfer.acked = true
+            pendingTransfer.ackAt = GetTime()
             status("Transfer confirmed. Applying the server's inventory snapshots.")
         else
             status("Transfer acknowledged by server; refreshing snapshots.")
@@ -4336,6 +4395,7 @@ frame:SetScript("OnEvent", function()
         -- Otherwise an old 'own/ai' marker could be reused after a leave,
         -- reinvite or group replacement. Keep item data, not permission.
         partyTypes = {}
+        TB._partyTransferQueue = nil
         pendingSelfEquip = nil
         inventoryRequestedAt = {}
         pendingTrade = {}
@@ -4365,7 +4425,6 @@ frame:SetScript("OnEvent", function()
         -- Party membership and equipment did not change.
         return
     elseif event == "BAG_UPDATE" then
-        TB._partyLocalBagMove = nil
         repaintSelf()
         verifyActivePurchase()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
@@ -4432,8 +4491,35 @@ local function recoverMissingPlacementSnapshots()
     end
 end
 
+function TB.AdvancePartyTransferQueue()
+    if not pendingTransfer and not deferredGuidTransfer and not checkoutQueue
+        and not TB._partySelfGearCommand and TB._partyTransferQueue
+        and table.getn(TB._partyTransferQueue) > 0 then
+        local move = table.remove(TB._partyTransferQueue, 1)
+        if table.getn(TB._partyTransferQueue) == 0 then TB._partyTransferQueue = nil end
+        if isInGroup(move.from) and isInGroup(move.to) then
+            local from = move.fromType == "self" and "self" or move.from
+            local to = move.toType == "self" and "self" or move.to
+            pendingTransfer = {kind = "transfer", from = move.from, to = move.to,
+                startedAt = GetTime(), visual = move}
+            command("item " .. from .. " transfer " .. to .. " put " .. commandArgs(move.source)
+                .. " " .. move.target.bag .. " " .. move.target.slot)
+        else
+            TB._partyTransferQueue = nil
+            status("Party changed. Remaining queued transfers were cleared.")
+            render(false)
+        end
+    end
+    if pendingTransfer and pendingTransfer.kind == "transfer" and pendingTransfer.ackAt
+        and not pendingTransfer.recoveryRequested and GetTime() - pendingTransfer.ackAt > 0.65 then
+        pendingTransfer.recoveryRequested = true
+        if not pendingTransfer.fromSeen then requestFreshInventory(pendingTransfer.from, true) end
+        if not pendingTransfer.toSeen then requestFreshInventory(pendingTransfer.to, true) end
+    end
+end
 frame:SetScript("OnUpdate", function()
     syncNativeTradeFrame()
+    TB.AdvancePartyTransferQueue()
     if TB._partyLocalBagMove and GetTime() >= TB._partyLocalBagMove.expires then
         TB._partyLocalBagMove = nil
         repaintSelf()
@@ -4558,10 +4644,11 @@ frame:SetScript("OnUpdate", function()
         end
     end
     if pendingTransfer and pendingTransfer.kind == "transfer"
-        and GetTime() - (pendingTransfer.startedAt or GetTime()) > 8 then
+        and GetTime() - (pendingTransfer.sentAt or pendingTransfer.startedAt or GetTime()) > 8 then
         requestFreshInventory(pendingTransfer.from, true)
         requestFreshInventory(pendingTransfer.to, true)
         pendingTransfer = nil
+        TB._partyTransferQueue = nil
         if frame:IsShown() then render(false) end
         status("Transfer confirmation timed out; requested updated inventories.")
     end
@@ -4572,6 +4659,7 @@ frame:SetScript("OnUpdate", function()
     repaintSelf()
 end)
 frame:SetScript("OnHide", function()
+    TB._partyTransferQueue = nil
     syncNativeTradeFrame(true)
     adjustInventoryQueue(false)
     fullscreenBackdrop:Hide()
