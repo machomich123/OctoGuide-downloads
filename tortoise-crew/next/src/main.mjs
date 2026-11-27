@@ -13,7 +13,7 @@ import { manifest, crewRequest, crewLogin, crewPresence, changePassword } from '
 import { GameRelay } from './relay.mjs';
 import { saveCredential, readCredential, storedAccounts } from './secrets.mjs';
 import { openDesktopApp } from './desktop-window.mjs';
-import { loadCatalog, searchGitHub, clientLocations } from './catalog.mjs';
+import { loadCatalog, searchGitHub, clientLocations, repositoryAddonVersion } from './catalog.mjs';
 import { installFromGitHub } from './github-addons.mjs';
 import { inspectPartyInventory, partyInventoryStatus,
   installPartyInventory, waitForPartyInventoryUpdates } from './managed-addons.mjs';
@@ -550,6 +550,8 @@ async function operate(action, args) {
       return loadCatalog({ force: args.force === true, root, legacy: previous });
     case 'addonDetails':
       return addonDetails(String(args.url || ''));
+    case 'addonRepositoryVersion':
+      return repositoryAddonVersion(String(args.url || ''), String(args.name || ''));
     case 'githubSearch':
       return { items: await searchGitHub(String(args.query || '')) };
     case 'scanClients':

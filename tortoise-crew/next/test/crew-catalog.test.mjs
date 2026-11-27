@@ -3,7 +3,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadCatalog, withCrewAddons } from '../src/catalog.mjs';
+import { loadCatalog, withCrewAddons, repositoryAddonVersion } from '../src/catalog.mjs';
+
+test('repository addon version uses the default branch TOC and detects Git builds', async () => {
+  const repo = 'https://github.com/example/ExampleAddon';
+  const version = await repositoryAddonVersion(repo, 'ExampleAddon', async url => {
+    assert.equal(url, 'https://raw.githubusercontent.com/example/ExampleAddon/HEAD/ExampleAddon.toc');
+    return '## Interface: 11200\n## Version: 3.1.5\n';
+  });
+  assert.deepEqual(version, { version: '3.1.5', development: false });
+  assert.deepEqual(await repositoryAddonVersion(repo, 'ExampleAddon', async () =>
+    '## Interface: 11200\n## Version: GIT\n'), { version: '', development: true });
+  assert.deepEqual(await repositoryAddonVersion(repo, 'ExampleAddon', async () => {
+    throw Error('Addon source unavailable (HTTP 404).');
+  }), { unavailable: true });
+});
 test('TortoiseBotsManager is installable even with a fresh offline profile and no registry requests added',async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'crew-catalog-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));let requests=0;

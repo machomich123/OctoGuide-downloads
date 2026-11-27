@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir, legacyDir } from './config.mjs';
 import { featuredAddon } from './managed-addons.mjs';
+import { readTocMetadata } from './addons.mjs';
 
 const REGISTRY = 'https://raw.githubusercontent.com/bnema/turtlectl/main/data/addons.json';
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
@@ -104,6 +105,32 @@ async function fetchTextLimited(url, maxBytes, timeout = 16000) {
     chunks.push(Buffer.from(piece));
   }
   return Buffer.concat(chunks).toString('utf8');
+}
+
+// The repository installer downloads the default branch. Read the version
+// from that same branch's Classic TOC, since catalog rows often omit it.
+export async function repositoryAddonVersion(url, name, fetchText = fetchTextLimited) {
+  const repo = gitHubRepo(url);
+  if (!repo) return null;
+  const names = [...new Set([repo.repo, name])].filter(entry =>
+    typeof entry === 'string' && /^[A-Za-z0-9_!. -]{1,100}$/.test(entry));
+  const root = 'https://raw.githubusercontent.com/' + encodeURIComponent(repo.owner) +
+    '/' + encodeURIComponent(repo.repo) + '/HEAD/';
+  for (const toc of names) {
+    try {
+      const metadata = readTocMetadata(await fetchText(root + encodeURIComponent(toc + '.toc'), 64 * 1024, 5000));
+      if (metadata.interfaceVersion && !/^(11\d\d\d|12\d\d\d)$/.test(metadata.interfaceVersion)) continue;
+      if (metadata.version || metadata.development)
+        return { version: metadata.version, development: metadata.development };
+    } catch { /* Optional metadata may be missing or temporarily unavailable. */ }
+  }
+  try {
+    await fetchText('https://api.github.com/repos/' + encodeURIComponent(repo.owner) +
+      '/' + encodeURIComponent(repo.repo), 128 * 1024, 5000);
+  } catch (error) {
+    if (/\(HTTP 404\)/.test(error.message)) return { unavailable: true };
+  }
+  return null;
 }
 
 export async function loadCatalog({ force = false, root = dataDir(),
