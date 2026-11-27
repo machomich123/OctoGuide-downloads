@@ -165,6 +165,8 @@ const catalogView = {
   installedLoaded: false, installedBusy: false,
 };
 const PARTY_INVENTORY_FOLDER = 'TortoiseBotsPartyInventory';
+const repositoryVersions = new Map();
+let versionObserver;
 const PACKS = [
   { name: 'Comfy Atmosphere', description: 'Review local atmosphere and MPQ files. Client patches are not activated.', source: 'Local game patch' },
   { name: 'HD Switch / HD Pack', description: 'OctoWoW HD packs may be realm-specific; import only compatible addon files.', source: 'OctoWoW client patch' },
@@ -198,19 +200,37 @@ function addonVersions(item) {
   const managed = item.managedId === 'party-inventory' || item.name === PARTY_INVENTORY_FOLDER;
   const local = catalogView.tab === 'installed' ? item :
     (managed ? catalogView.installed.find(entry => entry.name === PARTY_INVENTORY_FOLDER) :
-      uniqueMatch(catalogView.installed, item.name));
+      uniqueMatch(catalogView.installed, item.name) ||
+      uniqueMatch(catalogView.installed, item.url?.split('/').filter(Boolean).pop()?.replace(/\.git$/, '')));
   const current = managed && catalogView.managedStatus?.installed ?
     (catalogView.managedStatus.current || local?.version) : local?.version;
   const catalogEntry = catalogView.tab === 'installed' ?
     uniqueMatch(catalogView.items, managed ? 'TBM Party Inventory' : item.name) : item;
-  const latest = managed ? catalogView.managedStatus?.latest : catalogEntry?.latestVersion;
+  const published = managed ? catalogView.managedStatus?.latest : catalogEntry?.latestVersion;
   return {
     installed: !catalogView.installedLoaded ? 'Not checked' :
-      (!local && catalogView.tab !== 'installed') ? 'Not detected' : displayAddonVersion(current),
-    latest: displayAddonVersion(latest),
+      (!local && catalogView.tab !== 'installed') ? 'Not detected' :
+        local?.development && !current ? 'Development (Git)' : displayAddonVersion(current),
+    published, current, local: Boolean(local),
+    repository: !managed && !published && catalogEntry?.installable ? catalogEntry : null,
     interfaceVersion: local?.interfaceVersion || '',
   };
 }
+function observeRepositoryVersion(card, repo, apply) {
+  const load = () => {
+    const id = repo.url.toLowerCase().replace(/\/$/, '');
+    if (!repositoryVersions.has(id)) {
+      repositoryVersions.set(id, api('addonRepositoryVersion', { url: repo.url, name: repo.name })
+        .catch(() => null));
+    }
+    void repositoryVersions.get(id).then(result => {
+      if (card.isConnected) apply(result);
+    });
+  };
+  card.loadRepositoryVersion = load;
+  versionObserver.observe(card);
+}
+
 function renderAddons() {
   const importVisible = catalogView.tab === 'import';
   $('addonToolbar').classList.toggle('hidden', importVisible || catalogView.tab === 'installed' || catalogView.tab === 'packs');
@@ -242,6 +262,14 @@ function renderAddons() {
     ' of ' + filtered.length + ' addons' : 'No addons found';
   $('addonPrev').disabled = catalogView.page <= 0;
   $('addonNext').disabled = catalogView.page >= pages - 1;
+  versionObserver?.disconnect();
+  versionObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      versionObserver.unobserve(entry.target);
+      entry.target.loadRepositoryVersion();
+    }
+  }, { root: $('addonList') });
   $('addonList').replaceChildren();
   for (const item of filtered.slice(catalogView.page * pageSize, (catalogView.page + 1) * pageSize)) {
     const card = addonNode('article', 'addon-card');
@@ -256,10 +284,24 @@ function renderAddons() {
     const info = addonNode('div', 'addon-info');
     info.append(addonNode('h3', 'addon-name', item.name),
       addonNode('p', 'addon-desc', item.description || item.skipped || 'Installed addon'));
-    if (catalogView.tab !== 'packs') {
-      const versions = addonVersions(item);
-      info.append(addonNode('div', 'addon-meta addon-versions',
-        'Installed: ' + versions.installed + '  ·  Latest: ' + versions.latest));
+    const versions = catalogView.tab === 'packs' ? null : addonVersions(item);
+    let versionRow, repositoryInstall;
+    if (versions) {
+      versionRow = addonNode('div', 'addon-meta addon-versions',
+        'Installed: ' + versions.installed + '  ·  ' +
+        (versions.repository ? 'Repository: Checking…' : 'Latest: ' + displayAddonVersion(versions.published)));
+      if (versions.repository) {
+        observeRepositoryVersion(card, versions.repository, remote => {
+          versionRow.textContent = 'Installed: ' + versions.installed + '  ·  Repository: ' +
+            (remote?.unavailable ? 'Unavailable' : remote?.development ?
+              'Development (Git)' : displayAddonVersion(remote?.version));
+          if (remote?.unavailable && repositoryInstall) {
+            repositoryInstall.textContent = 'Source unavailable';
+            repositoryInstall.disabled = true;
+          }
+        });
+      }
+      info.append(versionRow);
       if (catalogView.tab === 'installed') {
         info.append(addonNode('div', 'addon-aux', item.skipped ||
           (versions.interfaceVersion ? 'WoW interface: ' + versions.interfaceVersion : '')));
@@ -278,8 +320,10 @@ function renderAddons() {
       if (item.installable) {
         const managed = item.managedId ? catalogView.managedStatus : null;
         const upToDate = Boolean(managed?.installed && !managed.updateAvailable);
-        const label = upToDate ? 'Up to date' : managed?.installed ? 'Update' : 'Install';
+        const label = upToDate ? 'Up to date' : managed?.installed ? 'Update' :
+          versions?.local ? 'Install from repo' : 'Install';
         const install = addonNode('button', 'primary', label);
+        if (!item.managedId) repositoryInstall = install;
         install.disabled = upToDate;
         install.addEventListener('click', () => installAddon(item));
         controls.append(install);
@@ -297,9 +341,8 @@ function renderAddons() {
       importButton.addEventListener('click', () => selectAddonTab('import'));
       controls.append(importButton);
     }
-    info.append(controls);
     card.append(item.icon ? image : addonNode('div', 'addon-art-fallback',
-      (item.name || '?').slice(0, 1).toUpperCase()), info);
+      (item.name || '?').slice(0, 1).toUpperCase()), info, controls);
     $('addonList').append(card);
   }
 }
@@ -342,6 +385,7 @@ async function refreshManagedStatus() {
 async function refreshCatalog(force) {
   if (catalogView.busy) return;
   catalogView.busy = true;
+  if (force) repositoryVersions.clear();
   $('refreshCatalog').disabled = true;
   $('addonStatus').textContent = 'Loading the Turtle WoW community registry…';
   try {

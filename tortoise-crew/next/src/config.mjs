@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 
 export const GAME_SHA256 = '97EA82AB7A82ED88BC5A155AB9BBF7E0BCDB5B9F892A47C6F8EDABE1496BFC75';
-export const NEXT_VERSION = '0.3.12';
+export const NEXT_VERSION = '0.3.13';
 export const ACCOUNTS = Object.freeze(['MICHAEL', 'JAYKE', 'BERNARD', 'AUGUST']);
 export const MANIFEST_URL = 'https://raw.githubusercontent.com/machomich123/OctoGuide-downloads/main/tortoise-crew/manifest.json';
 

@@ -51,8 +51,8 @@ input:not([type="checkbox"]), select { font:14px system-ui; color:var(--text); b
 .addon-tabs button.active { border-color:#58bfa4; background:#194a45; }
 .addon-toolbar { display:grid; grid-template-columns:minmax(130px,1fr) 160px 160px 82px; gap:8px; align-items:center; flex:0 0 auto; }
 .addon-toolbar input,.addon-toolbar select { height:37px; }
-.addon-list { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); align-content:start; gap:9px; padding:2px 4px 12px 0; }
-.addon-card { display:grid; grid-template-columns:54px minmax(0,1fr); gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px; min-height:115px; }
+.addon-list { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr)); grid-auto-rows:max-content; align-content:start; gap:9px; padding:2px 4px 12px 0; }
+.addon-card { display:grid; grid-template-columns:54px minmax(0,1fr); grid-template-rows:1fr auto; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:11px; min-width:0; }
 .addon-art { width:52px; height:52px; object-fit:cover; border-radius:8px; background:#304456; }
 .addon-info { min-width:0; }
 .addon-name { font-size:14px; font-weight:700; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -60,7 +60,8 @@ input:not([type="checkbox"]), select { font:14px system-ui; color:var(--text); b
 .addon-meta { color:var(--mint); font-size:11px; }
 .addon-versions { line-height:1.5; overflow-wrap:anywhere; }
 .addon-aux { color:var(--muted); font-size:11px; margin-top:2px; }
-.addon-buttons { display:flex; justify-content:flex-end; gap:6px; margin-top:7px; }
+.addon-buttons { grid-column:1 / -1; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.addon-buttons:empty { display:none; }
 .addon-buttons button { font-size:11px; padding:5px 9px; }
 .addon-bottom { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .addon-bottom .actions button { padding:7px 10px; font-size:12px; }
